@@ -6,7 +6,7 @@
 ; 6520 PIAs present in the Commodore PET 4032:
 ;
 ;   PIA 1 ($E810-$E813) - Keyboard matrix interface
-;     Test 1: DDR-A = $FF  (row drivers are outputs)
+;     Test 1: DDR-A = $0F  (lower nibble are outputs)
 ;     Test 2: DDR-B = $00  (column sense lines are inputs)
 ;     Test 3: Keyboard scan - deassert all rows, Port-B
 ;             must read $FF when no key is pressed
@@ -97,11 +97,11 @@ main:
         jsr print_str
 
         ; --------------------------------------------------------
-        ; Test 1 - PIA1 DDR-A should equal $FF
+        ; Test 1 - PIA1 DDR-A should equal $0F
         ;
-        ; The PET KERNAL configures Port-A as all outputs so it
-        ; can drive the keyboard row select lines.  Read DDR-A
-        ; and verify it equals $FF.
+        ; The PET KERNAL configures Port-A lower nibble as outputs
+        ; to drive the keyboard row select lines, so DDR-A = $0F.
+        ; Read DDR-A and verify it equals $0F.
         ; --------------------------------------------------------
         lda #<msg_t1
         ldx #>msg_t1
@@ -125,7 +125,7 @@ main:
         sta (PIAPTR),y      ; restore CRA
         cli
         txa                 ; DDR-A value back in A
-        cmp #$FF
+        cmp #$0F
         beq t1_pass
         lda #1
         jmp t1_result
@@ -444,7 +444,7 @@ msg_banner:
         .byte "----------------", $0d
         .byte 0
 
-msg_t1: .byte "PIA1 DDRA=$FF:  ", 0
+msg_t1: .byte "PIA1 DDRA=$0F:  ", 0
 msg_t2: .byte "PIA1 DDRB=$00:  ", 0
 msg_t3: .byte "KBD SCAN IDLE:  ", 0
 msg_t4: .byte "PIA2 DDRA R/W:  ", 0
