@@ -23,15 +23,14 @@
 ; ============================================================
 ; Hardware addresses
 ; ============================================================
-PIA1_ORA = $E810    ; PIA1 Port-A / DDR-A (CRA bit2=0->DDR, bit2=1->data)
-PIA1_ORB = $E811    ; PIA1 Port-B / DDR-B
-PIA1_CRA = $E812    ; PIA1 Control Register A
-PIA1_CRB = $E813    ; PIA1 Control Register B
+PIA1_BASE = $E810   ; PIA1 base address
+PIA2_BASE = $E820   ; PIA2 base address
 
-PIA2_ORA = $E820    ; PIA2 Port-A / DDR-A
-PIA2_ORB = $E821    ; PIA2 Port-B / DDR-B
-PIA2_CRA = $E822    ; PIA2 Control Register A
-PIA2_CRB = $E823    ; PIA2 Control Register B
+; Register offsets from PIA base address
+PIA_ORA = 0         ; Port-A / DDR-A (CRA bit2=0->DDR, bit2=1->data)
+PIA_ORB = 1         ; Port-B / DDR-B (CRB bit2=0->DDR, bit2=1->data)
+PIA_CRA = 2         ; Control Register A
+PIA_CRB = 3         ; Control Register B
 
 ; CBM KERNAL output routine
 CHROUT   = $FFD2    ; Output character in A to current channel
@@ -44,8 +43,7 @@ CHROUT   = $FFD2    ; Output character in A to current channel
 STRPTR   = $02      ; 2-byte pointer used by print_str ($02-$03)
 PASS_CNT = $04      ; running count of passed tests
 FAIL_CNT = $05      ; running count of failed tests
-DDRPTR   = $06      ; 2-byte pointer to the DDR/data register ($06-$07)
-CRPTR    = $08      ; 2-byte pointer to the control register ($08-$09)
+PIAPTR   = $06      ; 2-byte pointer to PIA base address ($06-$07)
 
 ; ============================================================
 ; .PRG file header - first two bytes are the CBM load address
@@ -102,14 +100,11 @@ main:
         sta STRPTR+1
         jsr print_str
 
-        lda #<PIA1_ORA
-        sta DDRPTR
-        lda #>PIA1_ORA
-        sta DDRPTR+1
-        lda #<PIA1_CRA
-        sta CRPTR
-        lda #>PIA1_CRA
-        sta CRPTR+1
+        lda #<PIA1_BASE
+        sta PIAPTR
+        lda #>PIA1_BASE
+        sta PIAPTR+1
+        ldy #PIA_ORA        ; DDR-A register offset
         jsr test_ddr
         jsr print_result
 
@@ -120,14 +115,8 @@ main:
         sta STRPTR+1
         jsr print_str
 
-        lda #<PIA1_ORB
-        sta DDRPTR
-        lda #>PIA1_ORB
-        sta DDRPTR+1
-        lda #<PIA1_CRB
-        sta CRPTR
-        lda #>PIA1_CRB
-        sta CRPTR+1
+        ; PIAPTR still = PIA1_BASE
+        ldy #PIA_ORB        ; DDR-B register offset
         jsr test_ddr
         jsr print_result
 
@@ -138,14 +127,11 @@ main:
         sta STRPTR+1
         jsr print_str
 
-        lda #<PIA2_ORA
-        sta DDRPTR
-        lda #>PIA2_ORA
-        sta DDRPTR+1
-        lda #<PIA2_CRA
-        sta CRPTR
-        lda #>PIA2_CRA
-        sta CRPTR+1
+        lda #<PIA2_BASE
+        sta PIAPTR
+        lda #>PIA2_BASE
+        sta PIAPTR+1
+        ldy #PIA_ORA        ; DDR-A register offset
         jsr test_ddr
         jsr print_result
 
@@ -156,14 +142,8 @@ main:
         sta STRPTR+1
         jsr print_str
 
-        lda #<PIA2_ORB
-        sta DDRPTR
-        lda #>PIA2_ORB
-        sta DDRPTR+1
-        lda #<PIA2_CRB
-        sta CRPTR
-        lda #>PIA2_CRB
-        sta CRPTR+1
+        ; PIAPTR still = PIA2_BASE
+        ldy #PIA_ORB        ; DDR-B register offset
         jsr test_ddr
         jsr print_result
 
@@ -174,10 +154,11 @@ main:
         sta STRPTR+1
         jsr print_str
 
-        lda #<PIA1_CRA
-        sta CRPTR
-        lda #>PIA1_CRA
-        sta CRPTR+1
+        lda #<PIA1_BASE
+        sta PIAPTR
+        lda #>PIA1_BASE
+        sta PIAPTR+1
+        ldy #PIA_CRA        ; CRA register offset
         jsr test_cr
         jsr print_result
 
@@ -188,10 +169,8 @@ main:
         sta STRPTR+1
         jsr print_str
 
-        lda #<PIA1_CRB
-        sta CRPTR
-        lda #>PIA1_CRB
-        sta CRPTR+1
+        ; PIAPTR still = PIA1_BASE
+        ldy #PIA_CRB        ; CRB register offset
         jsr test_cr
         jsr print_result
 
@@ -202,10 +181,11 @@ main:
         sta STRPTR+1
         jsr print_str
 
-        lda #<PIA2_CRA
-        sta CRPTR
-        lda #>PIA2_CRA
-        sta CRPTR+1
+        lda #<PIA2_BASE
+        sta PIAPTR
+        lda #>PIA2_BASE
+        sta PIAPTR+1
+        ldy #PIA_CRA        ; CRA register offset
         jsr test_cr
         jsr print_result
 
@@ -216,10 +196,8 @@ main:
         sta STRPTR+1
         jsr print_str
 
-        lda #<PIA2_CRB
-        sta CRPTR
-        lda #>PIA2_CRB
-        sta CRPTR+1
+        ; PIAPTR still = PIA2_BASE
+        ldy #PIA_CRB        ; CRB register offset
         jsr test_cr
         jsr print_result
 
@@ -253,57 +231,74 @@ t1_done:
 ; ============================================================
 ; Subroutine: test_ddr
 ;
-; Exercises the DDR register pointed to by DDRPTR through
-; four patterns ($FF, $55, $AA, $00).  CR bit 2 is cleared
-; to select DDR access, then restored afterwards.
+; Exercises the DDR register for the PIA port identified by
+; PIAPTR (base address) and Y (DDR register offset: PIA_ORA=0
+; for port A, PIA_ORB=1 for port B).  The CR register is at
+; offset Y+2 (PIA_CRA or PIA_CRB).  CR bit 2 is cleared to
+; select DDR access, then restored afterwards.
+; Four patterns ($FF/$55/$AA/$00) are written and read back.
 ;
-; Inputs:  DDRPTR - ZP pointer to the port/DDR register
-;          CRPTR  - ZP pointer to the control register
+; Inputs:  PIAPTR - ZP pointer to the PIA base address
+;          Y      - DDR register offset (PIA_ORA or PIA_ORB)
 ; Returns: A = 0 (pass) or A = 1 (fail)
+; Clobbers: X, Y
 ; ============================================================
 test_ddr:
-        sei                 ; disable interrupts during access
-        ldy #0
-        lda (CRPTR),y       ; read current CR
+        sei
+        tya                 ; A = DDR register offset
+        tax                 ; X = DDR offset (preserved for restore)
+        clc
+        adc #2              ; A = CR register offset (DDR+2)
+        tay                 ; Y = CR offset
+        lda (PIAPTR),y      ; read current CR
         pha                 ; save original CR
         and #$FB            ; clear bit 2 -> select DDR mode
-        sta (CRPTR),y
+        sta (PIAPTR),y      ; write updated CR
+
+        txa                 ; A = DDR offset
+        tay                 ; Y = DDR offset
 
         lda #$FF
-        sta (DDRPTR),y
-        lda (DDRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         cmp #$FF
         bne td_fail
 
         lda #$55
-        sta (DDRPTR),y
-        lda (DDRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         cmp #$55
         bne td_fail
 
         lda #$AA
-        sta (DDRPTR),y
-        lda (DDRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         cmp #$AA
         bne td_fail
 
         lda #$00
-        sta (DDRPTR),y
-        lda (DDRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         cmp #$00
         bne td_fail
 
-        pla                 ; restore original CR
-        ldy #0
-        sta (CRPTR),y
+        txa                 ; A = DDR offset
+        clc
+        adc #2              ; A = CR offset
+        tay                 ; Y = CR offset
+        pla                 ; A = original CR
+        sta (PIAPTR),y      ; restore CR
         cli
         lda #0              ; pass
         rts
 
 td_fail:
-        pla                 ; restore original CR
-        ldy #0
-        sta (CRPTR),y
+        txa                 ; A = DDR offset
+        clc
+        adc #2              ; A = CR offset
+        tay                 ; Y = CR offset
+        pla                 ; A = original CR
+        sta (PIAPTR),y      ; restore CR
         cli
         lda #1              ; fail
         rts
@@ -311,47 +306,46 @@ td_fail:
 ; ============================================================
 ; Subroutine: test_cr
 ;
-; Verifies that bits 5:0 of the control register are
-; writable and readable.  Bits 7:6 are read-only interrupt
-; flags and are masked out during comparison.
-; The original register value is always restored.
+; Verifies that bits 5:0 of the control register at PIAPTR
+; base + Y offset are writable and readable.  Bits 7:6 are
+; read-only interrupt flags and are masked out during
+; comparison.  The original register value is always restored.
 ;
-; Inputs:  CRPTR - ZP pointer to the control register
+; Inputs:  PIAPTR - ZP pointer to the PIA base address
+;          Y      - CR register offset (PIA_CRA=2 or PIA_CRB=3)
 ; Returns: A = 0 (pass) or A = 1 (fail)
+; Clobbers: Y (unchanged - Y stays at CR offset throughout)
 ; ============================================================
 test_cr:
         sei
-        ldy #0
-        lda (CRPTR),y       ; read current CR
+        lda (PIAPTR),y      ; read current CR
         pha                 ; save original CR
 
         ; Write $3F (all six writable bits set), read back
         lda #$3F
-        sta (CRPTR),y
-        lda (CRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         and #$3F            ; mask off read-only interrupt flags
         cmp #$3F
         bne tc_fail
 
         ; Write $00 (all six writable bits clear), read back
         lda #$00
-        sta (CRPTR),y
-        lda (CRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         and #$3F
         cmp #$00
         bne tc_fail
 
         pla
-        ldy #0
-        sta (CRPTR),y       ; restore original CR
+        sta (PIAPTR),y      ; restore original CR
         cli
         lda #0              ; pass
         rts
 
 tc_fail:
         pla
-        ldy #0
-        sta (CRPTR),y       ; restore original CR
+        sta (PIAPTR),y      ; restore original CR
         cli
         lda #1              ; fail
         rts

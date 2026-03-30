@@ -28,15 +28,14 @@
 ; ============================================================
 ; Hardware addresses
 ; ============================================================
-PIA1_ORA = $E810    ; PIA1 Port-A / DDR-A
-PIA1_ORB = $E811    ; PIA1 Port-B / DDR-B
-PIA1_CRA = $E812    ; PIA1 Control Register A
-PIA1_CRB = $E813    ; PIA1 Control Register B
+PIA1_BASE = $E810   ; PIA1 base address
+PIA2_BASE = $E820   ; PIA2 base address
 
-PIA2_ORA = $E820    ; PIA2 Port-A / DDR-A  (IEEE-488 data bus)
-PIA2_ORB = $E821    ; PIA2 Port-B / DDR-B  (IEEE-488 control)
-PIA2_CRA = $E822    ; PIA2 Control Register A
-PIA2_CRB = $E823    ; PIA2 Control Register B
+; Register offsets from PIA base address
+PIA_ORA = 0         ; Port-A / DDR-A
+PIA_ORB = 1         ; Port-B / DDR-B
+PIA_CRA = 2         ; Control Register A
+PIA_CRB = 3         ; Control Register B
 
 ; PIA2 Port-B (IEEE-488 control lines) bit masks
 ; bit 0: nDAV  - output (Data Valid, active-low)
@@ -58,8 +57,7 @@ CHROUT   = $FFD2    ; Output character in A
 STRPTR   = $02      ; 2-byte string pointer for print_str ($02-$03)
 PASS_CNT = $04      ; running pass count
 FAIL_CNT = $05      ; running fail count
-DDRPTR   = $06      ; 2-byte pointer to DDR register ($06-$07)
-CRPTR    = $08      ; 2-byte pointer to CR register  ($08-$09)
+PIAPTR   = $06      ; 2-byte pointer to PIA base address ($06-$07)
 
 ; ============================================================
 ; .PRG load address header
@@ -113,15 +111,22 @@ main:
         sta STRPTR+1
         jsr print_str
 
+        lda #<PIA1_BASE
+        sta PIAPTR
+        lda #>PIA1_BASE
+        sta PIAPTR+1
         sei
-        lda PIA1_CRA        ; save CRA
+        ldy #PIA_CRA        ; Y = CRA offset
+        lda (PIAPTR),y      ; save CRA
         pha
         and #$FB            ; clear bit 2 -> select DDR access
-        sta PIA1_CRA
-        lda PIA1_ORA        ; read DDR-A into A
+        sta (PIAPTR),y
+        ldy #PIA_ORA        ; Y = ORA/DDRA offset
+        lda (PIAPTR),y      ; read DDR-A into A
         tax                 ; stash in X
-        pla                 ; restore original CRA
-        sta PIA1_CRA
+        ldy #PIA_CRA        ; Y = CRA offset
+        pla                 ; A = original CRA
+        sta (PIAPTR),y      ; restore CRA
         cli
         txa                 ; DDR-A value back in A
         cmp #$FF
@@ -145,15 +150,19 @@ t1_result:
         sta STRPTR+1
         jsr print_str
 
+        ; PIAPTR still = PIA1_BASE
         sei
-        lda PIA1_CRB        ; save CRB
+        ldy #PIA_CRB        ; Y = CRB offset
+        lda (PIAPTR),y      ; save CRB
         pha
         and #$FB            ; clear bit 2 -> select DDR access
-        sta PIA1_CRB
-        lda PIA1_ORB        ; read DDR-B into A
+        sta (PIAPTR),y
+        ldy #PIA_ORB        ; Y = ORB/DDRB offset
+        lda (PIAPTR),y      ; read DDR-B into A
         tax                 ; stash in X
-        pla                 ; restore original CRB
-        sta PIA1_CRB
+        ldy #PIA_CRB        ; Y = CRB offset
+        pla                 ; A = original CRB
+        sta (PIAPTR),y      ; restore CRB
         cli
         txa                 ; DDR-B value back in A
         cmp #$00
@@ -178,32 +187,40 @@ t2_result:
         sta STRPTR+1
         jsr print_str
 
+        ; PIAPTR still = PIA1_BASE
         sei
         ; Save CRA, then enable data-register access (bit 2 = 1)
-        lda PIA1_CRA
+        ldy #PIA_CRA        ; Y = CRA offset
+        lda (PIAPTR),y
         pha                 ; stack: CRA
         ora #$04
-        sta PIA1_CRA
+        sta (PIAPTR),y
         ; Save CRB, then enable data-register access
-        lda PIA1_CRB
+        ldy #PIA_CRB        ; Y = CRB offset
+        lda (PIAPTR),y
         pha                 ; stack: CRB, CRA
         ora #$04
-        sta PIA1_CRB
+        sta (PIAPTR),y
         ; Save current Port-A output latch, then deassert all rows
-        lda PIA1_ORA
+        ldy #PIA_ORA        ; Y = ORA offset
+        lda (PIAPTR),y
         pha                 ; stack: Port-A, CRB, CRA
         lda #$FF
-        sta PIA1_ORA        ; all rows deasserted (high = not selected)
+        sta (PIAPTR),y      ; all rows deasserted (high = not selected)
         ; Read keyboard columns
-        lda PIA1_ORB        ; column state -> A
+        ldy #PIA_ORB        ; Y = ORB offset
+        lda (PIAPTR),y      ; column state -> A
         tax                 ; stash in X (free from stack manipulation)
         ; Restore Port-A, CRB, CRA in reverse push order
+        ldy #PIA_ORA        ; Y = ORA offset
         pla                 ; A = orig Port-A
-        sta PIA1_ORA
+        sta (PIAPTR),y
+        ldy #PIA_CRB        ; Y = CRB offset
         pla                 ; A = orig CRB
-        sta PIA1_CRB
+        sta (PIAPTR),y
+        ldy #PIA_CRA        ; Y = CRA offset
         pla                 ; A = orig CRA
-        sta PIA1_CRA
+        sta (PIAPTR),y
         cli
         txa                 ; column state back in A
         cmp #$FF
@@ -226,14 +243,11 @@ t3_result:
         sta STRPTR+1
         jsr print_str
 
-        lda #<PIA2_ORA
-        sta DDRPTR
-        lda #>PIA2_ORA
-        sta DDRPTR+1
-        lda #<PIA2_CRA
-        sta CRPTR
-        lda #>PIA2_CRA
-        sta CRPTR+1
+        lda #<PIA2_BASE
+        sta PIAPTR
+        lda #>PIA2_BASE
+        sta PIAPTR+1
+        ldy #PIA_ORA        ; DDR-A register offset
         jsr test_ddr
         jsr print_result
 
@@ -251,15 +265,19 @@ t3_result:
         sta STRPTR+1
         jsr print_str
 
+        ; PIAPTR still = PIA2_BASE
         sei
-        lda PIA2_CRB        ; save CRB
+        ldy #PIA_CRB        ; Y = CRB offset
+        lda (PIAPTR),y      ; save CRB
         pha
         ora #$04            ; select Port-B data register
-        sta PIA2_CRB
-        lda PIA2_ORB        ; read IEEE-488 control lines
+        sta (PIAPTR),y
+        ldy #PIA_ORB        ; Y = ORB offset
+        lda (PIAPTR),y      ; read IEEE-488 control lines
         tax                 ; stash in X
-        pla                 ; restore original CRB
-        sta PIA2_CRB
+        ldy #PIA_CRB        ; Y = CRB offset
+        pla                 ; A = original CRB
+        sta (PIAPTR),y      ; restore CRB
         cli
         txa                 ; control-line state back in A
         and #IEEE_NRFD_NDAC ; test nNRFD and nNDAC bits
@@ -304,59 +322,75 @@ m2_done:
 ; ============================================================
 ; Subroutine: test_ddr
 ;
-; Same implementation as Module 1.  Tests the DDR register
-; pointed to by DDRPTR with patterns $FF/$55/$AA/$00 after
-; clearing CR bit 2 to select DDR access.  Original CR is
-; always restored.
+; Exercises the DDR register for the PIA port identified by
+; PIAPTR (base address) and Y (DDR register offset: PIA_ORA=0
+; for port A, PIA_ORB=1 for port B).  The CR register is at
+; offset Y+2 (PIA_CRA or PIA_CRB).  CR bit 2 is cleared to
+; select DDR access, then restored afterwards.
+; Four patterns ($FF/$55/$AA/$00) are written and read back.
 ;
-; Inputs  : DDRPTR - ZP pointer to the port/DDR register
-;           CRPTR  - ZP pointer to the control register
+; Inputs  : PIAPTR - ZP pointer to the PIA base address
+;           Y      - DDR register offset (PIA_ORA or PIA_ORB)
 ; Returns : A = 0  pass
 ;           A = 1  fail
+; Clobbers: X, Y
 ; ============================================================
 test_ddr:
         sei
-        ldy #0
-        lda (CRPTR),y
-        pha
-        and #$FB
-        sta (CRPTR),y
+        tya                 ; A = DDR register offset
+        tax                 ; X = DDR offset (preserved for restore)
+        clc
+        adc #2              ; A = CR register offset (DDR+2)
+        tay                 ; Y = CR offset
+        lda (PIAPTR),y      ; read current CR
+        pha                 ; save original CR
+        and #$FB            ; clear bit 2 -> select DDR mode
+        sta (PIAPTR),y      ; write updated CR
+
+        txa                 ; A = DDR offset
+        tay                 ; Y = DDR offset
 
         lda #$FF
-        sta (DDRPTR),y
-        lda (DDRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         cmp #$FF
         bne td_fail
 
         lda #$55
-        sta (DDRPTR),y
-        lda (DDRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         cmp #$55
         bne td_fail
 
         lda #$AA
-        sta (DDRPTR),y
-        lda (DDRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         cmp #$AA
         bne td_fail
 
         lda #$00
-        sta (DDRPTR),y
-        lda (DDRPTR),y
+        sta (PIAPTR),y
+        lda (PIAPTR),y
         cmp #$00
         bne td_fail
 
-        pla
-        ldy #0
-        sta (CRPTR),y
+        txa                 ; A = DDR offset
+        clc
+        adc #2              ; A = CR offset
+        tay                 ; Y = CR offset
+        pla                 ; A = original CR
+        sta (PIAPTR),y      ; restore CR
         cli
         lda #0
         rts
 
 td_fail:
-        pla
-        ldy #0
-        sta (CRPTR),y
+        txa                 ; A = DDR offset
+        clc
+        adc #2              ; A = CR offset
+        tay                 ; Y = CR offset
+        pla                 ; A = original CR
+        sta (PIAPTR),y      ; restore CR
         cli
         lda #1
         rts
