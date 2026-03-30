@@ -91,97 +91,21 @@ main:
         ldx #>msg_banner
         jsr print_str
 
-        ; Test 1 - PIA1 DDR A
-        lda #<msg_p1da
-        ldx #>msg_p1da
+        ; PIA1 - all four register tests
+        lda #<msg_pia1_hdr
+        ldx #>msg_pia1_hdr
         jsr print_str
-
         lda #<PIA1_BASE
-        sta PIAPTR
-        lda #>PIA1_BASE
-        sta PIAPTR+1
-        ldy #PIA_ORA        ; DDR-A register offset
-        jsr test_ddr
-        jsr print_result
+        ldx #>PIA1_BASE
+        jsr test_pia
 
-        ; Test 2 - PIA1 DDR B
-        lda #<msg_p1db
-        ldx #>msg_p1db
+        ; PIA2 - all four register tests
+        lda #<msg_pia2_hdr
+        ldx #>msg_pia2_hdr
         jsr print_str
-
-        ; PIAPTR still = PIA1_BASE
-        ldy #PIA_ORB        ; DDR-B register offset
-        jsr test_ddr
-        jsr print_result
-
-        ; Test 3 - PIA2 DDR A
-        lda #<msg_p2da
-        ldx #>msg_p2da
-        jsr print_str
-
         lda #<PIA2_BASE
-        sta PIAPTR
-        lda #>PIA2_BASE
-        sta PIAPTR+1
-        ldy #PIA_ORA        ; DDR-A register offset
-        jsr test_ddr
-        jsr print_result
-
-        ; Test 4 - PIA2 DDR B
-        lda #<msg_p2db
-        ldx #>msg_p2db
-        jsr print_str
-
-        ; PIAPTR still = PIA2_BASE
-        ldy #PIA_ORB        ; DDR-B register offset
-        jsr test_ddr
-        jsr print_result
-
-        ; Test 5 - PIA1 Control Register A
-        lda #<msg_p1ca
-        ldx #>msg_p1ca
-        jsr print_str
-
-        lda #<PIA1_BASE
-        sta PIAPTR
-        lda #>PIA1_BASE
-        sta PIAPTR+1
-        ldy #PIA_CRA        ; CRA register offset
-        jsr test_cr
-        jsr print_result
-
-        ; Test 6 - PIA1 Control Register B
-        lda #<msg_p1cb
-        ldx #>msg_p1cb
-        jsr print_str
-
-        ; PIAPTR still = PIA1_BASE
-        ldy #PIA_CRB        ; CRB register offset
-        jsr test_cr
-        jsr print_result
-
-        ; Test 7 - PIA2 Control Register A
-        lda #<msg_p2ca
-        ldx #>msg_p2ca
-        jsr print_str
-
-        lda #<PIA2_BASE
-        sta PIAPTR
-        lda #>PIA2_BASE
-        sta PIAPTR+1
-        ldy #PIA_CRA        ; CRA register offset
-        jsr test_cr
-        jsr print_result
-
-        ; Test 8 - PIA2 Control Register B
-        lda #<msg_p2cb
-        ldx #>msg_p2cb
-        jsr print_str
-
-        ; PIAPTR still = PIA2_BASE
-        ldy #PIA_CRB        ; CRB register offset
-        jsr test_cr
-        jsr print_result
+        ldx #>PIA2_BASE
+        jsr test_pia
 
         ; Summary
         lda #<msg_divider
@@ -203,6 +127,55 @@ t1_some_fail:
 
 t1_done:
         rts                 ; return to BASIC
+
+; ============================================================
+; Subroutine: test_pia
+;
+; Runs all four register tests (DDR-A, DDR-B, CR-A, CR-B) for
+; the PIA whose base address is passed in A (low) and X (high).
+; PIAPTR is set from A/X on entry and remains valid throughout.
+;
+; Inputs:  A = low byte of PIA base address
+;          X = high byte of PIA base address
+; Clobbers: PIAPTR, A, X, Y
+; ============================================================
+test_pia:
+        sta PIAPTR          ; set PIA base address
+        stx PIAPTR+1
+
+        ; DDR-A
+        lda #<msg_ddra
+        ldx #>msg_ddra
+        jsr print_str
+        ldy #PIA_ORA
+        jsr test_ddr
+        jsr print_result
+
+        ; DDR-B
+        lda #<msg_ddrb
+        ldx #>msg_ddrb
+        jsr print_str
+        ldy #PIA_ORB
+        jsr test_ddr
+        jsr print_result
+
+        ; Control Register A
+        lda #<msg_cra
+        ldx #>msg_cra
+        jsr print_str
+        ldy #PIA_CRA
+        jsr test_cr
+        jsr print_result
+
+        ; Control Register B
+        lda #<msg_crb
+        ldx #>msg_crb
+        jsr print_str
+        ldy #PIA_CRB
+        jsr test_cr
+        jsr print_result
+
+        rts
 
 ; ============================================================
 ; Subroutine: test_ddr
@@ -382,14 +355,13 @@ msg_banner:
         .byte "----------------", $0d
         .byte 0
 
-msg_p1da:   .byte "PIA1 DDRA: ", 0
-msg_p1db:   .byte "PIA1 DDRB: ", 0
-msg_p2da:   .byte "PIA2 DDRA: ", 0
-msg_p2db:   .byte "PIA2 DDRB: ", 0
-msg_p1ca:   .byte "PIA1 CRA:  ", 0
-msg_p1cb:   .byte "PIA1 CRB:  ", 0
-msg_p2ca:   .byte "PIA2 CRA:  ", 0
-msg_p2cb:   .byte "PIA2 CRB:  ", 0
+msg_pia1_hdr:  .byte "PIA1:", $0d, 0
+msg_pia2_hdr:  .byte "PIA2:", $0d, 0
+
+msg_ddra:   .byte "  DDRA: ", 0
+msg_ddrb:   .byte "  DDRB: ", 0
+msg_cra:    .byte "  CRA:  ", 0
+msg_crb:    .byte "  CRB:  ", 0
 
 msg_ok:     .byte "OK", $0d, 0
 msg_fail:   .byte "FAIL", $0d, 0
