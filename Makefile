@@ -17,10 +17,10 @@ all: $(PRG1) $(PRG2)
 $(BUILD):
 	mkdir -p $(BUILD)
 
-$(PRG1): pia_test1.asm | $(BUILD)
+$(PRG1): pia_test1.a65 | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ $<
 
-$(PRG2): pia_test2.asm | $(BUILD)
+$(PRG2): pia_test2.a65 | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ $<
 
 # Run Module 1 in VICE (PET 4032)
