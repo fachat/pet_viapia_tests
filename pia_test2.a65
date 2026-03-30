@@ -33,8 +33,8 @@ PIA2_BASE = $E820   ; PIA2 base address
 
 ; Register offsets from PIA base address
 PIA_ORA = 0         ; Port-A / DDR-A
-PIA_ORB = 1         ; Port-B / DDR-B
-PIA_CRA = 2         ; Control Register A
+PIA_CRA = 1         ; Control Register A
+PIA_ORB = 2         ; Port-B / DDR-B
 PIA_CRB = 3         ; Control Register B
 
 ; PIA2 Port-B (IEEE-488 control lines) bit masks
@@ -306,8 +306,8 @@ m2_done:
 ;
 ; Exercises the DDR register for the PIA port identified by
 ; PIAPTR (base address) and Y (DDR register offset: PIA_ORA=0
-; for port A, PIA_ORB=1 for port B).  The CR register is at
-; offset Y+2 (PIA_CRA or PIA_CRB).  CR bit 2 is cleared to
+; for port A, PIA_ORB=2 for port B).  The CR register is at
+; offset Y+1 (PIA_CRA or PIA_CRB).  CR bit 2 is cleared to
 ; select DDR access, then restored afterwards.
 ; Four patterns ($FF/$55/$AA/$00) are written and read back.
 ;
@@ -322,7 +322,7 @@ test_ddr:
         tya                 ; A = DDR register offset
         tax                 ; X = DDR offset (preserved for restore)
         clc
-        adc #2              ; A = CR register offset (DDR+2)
+        adc #1              ; A = CR register offset (DDR+1)
         tay                 ; Y = CR offset
         lda (PIAPTR),y      ; read current CR
         pha                 ; save original CR
@@ -358,7 +358,7 @@ test_ddr:
 
         txa                 ; A = DDR offset
         clc
-        adc #2              ; A = CR offset
+        adc #1              ; A = CR offset
         tay                 ; Y = CR offset
         pla                 ; A = original CR
         sta (PIAPTR),y      ; restore CR
@@ -369,7 +369,7 @@ test_ddr:
 td_fail:
         txa                 ; A = DDR offset
         clc
-        adc #2              ; A = CR offset
+        adc #1              ; A = CR offset
         tay                 ; Y = CR offset
         pla                 ; A = original CR
         sta (PIAPTR),y      ; restore CR

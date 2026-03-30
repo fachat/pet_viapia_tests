@@ -28,8 +28,8 @@ PIA2_BASE = $E820   ; PIA2 base address
 
 ; Register offsets from PIA base address
 PIA_ORA = 0         ; Port-A / DDR-A (CRA bit2=0->DDR, bit2=1->data)
-PIA_ORB = 1         ; Port-B / DDR-B (CRB bit2=0->DDR, bit2=1->data)
-PIA_CRA = 2         ; Control Register A
+PIA_CRA = 1         ; Control Register A
+PIA_ORB = 2         ; Port-B / DDR-B (CRB bit2=0->DDR, bit2=1->data)
 PIA_CRB = 3         ; Control Register B
 
 ; CBM KERNAL output routine
@@ -182,8 +182,8 @@ test_pia:
 ;
 ; Exercises the DDR register for the PIA port identified by
 ; PIAPTR (base address) and Y (DDR register offset: PIA_ORA=0
-; for port A, PIA_ORB=1 for port B).  The CR register is at
-; offset Y+2 (PIA_CRA or PIA_CRB).  CR bit 2 is cleared to
+; for port A, PIA_ORB=2 for port B).  The CR register is at
+; offset Y+1 (PIA_CRA or PIA_CRB).  CR bit 2 is cleared to
 ; select DDR access, then restored afterwards.
 ; Four patterns ($FF/$55/$AA/$00) are written and read back.
 ;
@@ -197,7 +197,7 @@ test_ddr:
         tya                 ; A = DDR register offset
         tax                 ; X = DDR offset (preserved for restore)
         clc
-        adc #2              ; A = CR register offset (DDR+2)
+        adc #1              ; A = CR register offset (DDR+1)
         tay                 ; Y = CR offset
         lda (PIAPTR),y      ; read current CR
         pha                 ; save original CR
@@ -233,7 +233,7 @@ test_ddr:
 
         txa                 ; A = DDR offset
         clc
-        adc #2              ; A = CR offset
+        adc #1              ; A = CR offset
         tay                 ; Y = CR offset
         pla                 ; A = original CR
         sta (PIAPTR),y      ; restore CR
@@ -244,7 +244,7 @@ test_ddr:
 td_fail:
         txa                 ; A = DDR offset
         clc
-        adc #2              ; A = CR offset
+        adc #1              ; A = CR offset
         tay                 ; Y = CR offset
         pla                 ; A = original CR
         sta (PIAPTR),y      ; restore CR
@@ -261,7 +261,7 @@ td_fail:
 ; comparison.  The original register value is always restored.
 ;
 ; Inputs:  PIAPTR - ZP pointer to the PIA base address
-;          Y      - CR register offset (PIA_CRA=2 or PIA_CRB=3)
+;          Y      - CR register offset (PIA_CRA=1 or PIA_CRB=3)
 ; Returns: A = 0 (pass) or A = 1 (fail)
 ; Clobbers: Y (unchanged - Y stays at CR offset throughout)
 ; ============================================================
