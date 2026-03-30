@@ -1,0 +1,9 @@
+# Build artefacts
+build/
+*.prg
+*.o
+*.lst
+
+# VICE artefacts
+*.png
+*.d64

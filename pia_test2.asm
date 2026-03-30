@@ -1,0 +1,447 @@
+; ============================================================
+; pia_test2.asm
+; 6520 PIA Test Module 2 - PET-specific I/O tests
+;
+; Tests PIA behaviour using the I/O connections of the two
+; 6520 PIAs present in the Commodore PET 4032:
+;
+;   PIA 1 ($E810-$E813) - Keyboard matrix interface
+;     Test 1: DDR-A = $FF  (row drivers are outputs)
+;     Test 2: DDR-B = $00  (column sense lines are inputs)
+;     Test 3: Keyboard scan - deassert all rows, Port-B
+;             must read $FF when no key is pressed
+;
+;   PIA 2 ($E820-$E823) - IEEE-488 bus interface
+;     Test 4: DDR-A is read/writable (data direction register)
+;     Test 5: IEEE-488 handshake lines idle - nNRFD and nNDAC
+;             inputs must read high when no device is attached
+;
+; Each test saves the affected register state before the
+; check and restores it afterwards.  Interrupts are disabled
+; around register accesses to prevent KERNAL interference.
+;
+; Target  : Commodore PET 4032
+; Assembler: xa65  (command: xa)
+; Load    : CBM BASIC LOAD then RUN  - or autostart in VICE
+; ============================================================
+
+; ============================================================
+; Hardware addresses
+; ============================================================
+PIA1_BASE = $E810   ; PIA1 base address
+PIA2_BASE = $E820   ; PIA2 base address
+
+; Register offsets from PIA base address
+PIA_ORA = 0         ; Port-A / DDR-A
+PIA_ORB = 1         ; Port-B / DDR-B
+PIA_CRA = 2         ; Control Register A
+PIA_CRB = 3         ; Control Register B
+
+; PIA2 Port-B (IEEE-488 control lines) bit masks
+; bit 0: nDAV  - output (Data Valid, active-low)
+; bit 1: nNRFD - input  (Not Ready For Data, pulled high when idle)
+; bit 2: nNDAC - input  (Not Data Accepted, pulled high when idle)
+; bit 3: nATN  - output (Attention, active-low)
+; bit 4: nEOI  - bidirectional
+; bit 5: nSRQ  - input  (Service Request, pulled high when idle)
+IEEE_NRFD_MASK  = $02
+IEEE_NDAC_MASK  = $04
+IEEE_NRFD_NDAC  = (IEEE_NRFD_MASK | IEEE_NDAC_MASK)
+
+; CBM KERNAL
+CHROUT   = $FFD2    ; Output character in A
+
+; ============================================================
+; Zero-page temporaries (same layout as pia_test1)
+; ============================================================
+STRPTR   = $02      ; 2-byte string pointer for print_str ($02-$03)
+PASS_CNT = $04      ; running pass count
+FAIL_CNT = $05      ; running fail count
+PIAPTR   = $06      ; 2-byte pointer to PIA base address ($06-$07)
+
+; ============================================================
+; .PRG load address header
+; ============================================================
+* = $0401 - 2
+        .word $0401         ; .prg load address (little-endian)
+
+; ============================================================
+; BASIC stub:  10 SYS 1037
+; (identical header size to Module 1 - machine code at $040D)
+; ============================================================
+* = $0401
+        .word basic_end     ; pointer to next BASIC line
+        .word 10            ; BASIC line number
+        .byte $9e           ; SYS token
+        .byte "1037"        ; decimal address of code_start
+        .byte 0             ; end of BASIC line
+basic_end:
+        .word 0             ; end of BASIC program
+
+; ============================================================
+; Machine code entry point  ($040D = 1037 decimal)
+; ============================================================
+* = $040D
+main:
+        lda #0
+        sta PASS_CNT
+        sta FAIL_CNT
+
+        ; Clear screen
+        lda #$93
+        jsr CHROUT
+
+        ; Print banner
+        lda #<msg_banner
+        ldx #>msg_banner
+        jsr print_str
+
+        ; --------------------------------------------------------
+        ; Test 1 - PIA1 DDR-A should equal $FF
+        ;
+        ; The PET KERNAL configures Port-A as all outputs so it
+        ; can drive the keyboard row select lines.  Read DDR-A
+        ; and verify it equals $FF.
+        ; --------------------------------------------------------
+        lda #<msg_t1
+        ldx #>msg_t1
+        jsr print_str
+
+        lda #<PIA1_BASE
+        sta PIAPTR
+        lda #>PIA1_BASE
+        sta PIAPTR+1
+        sei
+        ldy #PIA_CRA        ; Y = CRA offset
+        lda (PIAPTR),y      ; save CRA
+        pha
+        and #$FB            ; clear bit 2 -> select DDR access
+        sta (PIAPTR),y
+        ldy #PIA_ORA        ; Y = ORA/DDRA offset
+        lda (PIAPTR),y      ; read DDR-A into A
+        tax                 ; stash in X
+        ldy #PIA_CRA        ; Y = CRA offset
+        pla                 ; A = original CRA
+        sta (PIAPTR),y      ; restore CRA
+        cli
+        txa                 ; DDR-A value back in A
+        cmp #$FF
+        beq t1_pass
+        lda #1
+        jmp t1_result
+t1_pass:
+        lda #0
+t1_result:
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 2 - PIA1 DDR-B should equal $00
+        ;
+        ; The KERNAL configures Port-B as all inputs to read the
+        ; keyboard column sense lines.
+        ; --------------------------------------------------------
+        lda #<msg_t2
+        ldx #>msg_t2
+        jsr print_str
+
+        ; PIAPTR still = PIA1_BASE
+        sei
+        ldy #PIA_CRB        ; Y = CRB offset
+        lda (PIAPTR),y      ; save CRB
+        pha
+        and #$FB            ; clear bit 2 -> select DDR access
+        sta (PIAPTR),y
+        ldy #PIA_ORB        ; Y = ORB/DDRB offset
+        lda (PIAPTR),y      ; read DDR-B into A
+        tax                 ; stash in X
+        ldy #PIA_CRB        ; Y = CRB offset
+        pla                 ; A = original CRB
+        sta (PIAPTR),y      ; restore CRB
+        cli
+        txa                 ; DDR-B value back in A
+        cmp #$00
+        beq t2_pass
+        lda #1
+        jmp t2_result
+t2_pass:
+        lda #0
+t2_result:
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 3 - Keyboard scan: no key pressed -> Port-B = $FF
+        ;
+        ; Deassert all keyboard rows (set Port-A = $FF) then read
+        ; the column sense lines.  With no key pressed every
+        ; column line is pulled high, so Port-B must read $FF.
+        ; --------------------------------------------------------
+        lda #<msg_t3
+        ldx #>msg_t3
+        jsr print_str
+
+        ; PIAPTR still = PIA1_BASE
+        sei
+        ; Save CRA, then enable data-register access (bit 2 = 1)
+        ldy #PIA_CRA        ; Y = CRA offset
+        lda (PIAPTR),y
+        pha                 ; stack: CRA
+        ora #$04
+        sta (PIAPTR),y
+        ; Save CRB, then enable data-register access
+        ldy #PIA_CRB        ; Y = CRB offset
+        lda (PIAPTR),y
+        pha                 ; stack: CRB, CRA
+        ora #$04
+        sta (PIAPTR),y
+        ; Save current Port-A output latch, then deassert all rows
+        ldy #PIA_ORA        ; Y = ORA offset
+        lda (PIAPTR),y
+        pha                 ; stack: Port-A, CRB, CRA
+        lda #$FF
+        sta (PIAPTR),y      ; all rows deasserted (high = not selected)
+        ; Read keyboard columns
+        ldy #PIA_ORB        ; Y = ORB offset
+        lda (PIAPTR),y      ; column state -> A
+        tax                 ; stash in X (free from stack manipulation)
+        ; Restore Port-A, CRB, CRA in reverse push order
+        ldy #PIA_ORA        ; Y = ORA offset
+        pla                 ; A = orig Port-A
+        sta (PIAPTR),y
+        ldy #PIA_CRB        ; Y = CRB offset
+        pla                 ; A = orig CRB
+        sta (PIAPTR),y
+        ldy #PIA_CRA        ; Y = CRA offset
+        pla                 ; A = orig CRA
+        sta (PIAPTR),y
+        cli
+        txa                 ; column state back in A
+        cmp #$FF
+        beq t3_pass
+        lda #1
+        jmp t3_result
+t3_pass:
+        lda #0
+t3_result:
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 4 - PIA2 DDR-A read/write (IEEE-488 data direction)
+        ;
+        ; Exercises the DDR via the shared test_ddr subroutine.
+        ; --------------------------------------------------------
+        lda #<msg_t4
+        ldx #>msg_t4
+        jsr print_str
+
+        lda #<PIA2_BASE
+        sta PIAPTR
+        lda #>PIA2_BASE
+        sta PIAPTR+1
+        ldy #PIA_ORA        ; DDR-A register offset
+        jsr test_ddr
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 5 - IEEE-488 handshake lines idle check
+        ;
+        ; With no IEEE-488 device connected the nNRFD and nNDAC
+        ; inputs are pulled high by the bus termination.  Read
+        ; PIA2 Port-B in data-register mode and verify both bits
+        ; are 1 (i.e. the bus is in its idle/released state).
+        ; --------------------------------------------------------
+        lda #<msg_t5
+        ldx #>msg_t5
+        jsr print_str
+
+        ; PIAPTR still = PIA2_BASE
+        sei
+        ldy #PIA_CRB        ; Y = CRB offset
+        lda (PIAPTR),y      ; save CRB
+        pha
+        ora #$04            ; select Port-B data register
+        sta (PIAPTR),y
+        ldy #PIA_ORB        ; Y = ORB offset
+        lda (PIAPTR),y      ; read IEEE-488 control lines
+        tax                 ; stash in X
+        ldy #PIA_CRB        ; Y = CRB offset
+        pla                 ; A = original CRB
+        sta (PIAPTR),y      ; restore CRB
+        cli
+        txa                 ; control-line state back in A
+        and #IEEE_NRFD_NDAC ; test nNRFD and nNDAC bits
+        cmp #IEEE_NRFD_NDAC
+        beq t5_pass
+        lda #1
+        jmp t5_result
+t5_pass:
+        lda #0
+t5_result:
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Summary
+        ; --------------------------------------------------------
+        lda #<msg_divider
+        ldx #>msg_divider
+        jsr print_str
+
+        lda FAIL_CNT
+        bne m2_some_fail
+
+        lda #<msg_all_pass
+        ldx #>msg_all_pass
+        jsr print_str
+        jmp m2_done
+
+m2_some_fail:
+        lda #<msg_some_fail
+        ldx #>msg_some_fail
+        jsr print_str
+
+m2_done:
+        rts                 ; return to BASIC
+
+; ============================================================
+; Subroutine: test_ddr
+;
+; Exercises the DDR register for the PIA port identified by
+; PIAPTR (base address) and Y (DDR register offset: PIA_ORA=0
+; for port A, PIA_ORB=1 for port B).  The CR register is at
+; offset Y+2 (PIA_CRA or PIA_CRB).  CR bit 2 is cleared to
+; select DDR access, then restored afterwards.
+; Four patterns ($FF/$55/$AA/$00) are written and read back.
+;
+; Inputs  : PIAPTR - ZP pointer to the PIA base address
+;           Y      - DDR register offset (PIA_ORA or PIA_ORB)
+; Returns : A = 0  pass
+;           A = 1  fail
+; Clobbers: X, Y
+; ============================================================
+test_ddr:
+        sei
+        tya                 ; A = DDR register offset
+        tax                 ; X = DDR offset (preserved for restore)
+        clc
+        adc #2              ; A = CR register offset (DDR+2)
+        tay                 ; Y = CR offset
+        lda (PIAPTR),y      ; read current CR
+        pha                 ; save original CR
+        and #$FB            ; clear bit 2 -> select DDR mode
+        sta (PIAPTR),y      ; write updated CR
+
+        txa                 ; A = DDR offset
+        tay                 ; Y = DDR offset
+
+        lda #$FF
+        sta (PIAPTR),y
+        lda (PIAPTR),y
+        cmp #$FF
+        bne td_fail
+
+        lda #$55
+        sta (PIAPTR),y
+        lda (PIAPTR),y
+        cmp #$55
+        bne td_fail
+
+        lda #$AA
+        sta (PIAPTR),y
+        lda (PIAPTR),y
+        cmp #$AA
+        bne td_fail
+
+        lda #$00
+        sta (PIAPTR),y
+        lda (PIAPTR),y
+        cmp #$00
+        bne td_fail
+
+        txa                 ; A = DDR offset
+        clc
+        adc #2              ; A = CR offset
+        tay                 ; Y = CR offset
+        pla                 ; A = original CR
+        sta (PIAPTR),y      ; restore CR
+        cli
+        lda #0
+        rts
+
+td_fail:
+        txa                 ; A = DDR offset
+        clc
+        adc #2              ; A = CR offset
+        tay                 ; Y = CR offset
+        pla                 ; A = original CR
+        sta (PIAPTR),y      ; restore CR
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: print_result
+;
+; Prints "OK" or "FAIL" (with CR) and updates counters.
+; Input : A = 0 -> pass,  A != 0 -> fail
+; ============================================================
+print_result:
+        cmp #0
+        bne pr_fail
+
+        inc PASS_CNT
+        lda #<msg_ok
+        ldx #>msg_ok
+        jsr print_str
+        rts
+
+pr_fail:
+        inc FAIL_CNT
+        lda #<msg_fail
+        ldx #>msg_fail
+        jsr print_str
+        rts
+
+; ============================================================
+; Subroutine: print_str
+;
+; Prints a null-terminated string via CHROUT.
+; The string address is passed in A (low byte) and X (high
+; byte); the routine stores them into STRPTR itself.
+;
+; Inputs:  A = low byte of string address
+;          X = high byte of string address
+; ============================================================
+print_str:
+        sta STRPTR          ; store low byte of address
+        stx STRPTR+1        ; store high byte of address
+ps_loop:
+        ldy #0
+        lda (STRPTR),y      ; fetch character
+        beq ps_done
+        jsr CHROUT
+        inc STRPTR          ; advance pointer (low byte)
+        bne ps_loop
+        inc STRPTR+1        ; low byte wrapped: carry into high byte
+        jmp ps_loop
+ps_done:
+        rts
+
+; ============================================================
+; Messages (null-terminated, CBM uppercase charset)
+; ============================================================
+msg_banner:
+        .byte "PIA TEST MODULE 2", $0d
+        .byte "PET-SPECIFIC I/O", $0d
+        .byte "----------------", $0d
+        .byte 0
+
+msg_t1: .byte "PIA1 DDRA=$FF:  ", 0
+msg_t2: .byte "PIA1 DDRB=$00:  ", 0
+msg_t3: .byte "KBD SCAN IDLE:  ", 0
+msg_t4: .byte "PIA2 DDRA R/W:  ", 0
+msg_t5: .byte "IEEE IDLE LINES:", 0
+
+msg_ok:         .byte "OK", $0d, 0
+msg_fail:       .byte "FAIL", $0d, 0
+msg_divider:    .byte "----------------", $0d, 0
+msg_all_pass:   .byte "ALL TESTS PASSED", $0d, 0
+msg_some_fail:  .byte "SOME TESTS FAILED", $0d, 0

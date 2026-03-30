@@ -1,0 +1,35 @@
+# Makefile for 6520 PIA test programs
+# Target: Commodore PET 4032
+# Assembler: xa65 (command: xa)
+# Emulator: VICE xpet
+
+XA      = xa
+XAFLAGS = -W -XMASM
+
+BUILD   = build
+PRG1    = $(BUILD)/pia_test1.prg
+PRG2    = $(BUILD)/pia_test2.prg
+
+.PHONY: all clean run1 run2
+
+all: $(PRG1) $(PRG2)
+
+$(BUILD):
+	mkdir -p $(BUILD)
+
+$(PRG1): pia_test1.asm | $(BUILD)
+	$(XA) $(XAFLAGS) -o $@ $<
+
+$(PRG2): pia_test2.asm | $(BUILD)
+	$(XA) $(XAFLAGS) -o $@ $<
+
+# Run Module 1 in VICE (PET 4032)
+run1: $(PRG1)
+	bash vice/run_test1.sh
+
+# Run Module 2 in VICE (PET 4032)
+run2: $(PRG2)
+	bash vice/run_test2.sh
+
+clean:
+	rm -rf $(BUILD)
