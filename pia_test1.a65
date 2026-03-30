@@ -206,6 +206,8 @@ test_ddr:
 
         txa                 ; A = DDR offset
         tay                 ; Y = DDR offset
+        lda (PIAPTR),y      ; read original DDR value
+        pha                 ; save original DDR
 
         lda #$FF
         sta (PIAPTR),y
@@ -232,6 +234,10 @@ test_ddr:
         bne td_fail
 
         txa                 ; A = DDR offset
+        tay                 ; Y = DDR offset
+        pla                 ; A = original DDR
+        sta (PIAPTR),y      ; restore DDR
+        txa                 ; A = DDR offset
         clc
         adc #1              ; A = CR offset
         tay                 ; Y = CR offset
@@ -242,6 +248,10 @@ test_ddr:
         rts
 
 td_fail:
+        txa                 ; A = DDR offset
+        tay                 ; Y = DDR offset
+        pla                 ; A = original DDR
+        sta (PIAPTR),y      ; restore DDR
         txa                 ; A = DDR offset
         clc
         adc #1              ; A = CR offset
