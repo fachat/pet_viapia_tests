@@ -93,9 +93,7 @@ main:
 
         ; Print banner
         lda #<msg_banner
-        sta STRPTR
-        lda #>msg_banner
-        sta STRPTR+1
+        ldx #>msg_banner
         jsr print_str
 
         ; --------------------------------------------------------
@@ -106,9 +104,7 @@ main:
         ; and verify it equals $FF.
         ; --------------------------------------------------------
         lda #<msg_t1
-        sta STRPTR
-        lda #>msg_t1
-        sta STRPTR+1
+        ldx #>msg_t1
         jsr print_str
 
         lda #<PIA1_BASE
@@ -145,9 +141,7 @@ t1_result:
         ; keyboard column sense lines.
         ; --------------------------------------------------------
         lda #<msg_t2
-        sta STRPTR
-        lda #>msg_t2
-        sta STRPTR+1
+        ldx #>msg_t2
         jsr print_str
 
         ; PIAPTR still = PIA1_BASE
@@ -182,9 +176,7 @@ t2_result:
         ; column line is pulled high, so Port-B must read $FF.
         ; --------------------------------------------------------
         lda #<msg_t3
-        sta STRPTR
-        lda #>msg_t3
-        sta STRPTR+1
+        ldx #>msg_t3
         jsr print_str
 
         ; PIAPTR still = PIA1_BASE
@@ -238,9 +230,7 @@ t3_result:
         ; Exercises the DDR via the shared test_ddr subroutine.
         ; --------------------------------------------------------
         lda #<msg_t4
-        sta STRPTR
-        lda #>msg_t4
-        sta STRPTR+1
+        ldx #>msg_t4
         jsr print_str
 
         lda #<PIA2_BASE
@@ -260,9 +250,7 @@ t3_result:
         ; are 1 (i.e. the bus is in its idle/released state).
         ; --------------------------------------------------------
         lda #<msg_t5
-        sta STRPTR
-        lda #>msg_t5
-        sta STRPTR+1
+        ldx #>msg_t5
         jsr print_str
 
         ; PIAPTR still = PIA2_BASE
@@ -294,26 +282,20 @@ t5_result:
         ; Summary
         ; --------------------------------------------------------
         lda #<msg_divider
-        sta STRPTR
-        lda #>msg_divider
-        sta STRPTR+1
+        ldx #>msg_divider
         jsr print_str
 
         lda FAIL_CNT
         bne m2_some_fail
 
         lda #<msg_all_pass
-        sta STRPTR
-        lda #>msg_all_pass
-        sta STRPTR+1
+        ldx #>msg_all_pass
         jsr print_str
         jmp m2_done
 
 m2_some_fail:
         lda #<msg_some_fail
-        sta STRPTR
-        lda #>msg_some_fail
-        sta STRPTR+1
+        ldx #>msg_some_fail
         jsr print_str
 
 m2_done:
@@ -407,31 +389,33 @@ print_result:
 
         inc PASS_CNT
         lda #<msg_ok
-        sta STRPTR
-        lda #>msg_ok
-        sta STRPTR+1
+        ldx #>msg_ok
         jsr print_str
         rts
 
 pr_fail:
         inc FAIL_CNT
         lda #<msg_fail
-        sta STRPTR
-        lda #>msg_fail
-        sta STRPTR+1
+        ldx #>msg_fail
         jsr print_str
         rts
 
 ; ============================================================
 ; Subroutine: print_str
 ;
-; Prints null-terminated string at STRPTR via CHROUT.
-; Advances STRPTR through the string one byte at a time.
+; Prints a null-terminated string via CHROUT.
+; The string address is passed in A (low byte) and X (high
+; byte); the routine stores them into STRPTR itself.
+;
+; Inputs:  A = low byte of string address
+;          X = high byte of string address
 ; ============================================================
 print_str:
+        sta STRPTR          ; store low byte of address
+        stx STRPTR+1        ; store high byte of address
 ps_loop:
         ldy #0
-        lda (STRPTR),y      ; fetch character (Y always 0)
+        lda (STRPTR),y      ; fetch character
         beq ps_done
         jsr CHROUT
         inc STRPTR          ; advance pointer (low byte)
