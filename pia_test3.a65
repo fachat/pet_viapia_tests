@@ -24,8 +24,8 @@
 ;       PB5: not used by IEEE-488
 ;       PB6: /NRFD in  (not ready for data, reads bus)
 ;       PB7: /DAV  in  (data valid, reads bus)
-;     DDRB = $06  (PB1, PB2 = outputs; all others inputs)
-;     Test 5: VIA DDRB = $06  (KERNAL init check)
+;     DDRB = $0E  (PB1, PB2, PB3 = outputs; all others inputs)
+;     Test 5: VIA DDRB = $0E  (KERNAL init check)
 ;     Test 6: DAV  loopback  PIA2 CB2 (/DAV out) -> VIA PB7 (/DAV in)
 ;     Test 7: NRFD loopback  VIA PB1 (/NRFD out) -> VIA PB6 (/NRFD in)
 ;     Test 8: NDAC loopback  PIA2 CA2 (/NDAC out) -> VIA PB0 (/NDAC in)
@@ -85,10 +85,10 @@ VIA_ATN_OUT  = $04  ; PB2 mask - /ATN  output
 VIA_NRFD_IN  = $40  ; PB6 mask - /NRFD input
 VIA_DAV_IN   = $80  ; PB7 mask - /DAV  input
 
-; DDRB: PB1 (/NRFD) and PB2 (/ATN) are outputs -> $06
-VIA_DDRB_INIT = $06 ; expected KERNAL-initialised DDRB value
+; DDRB: PB1 (/NRFD), PB2 (/ATN), PB3 are outputs -> $0E
+VIA_DDRB_INIT = $0E ; expected KERNAL-initialised DDRB value
 ; Mask covering all output bits (used to pre-load the output latch)
-VIA_OUT_MASK  = $06 ; all output bits deasserted (high = inactive)
+VIA_OUT_MASK  = $0E ; all output bits deasserted (high = inactive)
 
 ; CBM KERNAL
 CHROUT   = $FFD2    ; Output character in A
@@ -258,11 +258,11 @@ t2_result:
         sta PIAPTR+1
 
         ; --------------------------------------------------------
-        ; Test 5 - VIA DDRB = $06
+        ; Test 5 - VIA DDRB = $0E
         ;
-        ; The KERNAL configures VIA Port-B with PB1 (/NRFD) and
-        ; PB2 (/ATN) as outputs and the remaining bits as inputs.
-        ; DDRB must therefore equal $06.
+        ; The KERNAL configures VIA Port-B with PB1 (/NRFD),
+        ; PB2 (/ATN), and PB3 as outputs and the remaining bits
+        ; as inputs.  DDRB must therefore equal $0E.
         ; --------------------------------------------------------
         lda #<msg_t5
         ldx #>msg_t5
@@ -274,7 +274,7 @@ t2_result:
         tax
         cli
         txa
-        cmp #VIA_DDRB_INIT  ; expect $06
+        cmp #VIA_DDRB_INIT  ; expect $0E
         beq t5_pass
         lda #1
         jmp t5_result
@@ -548,7 +548,7 @@ tel_fail:
 ; The subroutine:
 ;   1. Pre-loads the output latch with all outputs deasserted
 ;      (high = inactive for active-low signals)
-;   2. Configures DDRB = VIA_DDRB_INIT ($06)
+;   2. Configures DDRB = VIA_DDRB_INIT ($0E)
 ;   3. Drives the output bit LOW  -> checks input bit = 0
 ;   4. Drives the output bit HIGH -> checks input bit = 1
 ;   5. Restores original ORB and DDRB
@@ -803,7 +803,7 @@ msg_t1: .byte "PIA2 DDRA=$00:  ", 0
 msg_t2: .byte "PIA2 DDRB=$FF:  ", 0
 msg_t3: .byte "BUS LOOPBACK:   ", 0
 msg_t4: .byte "EOI LOOPBACK:   ", 0
-msg_t5: .byte "VIA DDRB=$06:   ", 0
+msg_t5: .byte "VIA DDRB=$0E:   ", 0
 msg_t6: .byte "DAV LOOPBACK:   ", 0
 msg_t7: .byte "NRFD LOOPBACK:  ", 0
 msg_t8: .byte "NDAC LOOPBACK:  ", 0
