@@ -9,10 +9,11 @@ XAFLAGS = -W -XMASM
 BUILD   = build
 PRG1    = $(BUILD)/pia_test1.prg
 PRG2    = $(BUILD)/pia_test2.prg
+PRG3    = $(BUILD)/pia_test3.prg
 
-.PHONY: all clean run1 run2
+.PHONY: all clean run1 run2 run3
 
-all: $(PRG1) $(PRG2)
+all: $(PRG1) $(PRG2) $(PRG3)
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -23,6 +24,9 @@ $(PRG1): pia_test1.a65 | $(BUILD)
 $(PRG2): pia_test2.a65 | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ $<
 
+$(PRG3): pia_test3.a65 | $(BUILD)
+	$(XA) $(XAFLAGS) -o $@ $<
+
 # Run Module 1 in VICE (PET 4032)
 run1: $(PRG1)
 	bash vice/run_test1.sh
@@ -30,6 +34,10 @@ run1: $(PRG1)
 # Run Module 2 in VICE (PET 4032)
 run2: $(PRG2)
 	bash vice/run_test2.sh
+
+# Run Module 3 in VICE (PET 4032)
+run3: $(PRG3)
+	bash vice/run_test3.sh
 
 clean:
 	rm -rf $(BUILD)
