@@ -1,0 +1,815 @@
+; ============================================================
+; pia_test3.asm
+; 6520 PIA Test Module 3 - IEEE-488 bus tests (PIA2 + VIA)
+;
+; Tests PIA2 and VIA behaviour for the IEEE-488 interface
+; on the Commodore PET 4032:
+;
+;   PIA 2 ($E820-$E823) - IEEE-488 data bus
+;     Test 1: DDR-A = $00  (data bus receive lines are inputs)
+;     Test 2: DDR-B = $FF  (data bus drive lines are outputs)
+;     Test 3: Data bus loopback - write patterns to Port-B
+;             (outputs), read back from Port-A (inputs);
+;             values must match (bus buffers invert twice)
+;     Test 4: EOI loopback - drive PIA1 CA2 (EOI output) high then
+;             low, verify PIA1 PA6 (EOI input) follows each state
+;
+;   VIA ($E840) Port-B - IEEE-488 handshake lines
+;     Port-B bit assignments:
+;       PB0: /NDAC in  (not data accepted, reads bus)
+;       PB1: /NRFD out (not ready for data, drives bus)
+;       PB2: /ATN  out (attention, drives bus)
+;       PB3: not used by IEEE-488
+;       PB4: not used by IEEE-488
+;       PB5: not used by IEEE-488
+;       PB6: /NRFD in  (not ready for data, reads bus)
+;       PB7: /DAV  in  (data valid, reads bus)
+;     DDRB = $0E  (PB1, PB2, PB3 = outputs; all others inputs)
+;     Test 5: VIA DDRB = $0E  (KERNAL init check)
+;     Test 6: DAV  loopback  PIA2 CB2 (/DAV out) -> VIA PB7 (/DAV in)
+;     Test 7: NRFD loopback  VIA PB1 (/NRFD out) -> VIA PB6 (/NRFD in)
+;     Test 8: NDAC loopback  PIA2 CA2 (/NDAC out) -> VIA PB0 (/NDAC in)
+;
+; Each test saves the affected register state before the
+; check and restores it afterwards.  Interrupts are disabled
+; around register accesses to prevent KERNAL interference.
+;
+; Target  : Commodore PET 4032
+; Assembler: xa65  (command: xa)
+; Load    : CBM BASIC LOAD then RUN  - or autostart in VICE
+; ============================================================
+
+; ============================================================
+; Hardware addresses
+; ============================================================
+PIA1_BASE = $E810   ; PIA1 base address (keyboard + EOI)
+PIA2_BASE = $E820   ; PIA2 base address (IEEE-488 data bus)
+
+; Register offsets from PIA base address
+PIA_ORA = 0         ; Port-A / DDR-A
+PIA_CRA = 1         ; Control Register A
+PIA_ORB = 2         ; Port-B / DDR-B
+PIA_CRB = 3         ; Control Register B
+
+; CRA bits 5:3 control CA2 when bit 5 = 1 (output mode):
+;   bits 5:3 = 110 -> CA2 output = 0  (EOI asserted,  active-low)
+;   bits 5:3 = 111 -> CA2 output = 1  (EOI deasserted)
+CA2_CTRL_MASK = $38     ; mask for CA2 control bits in CRA (bits 5:3)
+CA2_OUT_HIGH  = $38     ; bits 5:3 = 111  -> CA2 = 1
+CA2_OUT_LOW   = $30     ; bits 5:3 = 110  -> CA2 = 0
+
+; PA6 = EOI input bit
+PA6_MASK = $40
+
+; ============================================================
+; VIA (6522) at $E840 - IEEE-488 handshake lines
+; ============================================================
+VIA_BASE  = $E840   ; VIA base address
+
+; Register offsets from VIA base address
+VIA_ORB   = 0       ; Port-B data register (read: inputs; write: output latch)
+VIA_DDRB  = 2       ; Port-B data direction register (1=output, 0=input)
+
+; VIA Port-B IEEE-488 bit assignments
+;   PB0: /NDAC in  - DDR=0 (reads bus)
+;   PB1: /NRFD out - DDR=1 (drives bus)
+;   PB2: /ATN  out - DDR=1 (drives bus)
+;   PB3: not used by IEEE-488
+;   PB4: not used by IEEE-488
+;   PB5: not used by IEEE-488
+;   PB6: /NRFD in  - DDR=0 (reads bus)
+;   PB7: /DAV  in  - DDR=0 (reads bus)
+VIA_NDAC_IN  = $01  ; PB0 mask - /NDAC input
+VIA_NRFD_OUT = $02  ; PB1 mask - /NRFD output
+VIA_ATN_OUT  = $04  ; PB2 mask - /ATN  output
+VIA_NRFD_IN  = $40  ; PB6 mask - /NRFD input
+VIA_DAV_IN   = $80  ; PB7 mask - /DAV  input
+
+; DDRB: PB1 (/NRFD), PB2 (/ATN), PB3 are outputs -> $0E
+VIA_DDRB_INIT = $0E ; expected KERNAL-initialised DDRB value
+; Mask covering all output bits (used to pre-load the output latch)
+VIA_OUT_MASK  = $0E ; all output bits deasserted (high = inactive)
+
+; CBM KERNAL
+CHROUT   = $FFD2    ; Output character in A
+
+; ============================================================
+; Zero-page temporaries (same layout as modules 1 and 2)
+; ============================================================
+STRPTR   = $02      ; 2-byte string pointer for print_str ($02-$03)
+PASS_CNT = $04      ; running pass count
+FAIL_CNT = $05      ; running fail count
+PIAPTR   = $06      ; 2-byte pointer to peripheral base address ($06-$07)
+OUTMASK  = $08      ; output bit mask for VIA handshake loopback test
+INMASK   = $09      ; input  bit mask for VIA handshake loopback test
+
+; ============================================================
+; .PRG load address header
+; ============================================================
+* = $0401 - 2
+        .word $0401         ; .prg load address (little-endian)
+
+; ============================================================
+; BASIC stub:  10 SYS 1037
+; (identical header size to modules 1 and 2 - code at $040D)
+; ============================================================
+* = $0401
+        .word basic_end     ; pointer to next BASIC line
+        .word 10            ; BASIC line number
+        .byte $9e           ; SYS token
+        .byte "1037"        ; decimal address of code_start
+        .byte 0             ; end of BASIC line
+basic_end:
+        .word 0             ; end of BASIC program
+
+; ============================================================
+; Machine code entry point  ($040D = 1037 decimal)
+; ============================================================
+* = $040D
+main:
+        lda #0
+        sta PASS_CNT
+        sta FAIL_CNT
+
+        ; Clear screen
+        lda #$93
+        jsr CHROUT
+
+        ; Print banner
+        lda #<msg_banner
+        ldx #>msg_banner
+        jsr print_str
+
+        ; Set PIAPTR -> PIA2 for all tests in this module
+        lda #<PIA2_BASE
+        sta PIAPTR
+        lda #>PIA2_BASE
+        sta PIAPTR+1
+
+        ; --------------------------------------------------------
+        ; Test 1 - PIA2 DDR-A = $00
+        ;
+        ; The KERNAL configures PIA2 Port-A as all inputs so that
+        ; the IEEE-488 data bus lines (DIO1-DIO8) can be received.
+        ; DDR-A must therefore equal $00.
+        ; --------------------------------------------------------
+        lda #<msg_t1
+        ldx #>msg_t1
+        jsr print_str
+
+        sei
+        ldy #PIA_CRA
+        lda (PIAPTR),y      ; save CRA
+        pha
+        and #$FB            ; clear bit 2 -> select DDR-A
+        sta (PIAPTR),y
+        ldy #PIA_ORA
+        lda (PIAPTR),y      ; read DDR-A
+        tax                 ; stash in X
+        ldy #PIA_CRA
+        pla
+        sta (PIAPTR),y      ; restore CRA
+        cli
+        txa
+        cmp #$00
+        beq t1_pass
+        lda #1
+        jmp t1_result
+t1_pass:
+        lda #0
+t1_result:
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 2 - PIA2 DDR-B = $FF
+        ;
+        ; The KERNAL configures PIA2 Port-B as all outputs so that
+        ; the IEEE-488 data bus lines (DIO1-DIO8) can be driven.
+        ; DDR-B must therefore equal $FF.
+        ; --------------------------------------------------------
+        lda #<msg_t2
+        ldx #>msg_t2
+        jsr print_str
+
+        ; PIAPTR still = PIA2_BASE
+        sei
+        ldy #PIA_CRB
+        lda (PIAPTR),y      ; save CRB
+        pha
+        and #$FB            ; clear bit 2 -> select DDR-B
+        sta (PIAPTR),y
+        ldy #PIA_ORB
+        lda (PIAPTR),y      ; read DDR-B
+        tax                 ; stash in X
+        ldy #PIA_CRB
+        pla
+        sta (PIAPTR),y      ; restore CRB
+        cli
+        txa
+        cmp #$FF
+        beq t2_pass
+        lda #1
+        jmp t2_result
+t2_pass:
+        lda #0
+t2_result:
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 3 - Data bus loopback (Port-B out -> Port-A in)
+        ;
+        ; Write test patterns to PIA2 Port-B (IEEE-488 DIO drive)
+        ; and read back the same values from PIA2 Port-A (IEEE-488
+        ; DIO receive).  The bus buffers each invert the signal so
+        ; the two-stage path has no net inversion: PA = PB.
+        ; --------------------------------------------------------
+        lda #<msg_t3
+        ldx #>msg_t3
+        jsr print_str
+
+        jsr test_bus_loopback
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 4 - EOI loopback (PIA1 CA2 out -> PIA1 PA6 in)
+        ;
+        ; EOI out (CA2) and EOI in (PA6) are on PIA1, not PIA2.
+        ; Drive CA2 (EOI output, CRA bits 5:3) high then low and
+        ; verify that PA6 (EOI input) follows each state.  The
+        ; bus buffer pair inverts twice so PA6 = CA2 level.
+        ; --------------------------------------------------------
+        lda #<msg_t4
+        ldx #>msg_t4
+        jsr print_str
+
+        ; EOI lines are on PIA1 - point PIAPTR there for this test
+        lda #<PIA1_BASE
+        sta PIAPTR
+        lda #>PIA1_BASE
+        sta PIAPTR+1
+
+        jsr test_eoi_loopback
+        jsr print_result
+
+        ; Switch PIAPTR to VIA_BASE for VIA handshake-line tests
+        lda #<VIA_BASE
+        sta PIAPTR
+        lda #>VIA_BASE
+        sta PIAPTR+1
+
+        ; --------------------------------------------------------
+        ; Test 5 - VIA DDRB = $0E
+        ;
+        ; The KERNAL configures VIA Port-B with PB1 (/NRFD),
+        ; PB2 (/ATN), and PB3 as outputs and the remaining bits
+        ; as inputs.  DDRB must therefore equal $0E.
+        ; --------------------------------------------------------
+        lda #<msg_t5
+        ldx #>msg_t5
+        jsr print_str
+
+        sei
+        ldy #VIA_DDRB
+        lda (PIAPTR),y      ; read VIA DDRB
+        tax
+        cli
+        txa
+        cmp #VIA_DDRB_INIT  ; expect $0E
+        beq t5_pass
+        lda #1
+        jmp t5_result
+t5_pass:
+        lda #0
+t5_result:
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 6 - DAV loopback  (PIA2 CB2 out -> VIA PB7 in)
+        ;
+        ; /DAV is driven by PIA2 CB2 (CRB bits 5:3) and received
+        ; at VIA PB7.  Drive CB2 high then low and verify PB7
+        ; follows each state.
+        ; --------------------------------------------------------
+        lda #<msg_t6
+        ldx #>msg_t6
+        jsr print_str
+
+        ; DAV test drives PIA2 CB2 - point PIAPTR at PIA2
+        lda #<PIA2_BASE
+        sta PIAPTR
+        lda #>PIA2_BASE
+        sta PIAPTR+1
+
+        jsr test_dav_loopback
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 7 - NRFD loopback  (VIA PB1 out -> VIA PB6 in)
+        ;
+        ; Drive /NRFD output (VIA PB1) high then low and verify
+        ; the /NRFD input (VIA PB6) follows each state.
+        ; --------------------------------------------------------
+        lda #<msg_t7
+        ldx #>msg_t7
+        jsr print_str
+
+        ; NRFD test is all on the VIA - point PIAPTR there
+        lda #<VIA_BASE
+        sta PIAPTR
+        lda #>VIA_BASE
+        sta PIAPTR+1
+
+        lda #VIA_NRFD_OUT   ; output bit: PB1
+        sta OUTMASK
+        lda #VIA_NRFD_IN    ; input  bit: PB6
+        sta INMASK
+        jsr test_via_loopback
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 8 - NDAC loopback  (PIA2 CA2 out -> VIA PB0 in)
+        ;
+        ; /NDAC is driven by PIA2 CA2 (CRA bits 5:3) and received
+        ; at VIA PB0.  Drive CA2 high then low and verify PB0
+        ; follows each state.
+        ; --------------------------------------------------------
+        lda #<msg_t8
+        ldx #>msg_t8
+        jsr print_str
+
+        ; NDAC test drives PIA2 CA2 - point PIAPTR at PIA2
+        lda #<PIA2_BASE
+        sta PIAPTR
+        lda #>PIA2_BASE
+        sta PIAPTR+1
+
+        jsr test_ndac_loopback
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Summary
+        ; --------------------------------------------------------
+        lda #<msg_divider
+        ldx #>msg_divider
+        jsr print_str
+
+        lda FAIL_CNT
+        bne m3_some_fail
+
+        lda #<msg_all_pass
+        ldx #>msg_all_pass
+        jsr print_str
+        jmp m3_done
+
+m3_some_fail:
+        lda #<msg_some_fail
+        ldx #>msg_some_fail
+        jsr print_str
+
+m3_done:
+        rts                 ; return to BASIC
+
+; ============================================================
+; Subroutine: test_bus_loopback
+;
+; Writes patterns to PIA2 Port-B (IEEE-488 data bus outputs)
+; and reads them back from PIA2 Port-A (IEEE-488 data bus
+; inputs).  On the PET the two sets of bus buffers each
+; invert the signal so the net result is PA = PB.
+;
+; Patterns tested: $55, $AA, $FF, $00.
+;
+; Inputs  : PIAPTR - ZP pointer to PIA2 base address
+; Returns : A = 0  pass
+;           A = 1  fail
+; Clobbers: X, Y
+; ============================================================
+test_bus_loopback:
+        sei
+        ; Enable data-register access for both ports (CR bit 2 = 1)
+        ldy #PIA_CRA
+        lda (PIAPTR),y
+        pha                 ; save CRA
+        ora #$04
+        sta (PIAPTR),y
+
+        ldy #PIA_CRB
+        lda (PIAPTR),y
+        pha                 ; save CRB
+        ora #$04
+        sta (PIAPTR),y
+
+        ; Save current Port-B output value
+        ldy #PIA_ORB
+        lda (PIAPTR),y
+        pha                 ; save Port-B
+
+        ; Pattern $55
+        lda #$55
+        sta (PIAPTR),y      ; write to Port-B  (Y = PIA_ORB)
+        ldy #PIA_ORA
+        lda (PIAPTR),y      ; read from Port-A
+        cmp #$55
+        bne tbl_fail
+
+        ; Pattern $AA
+        ldy #PIA_ORB
+        lda #$AA
+        sta (PIAPTR),y
+        ldy #PIA_ORA
+        lda (PIAPTR),y
+        cmp #$AA
+        bne tbl_fail
+
+        ; Pattern $FF
+        ldy #PIA_ORB
+        lda #$FF
+        sta (PIAPTR),y
+        ldy #PIA_ORA
+        lda (PIAPTR),y
+        cmp #$FF
+        bne tbl_fail
+
+        ; Pattern $00
+        ldy #PIA_ORB
+        lda #$00
+        sta (PIAPTR),y
+        ldy #PIA_ORA
+        lda (PIAPTR),y
+        cmp #$00
+        bne tbl_fail
+
+        ; Restore Port-B, CRB, CRA (reverse push order)
+        ldy #PIA_ORB
+        pla
+        sta (PIAPTR),y      ; restore Port-B
+        ldy #PIA_CRB
+        pla
+        sta (PIAPTR),y      ; restore CRB
+        ldy #PIA_CRA
+        pla
+        sta (PIAPTR),y      ; restore CRA
+        cli
+        lda #0
+        rts
+
+tbl_fail:
+        ldy #PIA_ORB
+        pla
+        sta (PIAPTR),y      ; restore Port-B
+        ldy #PIA_CRB
+        pla
+        sta (PIAPTR),y      ; restore CRB
+        ldy #PIA_CRA
+        pla
+        sta (PIAPTR),y      ; restore CRA
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_eoi_loopback
+;
+; Drives CA2 (EOI output) via CRA bits 5:3 and verifies that
+; PA6 (EOI input) follows each state.  The bus buffers each
+; invert the signal so after two inversions PA6 = CA2 level.
+;
+; Sequence:
+;   1. Set CA2 = 1 (EOI deasserted) via CRA bits 5:3 = 111
+;   2. Read PA6 - must be 1
+;   3. Set CA2 = 0 (EOI asserted)   via CRA bits 5:3 = 110
+;   4. Read PA6 - must be 0
+;   5. Restore original CRA
+;
+; Inputs  : PIAPTR - ZP pointer to PIA1 base address ($E810)
+; Returns : A = 0  pass
+;           A = 1  fail
+; Clobbers: X, Y
+; ============================================================
+test_eoi_loopback:
+        sei
+        ldy #PIA_CRA
+        lda (PIAPTR),y
+        pha                 ; save original CRA
+
+        ; Step 1: CA2 = 1, data register access (bit 2 = 1)
+        ; Preserve CA1 config (bits 1:0); set bits 5:2 = 1111
+        and #$C3            ; clear bits 5:2, keep 7:6 (IRQ flags) and 1:0 (CA1)
+        ora #$3C            ; bits 5:4:3 = 111 (CA2 out high), bit 2 = 1 (data reg)
+        sta (PIAPTR),y
+
+        ; Step 2: read PA6 - must be 1
+        ldy #PIA_ORA
+        lda (PIAPTR),y
+        and #PA6_MASK
+        cmp #PA6_MASK
+        bne tel_fail
+
+        ; Step 3: CA2 = 0 - clear bit 3 in CRA (keep bits 5:4 = 11 for output)
+        ldy #PIA_CRA
+        lda (PIAPTR),y
+        and #$F7            ; clear bit 3 -> CA2 out low (bits 5:3 = 110)
+        sta (PIAPTR),y
+
+        ; Step 4: read PA6 - must be 0
+        ldy #PIA_ORA
+        lda (PIAPTR),y
+        and #PA6_MASK
+        cmp #$00
+        bne tel_fail
+
+        ; Step 5: restore original CRA
+        ldy #PIA_CRA
+        pla
+        sta (PIAPTR),y
+        cli
+        lda #0
+        rts
+
+tel_fail:
+        ldy #PIA_CRA
+        pla
+        sta (PIAPTR),y      ; restore original CRA
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_via_loopback
+;
+; Drives VIA Port-B output bit PB1 (/NRFD out) low then high
+; and verifies that PB6 (/NRFD in) follows each state.
+;
+; Before calling, set:
+;   OUTMASK - VIA_NRFD_OUT ($02, PB1)
+;   INMASK  - VIA_NRFD_IN  ($40, PB6)
+;   PIAPTR  - must point to VIA_BASE ($E840)
+;
+; The subroutine:
+;   1. Pre-loads the output latch with all outputs deasserted
+;      (high = inactive for active-low signals)
+;   2. Configures DDRB = VIA_DDRB_INIT ($0E)
+;   3. Drives the output bit LOW  -> checks input bit = 0
+;   4. Drives the output bit HIGH -> checks input bit = 1
+;   5. Restores original ORB and DDRB
+;
+; Inputs  : OUTMASK, INMASK (zero page), PIAPTR = VIA_BASE
+; Returns : A = 0  pass
+;           A = 1  fail
+; Clobbers: X, Y
+; ============================================================
+test_via_loopback:
+        sei
+        ; Pre-load output latch before enabling output drivers
+        ; to prevent glitches on the bus.
+        ldy #VIA_ORB
+        lda (PIAPTR),y
+        pha                 ; save original ORB
+        lda #VIA_OUT_MASK   ; all output bits = 1 (deasserted)
+        sta (PIAPTR),y
+
+        ; Now configure DDRB (outputs are already pre-loaded)
+        ldy #VIA_DDRB
+        lda (PIAPTR),y
+        pha                 ; save original DDRB
+        lda #VIA_DDRB_INIT
+        sta (PIAPTR),y
+
+        ; Step 1: drive output bit LOW (signal asserted, active-low)
+        ldy #VIA_ORB
+        lda #VIA_OUT_MASK   ; all outputs deasserted...
+        eor OUTMASK         ; ...except test bit (cleared = asserted)
+        sta (PIAPTR),y
+        lda (PIAPTR),y      ; read Port-B (input bits reflect bus state)
+        and INMASK          ; isolate the corresponding input bit
+        cmp #$00            ; input bit must be 0 (following output)
+        bne tvl_fail
+
+        ; Step 2: drive output bit HIGH (signal deasserted)
+        lda #VIA_OUT_MASK   ; all outputs deasserted (all = 1)
+        sta (PIAPTR),y      ; Y still = VIA_ORB
+        lda (PIAPTR),y      ; read Port-B
+        and INMASK
+        cmp INMASK          ; input bit must be 1 (following output)
+        bne tvl_fail
+
+        ; Restore DDRB (pushed last -> popped first), then ORB
+        ldy #VIA_DDRB
+        pla                 ; A = original DDRB
+        sta (PIAPTR),y      ; restore DDRB
+        ldy #VIA_ORB
+        pla                 ; A = original ORB
+        sta (PIAPTR),y      ; restore ORB
+        cli
+        lda #0
+        rts
+
+tvl_fail:
+        ; Restore DDRB then ORB regardless of Y on entry
+        ldy #VIA_DDRB
+        pla                 ; A = original DDRB
+        sta (PIAPTR),y      ; restore DDRB
+        ldy #VIA_ORB
+        pla                 ; A = original ORB
+        sta (PIAPTR),y      ; restore ORB
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_dav_loopback
+;
+; Drives PIA2 CB2 (/DAV output, CRB bits 5:3) high then low
+; and verifies that VIA PB7 (/DAV input) follows each state.
+;
+; Sequence:
+;   1. Set CB2 = 1 (DAV deasserted) via CRB bits 5:3 = 111
+;   2. Read VIA PB7 - must be 1
+;   3. Set CB2 = 0 (DAV asserted)   via CRB bits 5:3 = 110
+;   4. Read VIA PB7 - must be 0
+;   5. Restore original CRB
+;
+; Inputs  : PIAPTR - ZP pointer to PIA2 base address ($E820)
+; Returns : A = 0  pass
+;           A = 1  fail
+; Clobbers: Y
+; ============================================================
+test_dav_loopback:
+        sei
+        ldy #PIA_CRB
+        lda (PIAPTR),y
+        pha                 ; save original CRB
+
+        ; Step 1: CB2 = 1 (deasserted), enable data register (bit 2 = 1)
+        and #$C3            ; clear bits 5:2, keep IRQ flags and CB1 config
+        ora #$3C            ; bits 5:3 = 111 (CB2 out high), bit 2 = 1
+        sta (PIAPTR),y
+
+        ; Step 2: read VIA PB7 (/DAV in) - must be 1
+        lda VIA_BASE+VIA_ORB
+        and #VIA_DAV_IN
+        cmp #VIA_DAV_IN
+        bne tdl_fail
+
+        ; Step 3: CB2 = 0 (asserted) - clear bit 3 (keep bits 5:4 = 11)
+        ldy #PIA_CRB
+        lda (PIAPTR),y
+        and #$F7            ; clear bit 3 -> CB2 out low (bits 5:3 = 110)
+        sta (PIAPTR),y
+
+        ; Step 4: read VIA PB7 - must be 0
+        lda VIA_BASE+VIA_ORB
+        and #VIA_DAV_IN
+        cmp #$00
+        bne tdl_fail
+
+        ; Step 5: restore original CRB
+        ldy #PIA_CRB
+        pla
+        sta (PIAPTR),y
+        cli
+        lda #0
+        rts
+
+tdl_fail:
+        ldy #PIA_CRB
+        pla
+        sta (PIAPTR),y      ; restore original CRB
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_ndac_loopback
+;
+; Drives PIA2 CA2 (/NDAC output, CRA bits 5:3) high then low
+; and verifies that VIA PB0 (/NDAC input) follows each state.
+;
+; Sequence:
+;   1. Set CA2 = 1 (NDAC deasserted) via CRA bits 5:3 = 111
+;   2. Read VIA PB0 - must be 1
+;   3. Set CA2 = 0 (NDAC asserted)   via CRA bits 5:3 = 110
+;   4. Read VIA PB0 - must be 0
+;   5. Restore original CRA
+;
+; Inputs  : PIAPTR - ZP pointer to PIA2 base address ($E820)
+; Returns : A = 0  pass
+;           A = 1  fail
+; Clobbers: Y
+; ============================================================
+test_ndac_loopback:
+        sei
+        ldy #PIA_CRA
+        lda (PIAPTR),y
+        pha                 ; save original CRA
+
+        ; Step 1: CA2 = 1 (deasserted), enable data register (bit 2 = 1)
+        and #$C3            ; clear bits 5:2, keep IRQ flags and CA1 config
+        ora #$3C            ; bits 5:3 = 111 (CA2 out high), bit 2 = 1
+        sta (PIAPTR),y
+
+        ; Step 2: read VIA PB0 (/NDAC in) - must be 1
+        lda VIA_BASE+VIA_ORB
+        and #VIA_NDAC_IN
+        cmp #VIA_NDAC_IN
+        bne tnl_fail
+
+        ; Step 3: CA2 = 0 (asserted) - clear bit 3 (keep bits 5:4 = 11)
+        ldy #PIA_CRA
+        lda (PIAPTR),y
+        and #$F7            ; clear bit 3 -> CA2 out low (bits 5:3 = 110)
+        sta (PIAPTR),y
+
+        ; Step 4: read VIA PB0 - must be 0
+        lda VIA_BASE+VIA_ORB
+        and #VIA_NDAC_IN
+        cmp #$00
+        bne tnl_fail
+
+        ; Step 5: restore original CRA
+        ldy #PIA_CRA
+        pla
+        sta (PIAPTR),y
+        cli
+        lda #0
+        rts
+
+tnl_fail:
+        ldy #PIA_CRA
+        pla
+        sta (PIAPTR),y      ; restore original CRA
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: print_result
+;
+; Prints "OK" or "FAIL" (with CR) and updates counters.
+; Input : A = 0 -> pass,  A != 0 -> fail
+; ============================================================
+print_result:
+        cmp #0
+        bne pr_fail
+
+        inc PASS_CNT
+        lda #<msg_ok
+        ldx #>msg_ok
+        jsr print_str
+        rts
+
+pr_fail:
+        inc FAIL_CNT
+        lda #<msg_fail
+        ldx #>msg_fail
+        jsr print_str
+        rts
+
+; ============================================================
+; Subroutine: print_str
+;
+; Prints a null-terminated string via CHROUT.
+; The string address is passed in A (low byte) and X (high
+; byte); the routine stores them into STRPTR itself.
+;
+; Inputs:  A = low byte of string address
+;          X = high byte of string address
+; ============================================================
+print_str:
+        sta STRPTR          ; store low byte of address
+        stx STRPTR+1        ; store high byte of address
+ps_loop:
+        ldy #0
+        lda (STRPTR),y      ; fetch character
+        beq ps_done
+        jsr CHROUT
+        inc STRPTR          ; advance pointer (low byte)
+        bne ps_loop
+        inc STRPTR+1        ; low byte wrapped: carry into high byte
+        jmp ps_loop
+ps_done:
+        rts
+
+; ============================================================
+; Messages (null-terminated, CBM uppercase charset)
+; ============================================================
+msg_banner:
+        .byte "PIA TEST MODULE 3", $0d
+        .byte "IEEE-488 PIA2+VIA", $0d
+        .byte "----------------", $0d
+        .byte 0
+
+msg_t1: .byte "PIA2 DDRA=$00:  ", 0
+msg_t2: .byte "PIA2 DDRB=$FF:  ", 0
+msg_t3: .byte "BUS LOOPBACK:   ", 0
+msg_t4: .byte "EOI LOOPBACK:   ", 0
+msg_t5: .byte "VIA DDRB=$0E:   ", 0
+msg_t6: .byte "DAV LOOPBACK:   ", 0
+msg_t7: .byte "NRFD LOOPBACK:  ", 0
+msg_t8: .byte "NDAC LOOPBACK:  ", 0
+
+msg_ok:         .byte "OK", $0d, 0
+msg_fail:       .byte "FAIL", $0d, 0
+msg_divider:    .byte "----------------", $0d, 0
+msg_all_pass:   .byte "ALL TESTS PASSED", $0d, 0
+msg_some_fail:  .byte "SOME TESTS FAILED", $0d, 0

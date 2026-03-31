@@ -11,14 +11,12 @@
 ;     Test 3: Keyboard scan - deassert all rows, Port-B
 ;             must read $FF when no key is pressed
 ;
-;   PIA 2 ($E820-$E823) - IEEE-488 bus interface
-;     Test 4: DDR-A is read/writable (data direction register)
-;     Test 5: IEEE-488 handshake lines idle - nNRFD and nNDAC
-;             inputs must read high when no device is attached
-;
 ; Each test saves the affected register state before the
 ; check and restores it afterwards.  Interrupts are disabled
 ; around register accesses to prevent KERNAL interference.
+;
+; IEEE-488 tests for PIA2 have been moved to Module 3
+; (pia_test3.a65) where they are tested correctly.
 ;
 ; Target  : Commodore PET 4032
 ; Assembler: xa65  (command: xa)
@@ -29,24 +27,14 @@
 ; Hardware addresses
 ; ============================================================
 PIA1_BASE = $E810   ; PIA1 base address
-PIA2_BASE = $E820   ; PIA2 base address
+; PIA2 base address kept for future reference
+PIA2_BASE = $E820   ; PIA2 base address (IEEE-488 tests in Module 3)
 
 ; Register offsets from PIA base address
 PIA_ORA = 0         ; Port-A / DDR-A
 PIA_CRA = 1         ; Control Register A
 PIA_ORB = 2         ; Port-B / DDR-B
 PIA_CRB = 3         ; Control Register B
-
-; PIA2 Port-B (IEEE-488 control lines) bit masks
-; bit 0: nDAV  - output (Data Valid, active-low)
-; bit 1: nNRFD - input  (Not Ready For Data, pulled high when idle)
-; bit 2: nNDAC - input  (Not Data Accepted, pulled high when idle)
-; bit 3: nATN  - output (Attention, active-low)
-; bit 4: nEOI  - bidirectional
-; bit 5: nSRQ  - input  (Service Request, pulled high when idle)
-IEEE_NRFD_MASK  = $02
-IEEE_NDAC_MASK  = $04
-IEEE_NRFD_NDAC  = (IEEE_NRFD_MASK | IEEE_NDAC_MASK)
 
 ; CBM KERNAL
 CHROUT   = $FFD2    ; Output character in A
@@ -225,60 +213,6 @@ t3_result:
         jsr print_result
 
         ; --------------------------------------------------------
-        ; Test 4 - PIA2 DDR-A read/write (IEEE-488 data direction)
-        ;
-        ; Exercises the DDR via the shared test_ddr subroutine.
-        ; --------------------------------------------------------
-        lda #<msg_t4
-        ldx #>msg_t4
-        jsr print_str
-
-        lda #<PIA2_BASE
-        sta PIAPTR
-        lda #>PIA2_BASE
-        sta PIAPTR+1
-        ldy #PIA_ORA        ; DDR-A register offset
-        jsr test_ddr
-        jsr print_result
-
-        ; --------------------------------------------------------
-        ; Test 5 - IEEE-488 handshake lines idle check
-        ;
-        ; With no IEEE-488 device connected the nNRFD and nNDAC
-        ; inputs are pulled high by the bus termination.  Read
-        ; PIA2 Port-B in data-register mode and verify both bits
-        ; are 1 (i.e. the bus is in its idle/released state).
-        ; --------------------------------------------------------
-        lda #<msg_t5
-        ldx #>msg_t5
-        jsr print_str
-
-        ; PIAPTR still = PIA2_BASE
-        sei
-        ldy #PIA_CRB        ; Y = CRB offset
-        lda (PIAPTR),y      ; save CRB
-        pha
-        ora #$04            ; select Port-B data register
-        sta (PIAPTR),y
-        ldy #PIA_ORB        ; Y = ORB offset
-        lda (PIAPTR),y      ; read IEEE-488 control lines
-        tax                 ; stash in X
-        ldy #PIA_CRB        ; Y = CRB offset
-        pla                 ; A = original CRB
-        sta (PIAPTR),y      ; restore CRB
-        cli
-        txa                 ; control-line state back in A
-        and #IEEE_NRFD_NDAC ; test nNRFD and nNDAC bits
-        cmp #IEEE_NRFD_NDAC
-        beq t5_pass
-        lda #1
-        jmp t5_result
-t5_pass:
-        lda #0
-t5_result:
-        jsr print_result
-
-        ; --------------------------------------------------------
         ; Summary
         ; --------------------------------------------------------
         lda #<msg_divider
@@ -441,14 +375,13 @@ ps_done:
 msg_banner:
         .byte "PIA TEST MODULE 2", $0d
         .byte "PET-SPECIFIC I/O", $0d
+        .byte "(IEEE488 IN MOD3)", $0d
         .byte "----------------", $0d
         .byte 0
 
 msg_t1: .byte "PIA1 DDRA=$0F:  ", 0
 msg_t2: .byte "PIA1 DDRB=$00:  ", 0
 msg_t3: .byte "KBD SCAN IDLE:  ", 0
-msg_t4: .byte "PIA2 DDRA R/W:  ", 0
-msg_t5: .byte "IEEE IDLE LINES:", 0
 
 msg_ok:         .byte "OK", $0d, 0
 msg_fail:       .byte "FAIL", $0d, 0
