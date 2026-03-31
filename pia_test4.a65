@@ -1,0 +1,1211 @@
+; ============================================================
+; pia_test4.a65
+; 6520 PIA Test Module 4 - CB1 Vertical Blank Signal Tests
+;
+; Tests PIA1 CB1 input (vertical blank / frame-sync signal),
+; which also appears on VIA PB5:
+;
+;   Test 1a: Period between consecutive positive CB1 transitions.
+;            Displays the CPU cycle count; passes if 16600+/-4
+;            (60 Hz NTSC) or 20000+/-4 (50 Hz PAL).
+;            Aborts all remaining tests if > 200000 cycles
+;            elapsed without detecting an edge.
+;   Test 1b: Period between consecutive negative CB1 transitions
+;            (same criteria as 1a).
+;   Test 2a: High-phase width.  After the first positive CB1
+;            transition, use VIA PB5 to count cycles while the
+;            signal stays high.  Displays the count; passes if
+;            the count is below the full period from test 1a.
+;   Test 2b: Low-phase width.  After the first negative CB1
+;            transition, count cycles while VIA PB5 stays low.
+;            Displays the count; passes if count < period.
+;   Test 3a: Verify IRQB1 (CRB bit 7) is set on a positive CB1
+;            transition when CRB bit1=1, bit0=0 (flag only,
+;            no CPU /IRQ output).  Timeout = one full period.
+;   Test 3b: Verify IRQB1 set on negative transition (CRB bit1=0,
+;            bit0=0).  Timeout = one full period.
+;   Test 4a: Verify a positive CB1 transition generates a CPU
+;            /IRQ when CRB bit1=1 and CRB bit0=1.  Detected by
+;            pointing the PET user IRQ vector at $0090 to a test
+;            handler that sets a flag.  Timeout = one full period.
+;   Test 4b: Same for negative transition (CRB bit1=0, bit0=1).
+;
+; Timing method:
+;   VIA Timer 2 is used as a free-running CPU-cycle counter.
+;   Loaded with $FFFF, it counts down one step per CPU clock.
+;   The period between two edges equals T2(edge1) - T2(edge2).
+;   For the 200000-cycle abort guard, T2 overflows are tracked:
+;   four overflows (4 * 65536 = 262144 > 200000) trigger abort.
+;
+; PET user IRQ vector:
+;   The PET 4032 KERNAL IRQ handler saves A, X, Y on the stack
+;   and then jumps via JMP ($0090) to the user handler.  The
+;   user handler must restore Y, X, A and end with RTI.
+;
+; Target   : Commodore PET 4032
+; Assembler: xa65  (command: xa -XMASM)
+; Load     : CBM BASIC LOAD then RUN - or autostart in VICE
+; ============================================================
+
+; ============================================================
+; Hardware addresses
+; ============================================================
+PIA1_BASE = $E810           ; PIA1 base address
+VIA_BASE  = $E840           ; VIA (6522) base address
+
+; PIA register offsets
+PIA_ORA   = 0               ; Port-A / DDR-A
+PIA_CRA   = 1               ; Control Register A
+PIA_ORB   = 2               ; Port-B / DDR-B
+PIA_CRB   = 3               ; Control Register B
+
+; VIA register offsets from VIA_BASE
+VIA_ORB   = $00             ; Port-B data register
+VIA_DDRB  = $02             ; Port-B data direction
+VIA_T2CL  = $08             ; T2 counter low  (read: also clears IFR bit 5)
+VIA_T2CH  = $09             ; T2 counter high (write: also starts timer)
+VIA_ACR   = $0B             ; Auxiliary control register
+VIA_IFR   = $0D             ; Interrupt flag register
+VIA_IER   = $0E             ; Interrupt enable register
+
+; CBM KERNAL
+CHROUT    = $FFD2            ; Output character in A to current channel
+
+; ============================================================
+; Bit masks and control values
+; ============================================================
+
+; PIA1 CRB bits
+IRQB1_FLAG = $80            ; bit 7 = IRQB1 (set by CB1 transition)
+CRB_DATA   = $04            ; bit 2 = data register select (1=data, 0=DDR)
+CRB_EDGE   = $02            ; bit 1 = edge select (0=negative, 1=positive)
+CRB_IRQEN  = $01            ; bit 0 = CB1 IRQ enable to CPU
+
+; VIA
+VIA_PB5    = $20            ; PB5 bitmask (vertical blank signal)
+VIA_T2_IFR = $20            ; IFR/IER bit 5 = T2 timeout flag
+VIA_T2_ACR = $20            ; ACR bit 5 = T2 mode (0=CPU clocks, 1=count PB6)
+
+; PET user IRQ vector (KERNAL does JMP ($0090) at end of IRQ handler)
+PET_IRQ_VEC = $0090
+
+; Number of T2 overflows before declaring a 200000-cycle timeout:
+;   4 * 65536 = 262144 > 200000
+TIMEOUT_OVF = 4
+
+; ============================================================
+; Zero-page variables ($02-$11 - safe for standalone ML on PET)
+; ============================================================
+STRPTR    = $02             ; 2-byte string pointer for print_str
+PASS_CNT  = $04             ; running pass counter
+FAIL_CNT  = $05             ; running fail counter
+CYCLES_LO = $06             ; measured cycle count, low byte
+CYCLES_HI = $07             ; measured cycle count, high byte
+TOTAL_LO  = $08             ; full period from test 1a (timeout ref), low
+TOTAL_HI  = $09             ; full period from test 1a, high
+T1_LO     = $0A             ; T2 reading at first edge, low byte
+T1_HI     = $0B             ; T2 reading at first edge, high byte
+IRQ_FLAG  = $0C             ; $FF when test-4 ISR fires; 0 otherwise
+OVF_CNT   = $0D             ; T2 overflow count for 200000-cycle timeout
+LEAD0     = $0E             ; leading-zero suppression flag for print_decimal
+DIVLO     = $0F             ; current divisor low byte (print_decimal helper)
+DIVHI     = $10             ; current divisor high byte
+CUR_DIGIT = $11             ; digit accumulator (print_decimal helper)
+
+; ============================================================
+; .PRG file header - first two bytes are the CBM load address
+; ============================================================
+* = $0401 - 2
+        .word $0401         ; .prg load address (little-endian)
+
+; ============================================================
+; BASIC stub at $0401:  10 SYS 1037
+; ============================================================
+* = $0401
+        .word basic_end     ; pointer to next BASIC line
+        .word 10            ; BASIC line number
+        .byte $9e           ; SYS token
+        .byte "1037"        ; decimal address of code_start
+        .byte 0             ; end of BASIC line
+basic_end:
+        .word 0             ; end of BASIC program
+
+; ============================================================
+; Machine code entry point  ($040D = 1037 decimal)
+; ============================================================
+* = $040D
+main:
+        lda #0
+        sta PASS_CNT
+        sta FAIL_CNT
+
+        ; Clear screen
+        lda #$93
+        jsr CHROUT
+
+        ; Print banner
+        lda #<msg_banner
+        ldx #>msg_banner
+        jsr print_str
+
+        ; --------------------------------------------------------
+        ; Save VIA state and configure T2 for CPU-clock counting.
+        ; Both ACR and T2's IER bit are saved on the stack and
+        ; restored at t4_summary so the system is left clean.
+        ; --------------------------------------------------------
+        sei
+        lda VIA_BASE+VIA_ACR
+        pha                     ; [stack: ACR]
+        and #$DF                ; clear ACR bit 5 -> T2 counts CPU clocks
+        sta VIA_BASE+VIA_ACR
+
+        lda VIA_BASE+VIA_IER    ; read IER (bit 7 always reads 1; bits 6:0 = enables)
+        and #VIA_T2_IFR         ; isolate T2 enable bit
+        pha                     ; [stack: T2-IER-state, ACR]
+        lda #VIA_T2_IFR         ; bit 7=0, bit 5=1 -> disable T2 IRQ output
+        sta VIA_BASE+VIA_IER
+        cli
+
+        ; --------------------------------------------------------
+        ; Test 1a - Period between consecutive positive CB1 edges
+        ; --------------------------------------------------------
+        lda #<msg_t1a
+        ldx #>msg_t1a
+        jsr print_str
+
+        jsr measure_period_pos  ; -> CYCLES_HI:CYCLES_LO = period; C=1 on timeout
+        bcc t4s1                ; C=0 success -> continue
+        jmp t4_abort
+t4s1:
+        lda CYCLES_LO           ; save measured period as timeout reference
+        sta TOTAL_LO            ; for tests 3 and 4
+        lda CYCLES_HI
+        sta TOTAL_HI
+
+        jsr check_period        ; A=0 pass / A=1 fail (reads CYCLES before print_decimal)
+        pha
+        jsr print_decimal       ; print cycle count (destroys CYCLES)
+        lda #' '
+        jsr CHROUT
+        pla
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 1b - Period between consecutive negative CB1 edges
+        ; --------------------------------------------------------
+        lda #<msg_t1b
+        ldx #>msg_t1b
+        jsr print_str
+
+        jsr measure_period_neg
+        bcc t4s2                ; C=0 success -> continue
+        jmp t4_abort
+t4s2:
+
+        jsr check_period
+        pha
+        jsr print_decimal
+        lda #' '
+        jsr CHROUT
+        pla
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 2a - High-phase width (positive edge -> PB5 goes low)
+        ; --------------------------------------------------------
+        lda #<msg_t2a
+        ldx #>msg_t2a
+        jsr print_str
+
+        jsr measure_phase_high
+        bcc t4s3                ; C=0 success -> continue
+        jmp t4_abort
+t4s3:
+
+        jsr check_phase         ; A=0 if CYCLES < TOTAL, else A=1
+        pha
+        jsr print_decimal
+        lda #' '
+        jsr CHROUT
+        pla
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 2b - Low-phase width (negative edge -> PB5 goes high)
+        ; --------------------------------------------------------
+        lda #<msg_t2b
+        ldx #>msg_t2b
+        jsr print_str
+
+        jsr measure_phase_low
+        bcc t4s4                ; C=0 success -> continue
+        jmp t4_abort
+t4s4:
+
+        jsr check_phase
+        pha
+        jsr print_decimal
+        lda #' '
+        jsr CHROUT
+        pla
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 3a - IRQB1 flag set on positive CB1 edge
+        ;           CRB bit1=1 (positive edge), bit0=0 (flag only)
+        ; --------------------------------------------------------
+        lda #<msg_t3a
+        ldx #>msg_t3a
+        jsr print_str
+
+        jsr test_irq_flag_pos
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 3b - IRQB1 flag set on negative CB1 edge
+        ;           CRB bit1=0 (negative edge), bit0=0 (flag only)
+        ; --------------------------------------------------------
+        lda #<msg_t3b
+        ldx #>msg_t3b
+        jsr print_str
+
+        jsr test_irq_flag_neg
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 4a - CPU /IRQ on positive CB1 edge
+        ;           CRB bit1=1, bit0=1; handler via $0090 vector
+        ; --------------------------------------------------------
+        lda #<msg_t4a
+        ldx #>msg_t4a
+        jsr print_str
+
+        jsr test_irq_cpu_pos
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 4b - CPU /IRQ on negative CB1 edge
+        ;           CRB bit1=0, bit0=1
+        ; --------------------------------------------------------
+        lda #<msg_t4b
+        ldx #>msg_t4b
+        jsr print_str
+
+        jsr test_irq_cpu_neg
+        jsr print_result
+
+        jmp t4_summary
+
+t4_abort:
+        ; One of the timing routines detected > 200000 cycles
+        ; without an edge.  Print an abort message, count as fail,
+        ; and skip the remaining tests.
+        lda #<msg_abort
+        ldx #>msg_abort
+        jsr print_str
+        inc FAIL_CNT
+
+t4_summary:
+        ; Restore VIA state saved on the stack.
+        sei
+        pla                     ; T2 IER state (0 = was disabled)
+        beq t4_no_t2_en
+        ora #$80                ; set bit 7 -> enable T2 IRQ
+        sta VIA_BASE+VIA_IER
+t4_no_t2_en:
+        pla                     ; VIA ACR
+        sta VIA_BASE+VIA_ACR
+        cli
+
+        ; Print summary
+        lda #<msg_divider
+        ldx #>msg_divider
+        jsr print_str
+
+        lda FAIL_CNT
+        bne t4_some_fail
+
+        lda #<msg_all_pass
+        ldx #>msg_all_pass
+        jsr print_str
+        jmp t4_done
+
+t4_some_fail:
+        lda #<msg_some_fail
+        ldx #>msg_some_fail
+        jsr print_str
+
+t4_done:
+        rts                     ; return to BASIC
+
+; ============================================================
+; Subroutine: measure_period_pos
+;
+; Measures the CPU cycle count between two consecutive positive
+; transitions on PIA1 CB1, using VIA Timer 2 as a down counter.
+;
+; Algorithm:
+;   1. Configure CRB: data access (bit2=1), positive edge (bit1=1),
+;      no IRQ output (bit0=0).
+;   2. Load VIA T2 with $FFFF and start it (write T2CH).
+;   3. Clear IRQB1 by reading PIA1 ORB.
+;   4. Poll CRB bit 7 until IRQB1 is set (first positive edge).
+;      Track T2 overflows; abort if overflow count >= TIMEOUT_OVF.
+;   5. Read T2CL/T2CH and store in T1_LO/T1_HI.
+;   6. Clear IRQB1, wait for second positive edge (same timeout).
+;   7. Read T2CL/T2CH into CYCLES_LO/CYCLES_HI.
+;   8. period = T1 - CYCLES  (T2 counts down, so T1 > CYCLES).
+;
+; Returns: C=0  CYCLES_HI:CYCLES_LO = measured period in cycles
+;          C=1  timeout (> 200000 cycles without edge)
+; Clobbers: A, X, OVF_CNT, T1_LO, T1_HI, CYCLES_LO, CYCLES_HI
+; ============================================================
+measure_period_pos:
+        sei
+        lda PIA1_BASE+PIA_CRB
+        pha                     ; save original CRB
+        and #$C0                ; keep read-only IRQ flags (bits 7:6)
+        ora #(CRB_DATA|CRB_EDGE); bit2=1 data, bit1=1 pos edge, bit0=0 no IRQ
+        sta PIA1_BASE+PIA_CRB
+
+        ; Start T2 at $FFFF
+        lda #$FF
+        sta VIA_BASE+VIA_T2CL
+        sta VIA_BASE+VIA_T2CH   ; writing T2CH starts the timer
+
+        lda #0
+        sta OVF_CNT
+        lda PIA1_BASE+PIA_ORB   ; clear IRQB1 flag
+
+        ; Wait for first positive edge
+mpp_w1: lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        beq mpp_no1
+        ldx VIA_BASE+VIA_T2CL   ; side-effect: clears T2 IFR bit 5
+        inc OVF_CNT
+        lda OVF_CNT
+        cmp #TIMEOUT_OVF
+        bcs mpp_timeout
+mpp_no1:
+        lda PIA1_BASE+PIA_CRB
+        bmi mpp_e1              ; IRQB1 set = edge detected
+        jmp mpp_w1
+
+mpp_e1: ; Capture T2 at first edge (reading T2CL latches T2CH for consistency)
+        lda VIA_BASE+VIA_T2CL
+        sta T1_LO
+        lda VIA_BASE+VIA_T2CH
+        sta T1_HI
+        lda PIA1_BASE+PIA_ORB   ; clear IRQB1 for second measurement
+
+        ; Wait for second positive edge
+mpp_w2: lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        beq mpp_no2
+        ldx VIA_BASE+VIA_T2CL
+        inc OVF_CNT
+        lda OVF_CNT
+        cmp #TIMEOUT_OVF
+        bcs mpp_timeout
+mpp_no2:
+        lda PIA1_BASE+PIA_CRB
+        bmi mpp_e2
+        jmp mpp_w2
+
+mpp_e2: ; Capture T2 at second edge
+        lda VIA_BASE+VIA_T2CL
+        sta CYCLES_LO
+        lda VIA_BASE+VIA_T2CH
+        sta CYCLES_HI
+
+        ; period = T1 - CYCLES  (T2 counts down: T1 > CYCLES)
+        sec
+        lda T1_LO
+        sbc CYCLES_LO
+        sta CYCLES_LO
+        lda T1_HI
+        sbc CYCLES_HI
+        sta CYCLES_HI
+
+        pla
+        sta PIA1_BASE+PIA_CRB   ; restore CRB
+        cli
+        clc                     ; C=0 = success
+        rts
+
+mpp_timeout:
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        sec                     ; C=1 = timeout
+        rts
+
+; ============================================================
+; Subroutine: measure_period_neg
+;
+; Same as measure_period_pos but detects negative CB1 transitions
+; (CRB bit1 = 0 selects the falling edge).
+;
+; Returns: C=0  CYCLES_HI:CYCLES_LO = period
+;          C=1  timeout
+; ============================================================
+measure_period_neg:
+        sei
+        lda PIA1_BASE+PIA_CRB
+        pha
+        and #$C0
+        ora #CRB_DATA           ; bit2=1 data, bit1=0 neg edge, bit0=0 no IRQ
+        sta PIA1_BASE+PIA_CRB
+
+        lda #$FF
+        sta VIA_BASE+VIA_T2CL
+        sta VIA_BASE+VIA_T2CH
+
+        lda #0
+        sta OVF_CNT
+        lda PIA1_BASE+PIA_ORB
+
+mpn_w1: lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        beq mpn_no1
+        ldx VIA_BASE+VIA_T2CL
+        inc OVF_CNT
+        lda OVF_CNT
+        cmp #TIMEOUT_OVF
+        bcs mpn_timeout
+mpn_no1:
+        lda PIA1_BASE+PIA_CRB
+        bmi mpn_e1
+        jmp mpn_w1
+
+mpn_e1: lda VIA_BASE+VIA_T2CL
+        sta T1_LO
+        lda VIA_BASE+VIA_T2CH
+        sta T1_HI
+        lda PIA1_BASE+PIA_ORB
+
+mpn_w2: lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        beq mpn_no2
+        ldx VIA_BASE+VIA_T2CL
+        inc OVF_CNT
+        lda OVF_CNT
+        cmp #TIMEOUT_OVF
+        bcs mpn_timeout
+mpn_no2:
+        lda PIA1_BASE+PIA_CRB
+        bmi mpn_e2
+        jmp mpn_w2
+
+mpn_e2: lda VIA_BASE+VIA_T2CL
+        sta CYCLES_LO
+        lda VIA_BASE+VIA_T2CH
+        sta CYCLES_HI
+
+        sec
+        lda T1_LO
+        sbc CYCLES_LO
+        sta CYCLES_LO
+        lda T1_HI
+        sbc CYCLES_HI
+        sta CYCLES_HI
+
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        clc
+        rts
+
+mpn_timeout:
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        sec
+        rts
+
+; ============================================================
+; Subroutine: measure_phase_high
+;
+; Measures the high-phase width of the CB1 signal using VIA PB5:
+;   1. Configure CRB for positive-edge detection.
+;   2. Wait for the positive CB1 transition (IRQB1 set).
+;   3. Restart T2 at $FFFF and clear IRQB1.
+;   4. Poll VIA ORB bit 5 (PB5) while the signal stays high (=1).
+;   5. When PB5 goes low, compute elapsed = $FFFF - T2_current
+;      using the identity: $FFFF - X = bitwise NOT of X.
+;
+; VIA PB5 must be configured as an input (DDR bit 5 = 0), which
+; is the KERNAL default (DDRB = $0E, bit 5 = 0 = input).
+;
+; Returns: C=0  CYCLES_HI:CYCLES_LO = high-phase width in cycles
+;          C=1  timeout
+; ============================================================
+measure_phase_high:
+        sei
+        lda PIA1_BASE+PIA_CRB
+        pha
+        and #$C0
+        ora #(CRB_DATA|CRB_EDGE) ; positive edge, data access, no IRQ
+        sta PIA1_BASE+PIA_CRB
+
+        lda #$FF
+        sta VIA_BASE+VIA_T2CL
+        sta VIA_BASE+VIA_T2CH
+
+        lda #0
+        sta OVF_CNT
+        lda PIA1_BASE+PIA_ORB   ; clear IRQB1
+
+        ; Wait for positive CB1 edge
+mph_wp: lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        beq mph_wn
+        ldx VIA_BASE+VIA_T2CL
+        inc OVF_CNT
+        lda OVF_CNT
+        cmp #TIMEOUT_OVF
+        bcs mph_timeout
+mph_wn: lda PIA1_BASE+PIA_CRB
+        bmi mph_found
+        jmp mph_wp
+
+mph_found:
+        ; Restart T2 from $FFFF to time the high phase
+        lda #$FF
+        sta VIA_BASE+VIA_T2CL
+        sta VIA_BASE+VIA_T2CH
+        lda PIA1_BASE+PIA_ORB   ; clear IRQB1
+
+        lda #0
+        sta OVF_CNT
+
+        ; Poll VIA PB5 while signal is high
+mph_ph: lda VIA_BASE+VIA_ORB    ; read VIA Port B
+        and #VIA_PB5
+        beq mph_lo              ; PB5 = 0 -> high phase ended
+        lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        beq mph_ph
+        ldx VIA_BASE+VIA_T2CL   ; clears T2 IFR
+        inc OVF_CNT
+        lda OVF_CNT
+        cmp #TIMEOUT_OVF
+        bcs mph_timeout
+        jmp mph_ph
+
+mph_lo: ; Elapsed = $FFFF - current T2 = bitwise NOT of T2
+        lda VIA_BASE+VIA_T2CL
+        eor #$FF
+        sta CYCLES_LO
+        lda VIA_BASE+VIA_T2CH
+        eor #$FF
+        sta CYCLES_HI
+
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        clc
+        rts
+
+mph_timeout:
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        sec
+        rts
+
+; ============================================================
+; Subroutine: measure_phase_low
+;
+; Measures the low-phase width of the CB1 signal using VIA PB5:
+;   1. Configure CRB for negative-edge detection.
+;   2. Wait for the negative CB1 transition (IRQB1 set).
+;   3. Restart T2 at $FFFF and clear IRQB1.
+;   4. Poll VIA ORB bit 5 (PB5) while the signal stays low (=0).
+;   5. When PB5 goes high, compute elapsed = $FFFF - T2_current.
+;
+; Returns: C=0  CYCLES_HI:CYCLES_LO = low-phase width in cycles
+;          C=1  timeout
+; ============================================================
+measure_phase_low:
+        sei
+        lda PIA1_BASE+PIA_CRB
+        pha
+        and #$C0
+        ora #CRB_DATA           ; negative edge, data access, no IRQ
+        sta PIA1_BASE+PIA_CRB
+
+        lda #$FF
+        sta VIA_BASE+VIA_T2CL
+        sta VIA_BASE+VIA_T2CH
+
+        lda #0
+        sta OVF_CNT
+        lda PIA1_BASE+PIA_ORB
+
+        ; Wait for negative CB1 edge
+mpl_wn: lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        beq mpl_nn
+        ldx VIA_BASE+VIA_T2CL
+        inc OVF_CNT
+        lda OVF_CNT
+        cmp #TIMEOUT_OVF
+        bcs mpl_timeout
+mpl_nn: lda PIA1_BASE+PIA_CRB
+        bmi mpl_found
+        jmp mpl_wn
+
+mpl_found:
+        ; Restart T2 to time the low phase
+        lda #$FF
+        sta VIA_BASE+VIA_T2CL
+        sta VIA_BASE+VIA_T2CH
+        lda PIA1_BASE+PIA_ORB
+
+        lda #0
+        sta OVF_CNT
+
+        ; Poll VIA PB5 while signal is low
+mpl_pl: lda VIA_BASE+VIA_ORB
+        and #VIA_PB5
+        bne mpl_hi              ; PB5 = 1 -> low phase ended
+        lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        beq mpl_pl
+        ldx VIA_BASE+VIA_T2CL
+        inc OVF_CNT
+        lda OVF_CNT
+        cmp #TIMEOUT_OVF
+        bcs mpl_timeout
+        jmp mpl_pl
+
+mpl_hi: ; Elapsed = $FFFF - current T2
+        lda VIA_BASE+VIA_T2CL
+        eor #$FF
+        sta CYCLES_LO
+        lda VIA_BASE+VIA_T2CH
+        eor #$FF
+        sta CYCLES_HI
+
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        clc
+        rts
+
+mpl_timeout:
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        sec
+        rts
+
+; ============================================================
+; Subroutine: test_irq_flag_pos
+;
+; Verifies that IRQB1 (CRB bit 7) is set when a positive CB1
+; transition occurs with CRB bit1=1 and bit0=0 (flag only).
+;
+; Timeout: T2 is loaded with TOTAL_HI:TOTAL_LO (one full period
+; from test 1a).  If T2 reaches 0 before IRQB1 is seen, fail.
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_irq_flag_pos:
+        sei
+        lda PIA1_BASE+PIA_CRB
+        pha
+        and #$C0
+        ora #(CRB_DATA|CRB_EDGE)
+        sta PIA1_BASE+PIA_CRB
+        lda PIA1_BASE+PIA_ORB   ; clear IRQB1
+
+        lda TOTAL_LO
+        sta VIA_BASE+VIA_T2CL
+        lda TOTAL_HI
+        sta VIA_BASE+VIA_T2CH   ; starts countdown = one full period
+
+tifp_w: lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        bne tifp_fail           ; T2 expired = one period elapsed, no edge seen
+        lda PIA1_BASE+PIA_CRB
+        bmi tifp_ok
+        jmp tifp_w
+
+tifp_ok:
+        lda PIA1_BASE+PIA_ORB   ; clear IRQB1
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        lda #0                  ; pass
+        rts
+
+tifp_fail:
+        ldx VIA_BASE+VIA_T2CL   ; clear T2 IFR (side-effect)
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        lda #1                  ; fail
+        rts
+
+; ============================================================
+; Subroutine: test_irq_flag_neg
+;
+; Same as test_irq_flag_pos but for negative CB1 transitions
+; (CRB bit1 = 0 selects the falling edge).
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_irq_flag_neg:
+        sei
+        lda PIA1_BASE+PIA_CRB
+        pha
+        and #$C0
+        ora #CRB_DATA           ; negative edge, no IRQ output
+        sta PIA1_BASE+PIA_CRB
+        lda PIA1_BASE+PIA_ORB
+
+        lda TOTAL_LO
+        sta VIA_BASE+VIA_T2CL
+        lda TOTAL_HI
+        sta VIA_BASE+VIA_T2CH
+
+tifn_w: lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        bne tifn_fail
+        lda PIA1_BASE+PIA_CRB
+        bmi tifn_ok
+        jmp tifn_w
+
+tifn_ok:
+        lda PIA1_BASE+PIA_ORB
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        lda #0
+        rts
+
+tifn_fail:
+        ldx VIA_BASE+VIA_T2CL
+        pla
+        sta PIA1_BASE+PIA_CRB
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_irq_cpu_pos
+;
+; Verifies that a positive CB1 transition generates a CPU /IRQ
+; when CRB bit1=1 (positive edge) and CRB bit0=1 (IRQ enable).
+;
+; Method:
+;   1. Save the PET user IRQ vector at $0090-$0091 on the stack.
+;   2. Set $0090-$0091 to point to irq_handler (this file).
+;   3. Clear IRQ_FLAG.
+;   4. Configure CRB: data, positive edge, IRQ enable.
+;   5. Clear IRQB1, load T2 with TOTAL for timeout.
+;   6. CLI - enable CPU interrupts.
+;   7. Loop: wait for IRQ_FLAG != 0 or T2 timeout.
+;   8. SEI, disable CRB bit0, restore CRB and IRQ vector.
+;
+; The PET KERNAL IRQ handler (JMP ($0090) path):
+;   KERNAL saves A, X, Y on the stack before JMP ($0090).
+;   irq_handler restores Y, X, A and ends with RTI.
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_irq_cpu_pos:
+        sei
+        lda PET_IRQ_VEC
+        pha                     ; [stack: vec_lo]
+        lda PET_IRQ_VEC+1
+        pha                     ; [stack: vec_hi, vec_lo]
+        lda #<irq_handler
+        sta PET_IRQ_VEC
+        lda #>irq_handler
+        sta PET_IRQ_VEC+1
+
+        lda #0
+        sta IRQ_FLAG
+
+        lda PIA1_BASE+PIA_CRB
+        pha                     ; [stack: CRB, vec_hi, vec_lo]
+        and #$C0
+        ora #(CRB_DATA|CRB_EDGE|CRB_IRQEN) ; bit2=1, bit1=1, bit0=1
+        sta PIA1_BASE+PIA_CRB
+        lda PIA1_BASE+PIA_ORB   ; clear IRQB1
+
+        lda TOTAL_LO
+        sta VIA_BASE+VIA_T2CL
+        lda TOTAL_HI
+        sta VIA_BASE+VIA_T2CH
+        cli                     ; enable CPU interrupts
+
+ticp_w: lda IRQ_FLAG            ; check if ISR fired
+        bne ticp_ok
+        lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        bne ticp_fail
+        jmp ticp_w
+
+ticp_ok:
+        sei
+        lda PIA1_BASE+PIA_CRB
+        and #$FE                ; clear bit 0 (disable CB1->IRQ before restore)
+        sta PIA1_BASE+PIA_CRB
+        lda PIA1_BASE+PIA_ORB   ; clear IRQB1
+        pla
+        sta PIA1_BASE+PIA_CRB   ; restore original CRB
+        pla
+        sta PET_IRQ_VEC+1       ; restore vec high byte
+        pla
+        sta PET_IRQ_VEC         ; restore vec low byte
+        cli
+        lda #0
+        rts
+
+ticp_fail:
+        sei
+        ldx VIA_BASE+VIA_T2CL   ; clear T2 IFR
+        lda PIA1_BASE+PIA_CRB
+        and #$FE
+        sta PIA1_BASE+PIA_CRB
+        lda PIA1_BASE+PIA_ORB
+        pla
+        sta PIA1_BASE+PIA_CRB
+        pla
+        sta PET_IRQ_VEC+1
+        pla
+        sta PET_IRQ_VEC
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_irq_cpu_neg
+;
+; Same as test_irq_cpu_pos but for negative CB1 transitions
+; (CRB bit1 = 0, bit0 = 1).
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_irq_cpu_neg:
+        sei
+        lda PET_IRQ_VEC
+        pha
+        lda PET_IRQ_VEC+1
+        pha
+        lda #<irq_handler
+        sta PET_IRQ_VEC
+        lda #>irq_handler
+        sta PET_IRQ_VEC+1
+
+        lda #0
+        sta IRQ_FLAG
+
+        lda PIA1_BASE+PIA_CRB
+        pha
+        and #$C0
+        ora #(CRB_DATA|CRB_IRQEN) ; bit1=0 neg edge, bit0=1 IRQ enable
+        sta PIA1_BASE+PIA_CRB
+        lda PIA1_BASE+PIA_ORB
+
+        lda TOTAL_LO
+        sta VIA_BASE+VIA_T2CL
+        lda TOTAL_HI
+        sta VIA_BASE+VIA_T2CH
+        cli
+
+ticn_w: lda IRQ_FLAG
+        bne ticn_ok
+        lda VIA_BASE+VIA_IFR
+        and #VIA_T2_IFR
+        bne ticn_fail
+        jmp ticn_w
+
+ticn_ok:
+        sei
+        lda PIA1_BASE+PIA_CRB
+        and #$FE
+        sta PIA1_BASE+PIA_CRB
+        lda PIA1_BASE+PIA_ORB
+        pla
+        sta PIA1_BASE+PIA_CRB
+        pla
+        sta PET_IRQ_VEC+1
+        pla
+        sta PET_IRQ_VEC
+        cli
+        lda #0
+        rts
+
+ticn_fail:
+        sei
+        ldx VIA_BASE+VIA_T2CL
+        lda PIA1_BASE+PIA_CRB
+        and #$FE
+        sta PIA1_BASE+PIA_CRB
+        lda PIA1_BASE+PIA_ORB
+        pla
+        sta PIA1_BASE+PIA_CRB
+        pla
+        sta PET_IRQ_VEC+1
+        pla
+        sta PET_IRQ_VEC
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; irq_handler
+;
+; User IRQ routine installed at PET_IRQ_VEC ($0090).
+;
+; The PET KERNAL IRQ handler saves A, X, Y on the hardware
+; stack (in that order: PHA; TXA/PHA; TYA/PHA) and then
+; executes JMP ($0090).  When control reaches irq_handler:
+;   Stack (top -> bottom): Y, X, A, P, PCH, PCL
+;
+; This handler sets IRQ_FLAG, restores Y/X/A, and returns with
+; RTI so the interrupted code resumes with correct registers.
+; ============================================================
+irq_handler:
+        lda #$FF
+        sta IRQ_FLAG            ; signal the wait loop in test 4
+        pla                     ; restore Y (KERNAL pushed it last)
+        tay
+        pla                     ; restore X
+        tax
+        pla                     ; restore A
+        rti                     ; restore P and PC, return to interrupted code
+
+; ============================================================
+; Subroutine: check_period
+;
+; Tests whether CYCLES_HI:CYCLES_LO is within the accepted
+; range for a PET CB1 vertical-blank period:
+;   50 Hz PAL : 20000 cycles +/- 4  ($4E20 in $4E1C..$4E24)
+;   60 Hz NTSC: 16600 cycles +/- 4  ($40D8 in $40D4..$40DC)
+;
+; Call this BEFORE print_decimal, which destroys CYCLES.
+;
+; Returns: A = 0 pass,  A = 1 fail
+; Clobbers: A
+; ============================================================
+check_period:
+        ; 50 Hz: 20000 = $4E20; range $4E1C..$4E24 (HI=$4E, LO $1C..$24)
+        lda CYCLES_HI
+        cmp #$4E
+        bne cp_try60
+        lda CYCLES_LO
+        cmp #$1C                ; below $1C (< 19996) -> fail
+        bcc cp_fail
+        cmp #$25                ; $25 or above (> 20004) -> fail
+        bcs cp_fail
+        lda #0
+        rts
+
+cp_try60:
+        ; 60 Hz: 16600 = $40D8; range $40D4..$40DC (HI=$40, LO $D4..$DC)
+        lda CYCLES_HI
+        cmp #$40
+        bne cp_fail
+        lda CYCLES_LO
+        cmp #$D4                ; below $D4 (< 16596) -> fail
+        bcc cp_fail
+        cmp #$DD                ; $DD or above (> 16604) -> fail
+        bcs cp_fail
+        lda #0
+        rts
+
+cp_fail:
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: check_phase
+;
+; Tests whether CYCLES_HI:CYCLES_LO < TOTAL_HI:TOTAL_LO.
+; The measured phase width must be strictly less than the full
+; period from test 1a (requirement: any value below total passes).
+;
+; Call this BEFORE print_decimal, which destroys CYCLES.
+;
+; Returns: A = 0 pass (CYCLES < TOTAL),  A = 1 fail
+; Clobbers: A
+; ============================================================
+check_phase:
+        lda CYCLES_HI
+        cmp TOTAL_HI
+        bcc chp_pass            ; high byte smaller -> pass
+        bne chp_fail            ; high byte larger  -> fail
+        lda CYCLES_LO           ; high bytes equal: compare low bytes
+        cmp TOTAL_LO
+        bcc chp_pass
+chp_fail:
+        lda #1
+        rts
+chp_pass:
+        lda #0
+        rts
+
+; ============================================================
+; Subroutine: print_decimal
+;
+; Prints the 16-bit value in CYCLES_HI:CYCLES_LO as a decimal
+; integer (up to 5 digits).  Leading zeros are suppressed except
+; for the units digit, which is always printed (handles 0).
+;
+; Destructive: subtracts successive powers of 10 from CYCLES,
+; leaving 0 in CYCLES_HI:CYCLES_LO after the call.
+;
+; Clobbers: A, X, CYCLES_HI, CYCLES_LO, LEAD0, DIVLO, DIVHI,
+;           CUR_DIGIT
+; ============================================================
+print_decimal:
+        lda #0
+        sta LEAD0               ; start with leading-zero suppression active
+
+        lda #<10000
+        ldx #>10000
+        jsr pd_digit
+
+        lda #<1000
+        ldx #>1000
+        jsr pd_digit
+
+        lda #<100
+        ldx #>100
+        jsr pd_digit
+
+        lda #10
+        ldx #0
+        jsr pd_digit
+
+        ; Units digit: always print even if 0
+        lda #$FF
+        sta LEAD0               ; force print regardless of value
+        lda #1
+        ldx #0
+        jsr pd_digit
+
+        rts
+
+; --------------------------------------------------------
+; pd_digit - helper for print_decimal
+;
+; Inputs:  A = divisor low byte,  X = divisor high byte
+;          LEAD0 = $00 (suppress) or $FF (print)
+; Action:  Counts how many times DIVHI:DIVLO fits into
+;          CYCLES, prints the resulting ASCII digit (or
+;          skips it if it is a leading zero).
+; --------------------------------------------------------
+pd_digit:
+        sta DIVLO
+        stx DIVHI
+        lda #'0'
+        sta CUR_DIGIT
+
+pd_sub: ; 16-bit subtract CYCLES -= DIV; commit only if non-negative
+        lda CYCLES_LO
+        sec
+        sbc DIVLO
+        tax                     ; X = new low byte (tentative)
+        lda CYCLES_HI
+        sbc DIVHI
+        bmi pd_done             ; went negative -> don't commit
+        sta CYCLES_HI
+        stx CYCLES_LO
+        inc CUR_DIGIT
+        jmp pd_sub
+
+pd_done:
+        ; Skip leading zeros
+        lda CUR_DIGIT
+        cmp #'0'
+        bne pd_print
+        lda LEAD0
+        bne pd_print            ; already past leading zeros: print
+        rts                     ; leading zero: skip
+
+pd_print:
+        lda #$FF
+        sta LEAD0               ; turn off leading-zero suppression
+        lda CUR_DIGIT
+        jsr CHROUT
+        rts
+
+; ============================================================
+; Subroutine: print_result
+;
+; Prints "OK" or "FAIL" (with CR) and updates counters.
+; Input: A = 0 -> pass,  A != 0 -> fail
+; ============================================================
+print_result:
+        cmp #0
+        bne pr_fail
+
+        inc PASS_CNT
+        lda #<msg_ok
+        ldx #>msg_ok
+        jsr print_str
+        rts
+
+pr_fail:
+        inc FAIL_CNT
+        lda #<msg_fail
+        ldx #>msg_fail
+        jsr print_str
+        rts
+
+; ============================================================
+; Subroutine: print_str
+;
+; Prints a null-terminated string via CHROUT.
+; Inputs: A = low byte, X = high byte of string address.
+; ============================================================
+print_str:
+        sta STRPTR
+        stx STRPTR+1
+ps_loop:
+        ldy #0
+        lda (STRPTR),y
+        beq ps_done
+        jsr CHROUT
+        inc STRPTR
+        bne ps_loop
+        inc STRPTR+1
+        jmp ps_loop
+ps_done:
+        rts
+
+; ============================================================
+; Message strings  (null-terminated, CBM uppercase charset)
+; ============================================================
+msg_banner:
+        .byte "PIA TEST MODULE 4", $0d
+        .byte "CB1 VBLANK SIGNAL", $0d
+        .byte "----------------", $0d
+        .byte 0
+
+msg_t1a: .byte "POS PERIOD: ", 0
+msg_t1b: .byte "NEG PERIOD: ", 0
+msg_t2a: .byte "HIGH PHASE: ", 0
+msg_t2b: .byte "LOW  PHASE: ", 0
+msg_t3a: .byte "IRQFLAG POS: ", 0
+msg_t3b: .byte "IRQFLAG NEG: ", 0
+msg_t4a: .byte "CPU IRQ POS: ", 0
+msg_t4b: .byte "CPU IRQ NEG: ", 0
+
+msg_ok:        .byte "OK", $0d, 0
+msg_fail:      .byte "FAIL", $0d, 0
+
+msg_abort:
+        .byte "TIMEOUT >200000", $0d
+        .byte "TESTS ABORTED", $0d, 0
+
+msg_divider:   .byte "----------------", $0d, 0
+msg_all_pass:  .byte "ALL TESTS PASSED", $0d, 0
+msg_some_fail: .byte "SOME TESTS FAILED", $0d, 0
