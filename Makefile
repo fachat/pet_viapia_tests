@@ -14,7 +14,7 @@ PRG4    = $(BUILD)/pet_pia_test2.prg
 PRG5    = $(BUILD)/via_test1_gen.prg
 PRG6    = $(BUILD)/via_test1.prg
 
-.PHONY: all clean run1 run2 run3 run4 run5 run6
+.PHONY: all clean run1 run2 run3 run4 gen5 run5
 
 all: $(PRG1) $(PRG2) $(PRG3) $(PRG4) $(PRG5) $(PRG6)
 
@@ -56,11 +56,11 @@ run4: $(PRG4)
 	bash vice/run_pet_pia_test2.sh
 
 # Run via_test1_gen in VICE to produce reference data files
-run5: $(PRG5)
+gen5: $(PRG5)
 	bash vice/run_via_test1_gen.sh
 
 # Run via_test1 in VICE using the reference data files
-run6: $(PRG6)
+run5: $(PRG6)
 	bash vice/run_via_test1.sh
 
 clean:
