@@ -110,6 +110,7 @@ FNPTR    = $06              ; 2-byte pointer to current filename ($06-$07)
 FNLEN    = $08              ; length of current filename
 ACR_SAVE = $09              ; saved VIA ACR value
 IER_SAVE = $0A              ; saved VIA IER value
+MEAS_ACR = $0B              ; current measurement ACR, saved/restored around KERNAL calls
 
 ; ============================================================
 ; Memory buffers
@@ -376,6 +377,26 @@ write_file:
         stx FNPTR+1
         sty FNLEN
 
+        ; Save the current measurement ACR and restore the VIA to a
+        ; KERNAL-safe state before any KERNAL I/O calls.  The measurement
+        ; routines leave VIA T1 latch at the measured value (possibly $0000).
+        ; When KERNAL writes to T1CH to start an IEEE-488 timeout it reloads
+        ; the counter from the latch, so a latch of $0000 fires the timeout
+        ; immediately and aborts the operation.  Setting the latch to $FFFF
+        ; gives KERNAL a ~65 ms timeout which is ample for any IEEE-488 op.
+        sei
+        lda VIA_BASE+VIA_ACR
+        sta MEAS_ACR
+        lda ACR_SAVE
+        sta VIA_BASE+VIA_ACR
+        lda #$ff
+        sta VIA_BASE+VIA_T1LL
+        sta VIA_BASE+VIA_T1LH   ; write latch high (clears IFR6; does not start timer)
+        lda IER_SAVE
+        ora #$80
+        sta VIA_BASE+VIA_IER
+        cli
+
         ; set filename via local SETNAM (writes to PET KERNAL ZP)
         lda FNLEN
         ldx FNPTR
@@ -412,6 +433,7 @@ wf_loop:
         lda #<msg_ok
         ldx #>msg_ok
         jsr print_str
+        jsr wf_via_restore
         rts
 
 wf_close_err:
@@ -428,6 +450,24 @@ wf_fail:
         lda #<msg_err
         ldx #>msg_err
         jsr print_str
+        jsr wf_via_restore
+        rts
+
+; ============================================================
+; Subroutine: wf_via_restore
+;
+; Restores the VIA to measurement state after the KERNAL I/O
+; calls in write_file.  Writes MEAS_ACR back to VIA_ACR and
+; re-disables T1/T2/SR interrupts so the next measurement
+; subroutine finds the VIA configured as expected.
+; ============================================================
+wf_via_restore:
+        sei
+        lda MEAS_ACR
+        sta VIA_BASE+VIA_ACR
+        lda #IFR_T1|IFR_T2|IFR_SR  ; bit7=0: disable these IRQ sources
+        sta VIA_BASE+VIA_IER
+        cli
         rts
 
 ; ============================================================
