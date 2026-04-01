@@ -1,0 +1,692 @@
+; ============================================================
+; via_test1_gen.a65
+; VIA Test 1 - Reference Data Generator
+;
+; Runs the timing measurement loops used by via_test1.a65 and
+; saves the raw results (256 bytes each) to CBM sequential
+; files on device 8 (IEEE-488 disk drive).  Run this once on
+; a known-good machine or in the VICE emulator to produce the
+; reference data that via_test1.a65 will compare against.
+;
+; Files written (CBM SEQ, 256 bytes each):
+;   VIA.T1.SS.0   T1 single-shot, latch=$00
+;   VIA.T1.SS.1   T1 single-shot, latch=$01
+;   VIA.T1.SS.2   T1 single-shot, latch=$02
+;   VIA.T1.SS.FF  T1 single-shot, latch=$FF
+;   VIA.T1.FR.0   T1 free-run,    latch=$00
+;   VIA.T1.FR.1   T1 free-run,    latch=$01
+;   VIA.T1.FR.2   T1 free-run,    latch=$02
+;   VIA.T1.FR.FF  T1 free-run,    latch=$FF
+;   VIA.T1.RST    T1 single-shot, reset mid-count ($FF -> $80)
+;   VIA.T2.0      T2 one-shot,    latch=$00
+;   VIA.T2.1      T2 one-shot,    latch=$01
+;   VIA.T2.2      T2 one-shot,    latch=$02
+;   VIA.T2.FF     T2 one-shot,    latch=$FF
+;   VIA.SR.T2     SR shift-out under T2, data=$AA, T2 period=5
+;   VIA.SR.STOP   SR shift-out under T2, mid-operation write
+;
+; NOTE: existing files of the same name are scratched first
+; (the "@0:" prefix in the filename string tells CBM DOS to
+; overwrite).
+;
+; Target   : Commodore PET 4032
+; Assembler: xa65  (command: xa -W -XMASM)
+; Load     : LOAD then RUN  -- or autostart in VICE
+; ============================================================
+
+; ============================================================
+; Hardware addresses
+; ============================================================
+VIA_BASE = $E840            ; VIA (6522) base address
+
+; VIA register offsets from VIA_BASE
+VIA_T1CL = $04              ; T1 counter low  (read: clears IFR6)
+VIA_T1CH = $05              ; T1 counter high (write: loads T1CL from T1LL, starts)
+VIA_T1LL = $06              ; T1 latch low    (read/write: latch only)
+VIA_T1LH = $07              ; T1 latch high   (write: clears IFR6; read: latch)
+VIA_T2CL = $08              ; T2 counter low  (write: latch; read: counter, clears IFR5)
+VIA_T2CH = $09              ; T2 counter high (write: loads T2CL from latch, starts)
+VIA_SR   = $0A              ; Shift register
+VIA_ACR  = $0B              ; Auxiliary control register
+VIA_IFR  = $0D              ; Interrupt flag register
+VIA_IER  = $0E              ; Interrupt enable register
+
+; ACR T1 mode (bits 7-6):
+;   00 = one-shot, no PB7  01 = one-shot with PB7
+;   10 = free-run, no PB7  11 = free-run with PB7
+ACR_T1_MASK  = $C0          ; mask for T1 mode bits
+ACR_T1_NMASK = $3F          ; inverse mask: bits NOT in T1 mode field
+ACR_T1_SS    = $00          ; 00 -> single-shot, no PB7
+ACR_T1_FR    = $80          ; 10 -> free-run,    no PB7
+
+; ACR SR mode (bits 4-2):
+;   000=off 001=in/T2 010=in/phi2 011=in/CB1
+;   100=out/T2-free 101=out/T2 110=out/phi2 111=out/CB1
+ACR_SR_MASK  = $1C          ; mask for SR mode bits
+ACR_SR_NMASK = $E3          ; inverse mask: bits NOT in SR mode field
+ACR_SR_OFF   = $00          ; 000 -> SR disabled
+ACR_SR_OT2   = $14          ; 101 -> shift out under T2 (8-bit, stops after 8 shifts)
+ACR_SR_FRT2  = $10          ; 100 -> shift out, T2 free-running
+
+; ACR T2 mode (bit 5):  0=timer, 1=count PB6 pulses
+ACR_T2_MASK  = $20          ; mask for T2 mode bit
+ACR_T2_NMASK = $DF          ; inverse mask: bits NOT in T2 mode field
+
+; IFR / IER bit masks
+IFR_T1 = $40                ; bit 6 = T1 timeout
+IFR_T2 = $20                ; bit 5 = T2 timeout
+IFR_SR = $04                ; bit 2 = SR complete
+
+; CBM KERNAL
+CHROUT = $FFD2              ; output char in A to current channel
+SETLFS = $FFBA              ; set logical, first, second addresses
+SETNAM = $FFBD              ; set filename
+OPEN   = $FFC0              ; open logical file
+CLOSE  = $FFC3              ; close logical file
+CHKIN  = $FFC6              ; open channel for input
+CHKOUT = $FFC9              ; open channel for output
+CLRCHN = $FFCC              ; restore default I/O channels
+BASIN  = $FFCF              ; input byte from channel
+READST = $FFB7              ; read I/O status word
+
+; ============================================================
+; Zero-page ($02-$13 - safe for standalone ML on PET)
+; ============================================================
+STRPTR   = $02              ; 2-byte string pointer for print_str
+PASS_CNT = $04              ; running pass counter
+FAIL_CNT = $05              ; running fail counter
+FNPTR    = $06              ; 2-byte pointer to current filename ($06-$07)
+FNLEN    = $08              ; length of current filename
+ACR_SAVE = $09              ; saved VIA ACR value
+IER_SAVE = $0A              ; saved VIA IER value
+
+; ============================================================
+; Memory buffers
+; ============================================================
+MEAS_BUF = $0800            ; measurement result buffer (256 bytes, $0800-$08FF)
+
+; ============================================================
+; .PRG file header
+; ============================================================
+* = $0401 - 2
+        .word $0401         ; .prg load address (little-endian)
+
+* = $0401
+        .word basic_end     ; pointer to next BASIC line
+        .word 10            ; BASIC line number
+        .byte $9e           ; SYS token
+        .byte "1037"        ; decimal address of code_start
+        .byte 0             ; end of BASIC line
+basic_end:
+        .word 0             ; end of BASIC program
+
+; ============================================================
+; Machine code entry point  ($040D = 1037 decimal)
+; ============================================================
+* = $040D
+main:
+        lda #0
+        sta PASS_CNT
+        sta FAIL_CNT
+
+        ; clear screen
+        lda #$93
+        jsr CHROUT
+
+        lda #<msg_banner
+        ldx #>msg_banner
+        jsr print_str
+
+        ; save VIA state and disable T1/T2/SR interrupts
+        sei
+        lda VIA_BASE+VIA_ACR
+        sta ACR_SAVE
+        lda VIA_BASE+VIA_IER
+        sta IER_SAVE
+        lda #IFR_T1|IFR_T2|IFR_SR  ; bit7=0: disable these IRQ sources
+        sta VIA_BASE+VIA_IER
+        cli
+
+        ; --------------------------------------------------------
+        ; Timer 1 - single-shot measurements (ACR bits 7-6 = 00)
+        ; --------------------------------------------------------
+        lda #<msg_t1ss
+        ldx #>msg_t1ss
+        jsr print_str
+
+        sei
+        lda VIA_BASE+VIA_ACR
+        and #ACR_T1_NMASK      ; clear T1 mode bits
+        ora #ACR_T1_SS          ; set single-shot
+        sta VIA_BASE+VIA_ACR
+        cli
+
+        lda #$00
+        jsr meas_t1
+        lda #<fn_t1ss0
+        ldx #>fn_t1ss0
+        ldy #fn_t1ss0_end - fn_t1ss0
+        jsr write_file
+
+        lda #$01
+        jsr meas_t1
+        lda #<fn_t1ss1
+        ldx #>fn_t1ss1
+        ldy #fn_t1ss1_end - fn_t1ss1
+        jsr write_file
+
+        lda #$02
+        jsr meas_t1
+        lda #<fn_t1ss2
+        ldx #>fn_t1ss2
+        ldy #fn_t1ss2_end - fn_t1ss2
+        jsr write_file
+
+        lda #$FF
+        jsr meas_t1
+        lda #<fn_t1ssff
+        ldx #>fn_t1ssff
+        ldy #fn_t1ssff_end - fn_t1ssff
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; Timer 1 - free-run measurements (ACR bits 7-6 = 10)
+        ; --------------------------------------------------------
+        lda #<msg_t1fr
+        ldx #>msg_t1fr
+        jsr print_str
+
+        sei
+        lda VIA_BASE+VIA_ACR
+        and #ACR_T1_NMASK      ; clear T1 mode bits
+        ora #ACR_T1_FR          ; set free-run
+        sta VIA_BASE+VIA_ACR
+        cli
+
+        lda #$00
+        jsr meas_t1
+        lda #<fn_t1fr0
+        ldx #>fn_t1fr0
+        ldy #fn_t1fr0_end - fn_t1fr0
+        jsr write_file
+
+        lda #$01
+        jsr meas_t1
+        lda #<fn_t1fr1
+        ldx #>fn_t1fr1
+        ldy #fn_t1fr1_end - fn_t1fr1
+        jsr write_file
+
+        lda #$02
+        jsr meas_t1
+        lda #<fn_t1fr2
+        ldx #>fn_t1fr2
+        ldy #fn_t1fr2_end - fn_t1fr2
+        jsr write_file
+
+        lda #$FF
+        jsr meas_t1
+        lda #<fn_t1frff
+        ldx #>fn_t1frff
+        ldy #fn_t1frff_end - fn_t1frff
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; Timer 1 - reset mid-count (single-shot mode)
+        ; --------------------------------------------------------
+        lda #<msg_t1rst
+        ldx #>msg_t1rst
+        jsr print_str
+
+        sei
+        lda VIA_BASE+VIA_ACR
+        and #ACR_T1_NMASK
+        ora #ACR_T1_SS
+        sta VIA_BASE+VIA_ACR
+        cli
+
+        jsr meas_t1_rst
+        lda #<fn_t1rst
+        ldx #>fn_t1rst
+        ldy #fn_t1rst_end - fn_t1rst
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; Timer 2 - one-shot measurements (ACR bit 5 = 0)
+        ; --------------------------------------------------------
+        lda #<msg_t2
+        ldx #>msg_t2
+        jsr print_str
+
+        sei
+        lda VIA_BASE+VIA_ACR
+        and #ACR_T2_NMASK      ; clear bit 5: T2 in timer mode
+        sta VIA_BASE+VIA_ACR
+        cli
+
+        lda #$00
+        jsr meas_t2
+        lda #<fn_t20
+        ldx #>fn_t20
+        ldy #fn_t20_end - fn_t20
+        jsr write_file
+
+        lda #$01
+        jsr meas_t2
+        lda #<fn_t21
+        ldx #>fn_t21
+        ldy #fn_t21_end - fn_t21
+        jsr write_file
+
+        lda #$02
+        jsr meas_t2
+        lda #<fn_t22
+        ldx #>fn_t22
+        ldy #fn_t22_end - fn_t22
+        jsr write_file
+
+        lda #$FF
+        jsr meas_t2
+        lda #<fn_t2ff
+        ldx #>fn_t2ff
+        ldy #fn_t2ff_end - fn_t2ff
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; Shift register - shift out under T2, 8-bit mode
+        ; --------------------------------------------------------
+        lda #<msg_sr
+        ldx #>msg_sr
+        jsr print_str
+
+        jsr meas_sr_t2
+        lda #<fn_srt2
+        ldx #>fn_srt2
+        ldy #fn_srt2_end - fn_srt2
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; Shift register - stop (rewrite) mid-operation
+        ; --------------------------------------------------------
+        jsr meas_sr_stop
+        lda #<fn_srstop
+        ldx #>fn_srstop
+        ldy #fn_srstop_end - fn_srstop
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; Restore VIA state
+        ; --------------------------------------------------------
+        sei
+        lda ACR_SAVE
+        sta VIA_BASE+VIA_ACR
+        lda IER_SAVE
+        ora #$80            ; bit7=1: enable the bits that were set
+        sta VIA_BASE+VIA_IER
+        cli
+
+        lda #<msg_done
+        ldx #>msg_done
+        jsr print_str
+
+        rts
+
+; ============================================================
+; Subroutine: meas_t1
+;
+; Loads T1 with a 16-bit value (low byte in A, high byte = $00)
+; using the latch registers, starts the timer by writing T1CH,
+; then reads T1CL 256 times in a tight loop storing results in
+; MEAS_BUF.  ACR must already be configured for the desired
+; T1 mode (single-shot or free-run) before calling.
+;
+; Timing of the tight loop (all iterations identical):
+;   LDA abs       4 cycles   read T1CL
+;   STA abs,X     5 cycles   store to MEAS_BUF,X
+;   INX           2 cycles
+;   BNE rel       3 cycles   (2 on last iteration)
+;   = 14 cycles per iteration (13 for the last one)
+;
+; Cycles from T1CH write to first T1CL read: ~6 cycles
+; (LDX #0: 2 cycles + first 4 cycles of LDA abs)
+;
+; Entry: A = latch low byte (latch high byte is always $00)
+; Result: MEAS_BUF[0..255] = 256 T1CL readings
+; Clobbers: A, X
+; ============================================================
+meas_t1:
+        sei
+        sta VIA_BASE+VIA_T1LL   ; write T1 latch low
+        lda #$00
+        sta VIA_BASE+VIA_T1LH   ; write T1 latch high (clears IFR6)
+        sta VIA_BASE+VIA_T1CH   ; write T1CH: loads T1CL <- T1LL, starts timer
+        ldx #0
+meas_t1_lp:
+        lda VIA_BASE+VIA_T1CL   ; 4 cycles - read counter, clears IFR6
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        bne meas_t1_lp          ; 3 cycles (taken) / 2 (not taken on X=0 wrap)
+        cli
+        rts
+
+; ============================================================
+; Subroutine: meas_t1_rst
+;
+; Tests resetting T1 to a new latch value mid-count.
+; Phase 1: loads T1 with latch=$FF, reads T1CL 128 times.
+; Reset:   writes new latch=$80 and restarts T1.
+; Phase 2: reads T1CL 128 more times (X wraps from 128 to 0).
+;
+; The 128-iteration loops use CPX to terminate, which adds
+; 2 cycles per iteration compared to the plain meas_t1 loop.
+; Both phases have identical per-iteration timing (16 cycles)
+; so the reference data fully captures the restart effect.
+;
+; Result: MEAS_BUF[0..127]   = phase-1 readings (latch=$FF)
+;         MEAS_BUF[128..255] = phase-2 readings (latch=$80)
+; ============================================================
+meas_t1_rst:
+        sei
+        ; phase 1: load T1 latch=$FF, start
+        lda #$FF
+        sta VIA_BASE+VIA_T1LL
+        lda #$00
+        sta VIA_BASE+VIA_T1LH
+        sta VIA_BASE+VIA_T1CH   ; start T1 with $00FF
+        ldx #0
+meas_t1_rst_lp1:
+        lda VIA_BASE+VIA_T1CL   ; 4 cycles
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        cpx #128                ; 2 cycles
+        bne meas_t1_rst_lp1     ; 3 cycles (taken) / 2 (not taken)
+        ; reset T1 to new latch=$80 mid-count
+        lda #$80
+        sta VIA_BASE+VIA_T1LL
+        lda #$00
+        sta VIA_BASE+VIA_T1LH
+        sta VIA_BASE+VIA_T1CH   ; restart T1 with $0080
+        ; phase 2: read 128 more times (x=128..255, wraps to 0)
+meas_t1_rst_lp2:
+        lda VIA_BASE+VIA_T1CL   ; 4 cycles
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        cpx #0                  ; 2 cycles  (will be 0 after 128 more INX from 128)
+        bne meas_t1_rst_lp2     ; 3 cycles (taken) / 2 (not taken)
+        cli
+        rts
+
+; ============================================================
+; Subroutine: meas_t2
+;
+; Loads T2 with a 16-bit value (low byte in A, high byte = $00)
+; and reads T2CL 256 times in a tight loop.  ACR bit 5 must
+; be 0 (T2 in timer/CPU-clock mode) before calling.
+;
+; Unlike T1, T2 has no latch-high register; the high byte is
+; written directly to the counter via T2CH.  After T2 reaches
+; zero, the counter continues decrementing (wraps through
+; $FFFF) - this "free-running" behaviour is captured in the
+; recorded data for small latch values.
+;
+; Timing: identical loop structure to meas_t1 (14 cycles/iter).
+;
+; Entry: A = latch low byte (high byte always $00)
+; Result: MEAS_BUF[0..255] = 256 T2CL readings
+; Clobbers: A, X
+; ============================================================
+meas_t2:
+        sei
+        sta VIA_BASE+VIA_T2CL   ; write T2 latch low
+        lda #$00
+        sta VIA_BASE+VIA_T2CH   ; write T2CH: loads T2CL <- latch, starts timer
+        ldx #0
+meas_t2_lp:
+        lda VIA_BASE+VIA_T2CL   ; 4 cycles - read counter, clears IFR5
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        bne meas_t2_lp          ; 3 cycles (taken) / 2 (not taken)
+        cli
+        rts
+
+; ============================================================
+; Subroutine: meas_sr_t2
+;
+; Configures the SR in shift-out / T2-clock mode (ACR=101),
+; loads T2 latch with period=5, writes $AA to SR to start
+; shifting, then reads SR 256 times.
+;
+; In this mode each T2 timeout (every 6 CPU cycles = latch+1)
+; shifts one bit out on CB2.  After 8 complete shifts IFR
+; bit 2 is set and shifting stops; the SR value at that point
+; freezes.  The 256 readings thus capture the shift-out
+; sequence followed by the final static value.
+;
+; Result: MEAS_BUF[0..255] = 256 SR readings
+; Clobbers: A, X
+; ============================================================
+meas_sr_t2:
+        sei
+        ; configure SR: shift out under T2 (ACR bits 4-2 = 101)
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OT2
+        sta VIA_BASE+VIA_ACR
+        ; set T2 latch for SR clock period (latch+1 = 6 cycles)
+        lda #$05
+        sta VIA_BASE+VIA_T2CL
+        ; write data to SR - this starts the shift-out sequence
+        lda #$AA
+        sta VIA_BASE+VIA_SR
+        ; read SR 256 times
+        ldx #0
+meas_sr_t2_lp:
+        lda VIA_BASE+VIA_SR     ; 4 cycles
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        bne meas_sr_t2_lp       ; 3 cycles (taken) / 2 (not taken)
+        ; disable SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        rts
+
+; ============================================================
+; Subroutine: meas_sr_stop
+;
+; Tests stopping the SR mid-operation by writing a new value
+; while shifting is in progress.
+; Phase 1: write $FF to SR (starts shifting), read SR 64 times.
+; Restart: write $55 to SR (resets / restarts shifting).
+; Phase 2: read SR 192 more times.
+;
+; Uses T2 latch=10 (11-cycle SR clock period) so that
+; multiple shift steps occur within the 64-iteration window.
+;
+; Result: MEAS_BUF[0..63]    = phase-1 readings (data=$FF)
+;         MEAS_BUF[64..255]  = phase-2 readings (data=$55)
+; ============================================================
+meas_sr_stop:
+        sei
+        ; configure SR: shift out under T2
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OT2
+        sta VIA_BASE+VIA_ACR
+        ; T2 latch = 10 (11-cycle SR clock period)
+        lda #$0A
+        sta VIA_BASE+VIA_T2CL
+        ; write initial value to SR - starts shifting
+        lda #$FF
+        sta VIA_BASE+VIA_SR
+        ; phase 1: 64 reads (X = 0..63)
+        ldx #0
+meas_sr_stop_lp1:
+        lda VIA_BASE+VIA_SR     ; 4 cycles
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        cpx #64                 ; 2 cycles
+        bne meas_sr_stop_lp1    ; 3 cycles (taken) / 2 (not taken)
+        ; restart SR with new value mid-operation
+        lda #$55
+        sta VIA_BASE+VIA_SR
+        ; phase 2: 192 more reads (X = 64..255, wraps at 0)
+meas_sr_stop_lp2:
+        lda VIA_BASE+VIA_SR     ; 4 cycles
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        cpx #0                  ; 2 cycles
+        bne meas_sr_stop_lp2    ; 3 cycles (taken) / 2 (not taken)
+        ; disable SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        rts
+
+; ============================================================
+; Subroutine: write_file
+;
+; Writes MEAS_BUF (256 bytes) to a CBM sequential file on
+; device 8.  The filename string (passed in A=lo, X=hi, Y=len)
+; should include the "@0:" prefix to overwrite any existing
+; file and the ",S,W" suffix to specify sequential write mode.
+;
+; Entry: A = low byte of filename string address
+;        X = high byte of filename string address
+;        Y = filename string length
+; On success: increments PASS_CNT, prints "OK"
+; On error:   increments FAIL_CNT, prints "ERR"
+; Clobbers: A, X, Y
+; ============================================================
+write_file:
+        sta FNPTR
+        stx FNPTR+1
+        sty FNLEN
+
+        ; SETNAM
+        lda FNLEN
+        ldx FNPTR
+        ldy FNPTR+1
+        jsr SETNAM
+
+        ; SETLFS(lfn=1, device=8, secondary=2 -> data write)
+        lda #1
+        ldx #8
+        ldy #2
+        jsr SETLFS
+
+        jsr OPEN
+        bcs wf_err          ; carry set on KERNAL open error
+
+        ldx #1
+        jsr CHKOUT
+        bcs wf_close_err
+
+        ; write 256 bytes from MEAS_BUF
+        ldx #0
+wf_loop:
+        lda MEAS_BUF,x
+        jsr CHROUT
+        inx
+        bne wf_loop
+
+        jsr CLRCHN
+        lda #1
+        jsr CLOSE
+
+        inc PASS_CNT
+        lda #<msg_ok
+        ldx #>msg_ok
+        jsr print_str
+        rts
+
+wf_close_err:
+        jsr CLRCHN
+        lda #1
+        jsr CLOSE
+        jmp wf_fail
+
+wf_err:
+        lda #1
+        jsr CLOSE
+wf_fail:
+        inc FAIL_CNT
+        lda #<msg_err
+        ldx #>msg_err
+        jsr print_str
+        rts
+
+; ============================================================
+; Subroutine: print_str
+;
+; Prints a null-terminated string via CHROUT.
+; Entry: A = low byte of address, X = high byte
+; ============================================================
+print_str:
+        sta STRPTR
+        stx STRPTR+1
+ps_lp:
+        ldy #0
+        lda (STRPTR),y
+        beq ps_done
+        jsr CHROUT
+        inc STRPTR
+        bne ps_lp
+        inc STRPTR+1
+        jmp ps_lp
+ps_done:
+        rts
+
+; ============================================================
+; Message strings (null-terminated, CBM uppercase charset)
+; ============================================================
+msg_banner: .byte "VIA TEST1 DATA GENERATOR", $0d
+            .byte "------------------------", $0d, 0
+msg_t1ss:   .byte "T1 SINGLE-SHOT...", 0
+msg_t1fr:   .byte $0d, "T1 FREE-RUN...", 0
+msg_t1rst:  .byte $0d, "T1 RESET MID-COUNT...", 0
+msg_t2:     .byte $0d, "T2 ONE-SHOT...", 0
+msg_sr:     .byte $0d, "SHIFT REGISTER...", 0
+msg_done:   .byte $0d, "DONE.", $0d, 0
+msg_ok:     .byte ".", 0
+msg_err:    .byte "E", 0
+
+; ============================================================
+; Filename strings
+; The "@0:" prefix tells CBM DOS to scratch-and-replace.
+; The ",S,W" suffix selects sequential-file write mode.
+; ============================================================
+fn_t1ss0:   .byte "@0:VIA.T1.SS.0,S,W"
+fn_t1ss0_end:
+fn_t1ss1:   .byte "@0:VIA.T1.SS.1,S,W"
+fn_t1ss1_end:
+fn_t1ss2:   .byte "@0:VIA.T1.SS.2,S,W"
+fn_t1ss2_end:
+fn_t1ssff:  .byte "@0:VIA.T1.SS.FF,S,W"
+fn_t1ssff_end:
+fn_t1fr0:   .byte "@0:VIA.T1.FR.0,S,W"
+fn_t1fr0_end:
+fn_t1fr1:   .byte "@0:VIA.T1.FR.1,S,W"
+fn_t1fr1_end:
+fn_t1fr2:   .byte "@0:VIA.T1.FR.2,S,W"
+fn_t1fr2_end:
+fn_t1frff:  .byte "@0:VIA.T1.FR.FF,S,W"
+fn_t1frff_end:
+fn_t1rst:   .byte "@0:VIA.T1.RST,S,W"
+fn_t1rst_end:
+fn_t20:     .byte "@0:VIA.T2.0,S,W"
+fn_t20_end:
+fn_t21:     .byte "@0:VIA.T2.1,S,W"
+fn_t21_end:
+fn_t22:     .byte "@0:VIA.T2.2,S,W"
+fn_t22_end:
+fn_t2ff:    .byte "@0:VIA.T2.FF,S,W"
+fn_t2ff_end:
+fn_srt2:    .byte "@0:VIA.SR.T2,S,W"
+fn_srt2_end:
+fn_srstop:  .byte "@0:VIA.SR.STOP,S,W"
+fn_srstop_end:
