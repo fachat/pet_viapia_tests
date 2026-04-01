@@ -111,6 +111,8 @@ LEAD0     = $0E             ; leading-zero suppression flag for print_decimal
 DIVLO     = $0F             ; current divisor low byte (print_decimal helper)
 DIVHI     = $10             ; current divisor high byte
 CUR_DIGIT = $11             ; digit accumulator (print_decimal helper)
+ORIG_VEC_LO = $12           ; original $0090 IRQ vector, low byte  (irq_handler chains to this)
+ORIG_VEC_HI = $13           ; original $0090 IRQ vector, high byte
 
 ; ============================================================
 ; .PRG file header - first two bytes are the CBM load address
@@ -801,7 +803,8 @@ tifn_fail:
 ; when CRB bit1=1 (positive edge) and CRB bit0=1 (IRQ enable).
 ;
 ; Method:
-;   1. Save the PET user IRQ vector at $0090-$0091 on the stack.
+;   1. Save the PET user IRQ vector at $0090-$0091 on the stack
+;      and also copy it to ORIG_VEC_LO/HI for irq_handler to use.
 ;   2. Set $0090-$0091 to point to irq_handler (this file).
 ;   3. Clear IRQ_FLAG.
 ;   4. Configure CRB: data, positive edge, IRQ enable.
@@ -810,17 +813,19 @@ tifn_fail:
 ;   7. Loop: wait for IRQ_FLAG != 0 or T2 timeout.
 ;   8. SEI, disable CRB bit0, restore CRB and IRQ vector.
 ;
-; The PET KERNAL IRQ handler (JMP ($0090) path):
-;   KERNAL saves A, X, Y on the stack before JMP ($0090).
-;   irq_handler restores Y, X, A and ends with RTI.
+; The PET KERNAL IRQ handler ends with JMP ($0090).
+; irq_handler sets IRQ_FLAG then jumps to ORIG_VEC_LO/HI
+; so the original handler restores the CPU state and RTIs.
 ;
 ; Returns: A = 0 pass,  A = 1 fail
 ; ============================================================
 test_irq_cpu_pos:
         sei
         lda PET_IRQ_VEC
-        pha                     ; [stack: vec_lo]
+        sta ORIG_VEC_LO         ; save for irq_handler to chain to
+        pha                     ; [stack: vec_lo] - also keep for restore
         lda PET_IRQ_VEC+1
+        sta ORIG_VEC_HI
         pha                     ; [stack: vec_hi, vec_lo]
         lda #<irq_handler
         sta PET_IRQ_VEC
@@ -894,8 +899,10 @@ ticp_fail:
 test_irq_cpu_neg:
         sei
         lda PET_IRQ_VEC
+        sta ORIG_VEC_LO         ; save for irq_handler to chain to
         pha
         lda PET_IRQ_VEC+1
+        sta ORIG_VEC_HI
         pha
         lda #<irq_handler
         sta PET_IRQ_VEC
@@ -964,22 +971,19 @@ ticn_fail:
 ; User IRQ routine installed at PET_IRQ_VEC ($0090).
 ;
 ; The PET KERNAL IRQ handler saves A, X, Y on the hardware
-; stack (in that order: PHA; TXA/PHA; TYA/PHA) and then
-; executes JMP ($0090).  When control reaches irq_handler:
-;   Stack (top -> bottom): Y, X, A, P, PCH, PCL
-;
-; This handler sets IRQ_FLAG, restores Y/X/A, and returns with
-; RTI so the interrupted code resumes with correct registers.
+; stack and then executes JMP ($0090).  Rather than replicating
+; the KERNAL's exact register-restore + RTI sequence here
+; (which would break if the KERNAL's stack depth differs),
+; this handler sets IRQ_FLAG and then jumps to the address that
+; was originally stored in $0090/$0091 (saved in ORIG_VEC_LO/HI
+; before installing this handler).  That original routine is
+; responsible for restoring Y, X, A and executing RTI, exactly
+; as it would have done without our handler in place.
 ; ============================================================
 irq_handler:
         lda #$FF
         sta IRQ_FLAG            ; signal the wait loop in test 4
-        pla                     ; restore Y (KERNAL pushed it last)
-        tay
-        pla                     ; restore X
-        tax
-        pla                     ; restore A
-        rti                     ; restore P and PC, return to interrupted code
+        jmp (ORIG_VEC_LO)       ; chain to original $0090 handler (restores regs + RTI)
 
 ; ============================================================
 ; Subroutine: check_period
