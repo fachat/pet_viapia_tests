@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
 # Run via_test1_gen in VICE xpet to generate reference data files.
 #
-# This script mounts the vice/data/ directory as IEEE-488 device 8
-# using VICE's filesystem device emulation.  The generator program
-# writes the 15 reference SEQ files into that directory.
+# The D64 disk image is attached as IEEE-488 device 8 by passing it to
+# -autostart.  VICE mounts the image directly (no temporary disk is
+# created), so the reference SEQ files written by the generator are
+# saved back into the persistent D64 image.
 #
-# After running this script, run_via_test1.sh to execute the test.
+# After running this script, run run_via_test1.sh (or 'make run5') to
+# execute the test against the generated data.
 #
+# Usage: bash vice/run_via_test1_gen.sh <d64_image> [extra VICE options]
 # Requires: VICE xpet binary in PATH
-# Usage: bash vice/run_via_test1_gen.sh [extra VICE options]
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PRG="${SCRIPT_DIR}/../build/via_test1_gen.prg"
-DATA_DIR="${SCRIPT_DIR}/data"
+D64="${1:?Usage: $0 <d64_image> [extra VICE options]}"
+shift
 
-if [ ! -f "$PRG" ]; then
-    echo "ERROR: $PRG not found. Run 'make' first." >&2
+if [ ! -f "$D64" ]; then
+    echo "ERROR: $D64 not found. Run 'make' first." >&2
     exit 1
 fi
 
@@ -24,11 +25,6 @@ if ! command -v xpet >/dev/null 2>&1; then
     exit 1
 fi
 
-mkdir -p "$DATA_DIR"
-
 exec xpet -model 4032 \
-     -drive8type 1541 \
-     -drive8 8 \
-     -fsdevice8 "$DATA_DIR" \
-     -autostart "$PRG" \
+     -autostart "$D64" \
      "$@"
