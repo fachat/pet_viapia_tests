@@ -93,15 +93,26 @@ IFR_SR = $04                ; bit 2 = SR complete
 
 ; CBM KERNAL
 CHROUT = $FFD2
-SETLFS = $FFBA
-SETNAM = $FFBD
 OPEN   = $FFC0
 CLOSE  = $FFC3
 CHKIN  = $FFC6
 CHKOUT = $FFC9
 CLRCHN = $FFCC
 BASIN  = $FFCF
-READST = $FFB7
+
+; PET KERNAL zero-page file I/O variables.
+; SETLFS and SETNAM are not present in the PET KERNAL jump
+; table; the routines are implemented locally below by writing
+; directly to these zero-page locations which the PET KERNAL
+; file-I/O routines (OPEN, CHKIN, CHKOUT, BASIN, CLRCHN,
+; CLOSE) read when they need the filename / LFN / device /
+; secondary-address parameters.
+KERNAL_FNLEN = $B7          ; filename length
+KERNAL_LFN   = $B8          ; logical file number
+KERNAL_DEVNO = $B9          ; device number
+KERNAL_SA    = $BA          ; secondary address
+KERNAL_FNLO  = $BB          ; filename pointer, low byte
+KERNAL_FNHI  = $BC          ; filename pointer, high byte
 
 ; ============================================================
 ; Zero-page ($02-$13)
@@ -138,8 +149,22 @@ basic_end:
 
 ; ============================================================
 ; Machine code entry point  ($040D = 1037 decimal)
+;
+; SYS 1037 executes the 3-byte JMP at $040D, which jumps over
+; the included measurement subroutines to main.  Placing the
+; measurement code at $0410 (immediately after the JMP, and at
+; the same address in via_test1_gen.prg) guarantees identical
+; branch-target page alignment and thus cycle-accurate timing
+; reproducibility between the generator and test runs.
 ; ============================================================
 * = $040D
+        jmp main            ; skip measurement code; land at main below
+
+.include "via_meas.inc"     ; measurement subroutines assembled at $0410
+
+; ============================================================
+; Main entry point
+; ============================================================
 main:
         lda #0
         sta PASS_CNT
@@ -800,157 +825,6 @@ t2chs_fail:
         rts
 
 ; ============================================================
-; Subroutine: meas_t1
-;
-; ** MUST BE BYTE-FOR-BYTE IDENTICAL TO via_test1_gen.a65 **
-;
-; Entry: A = latch low byte (high byte always $00)
-; Result: MEAS_BUF[0..255] = 256 T1CL readings
-; ============================================================
-meas_t1:
-        sei
-        sta VIA_BASE+VIA_T1LL
-        lda #$00
-        sta VIA_BASE+VIA_T1LH
-        sta VIA_BASE+VIA_T1CH
-        ldx #0
-meas_t1_lp:
-        lda VIA_BASE+VIA_T1CL   ; 4 cycles
-        sta MEAS_BUF,x          ; 5 cycles
-        inx                     ; 2 cycles
-        bne meas_t1_lp          ; 3/2 cycles
-        cli
-        rts
-
-; ============================================================
-; Subroutine: meas_t1_rst
-;
-; ** MUST BE BYTE-FOR-BYTE IDENTICAL TO via_test1_gen.a65 **
-;
-; Result: MEAS_BUF[0..127]   = phase-1 readings (latch=$FF)
-;         MEAS_BUF[128..255] = phase-2 readings (latch=$80)
-; ============================================================
-meas_t1_rst:
-        sei
-        lda #$FF
-        sta VIA_BASE+VIA_T1LL
-        lda #$00
-        sta VIA_BASE+VIA_T1LH
-        sta VIA_BASE+VIA_T1CH
-        ldx #0
-meas_t1_rst_lp1:
-        lda VIA_BASE+VIA_T1CL   ; 4 cycles
-        sta MEAS_BUF,x          ; 5 cycles
-        inx                     ; 2 cycles
-        cpx #128                ; 2 cycles
-        bne meas_t1_rst_lp1     ; 3/2 cycles
-        lda #$80
-        sta VIA_BASE+VIA_T1LL
-        lda #$00
-        sta VIA_BASE+VIA_T1LH
-        sta VIA_BASE+VIA_T1CH
-meas_t1_rst_lp2:
-        lda VIA_BASE+VIA_T1CL   ; 4 cycles
-        sta MEAS_BUF,x          ; 5 cycles
-        inx                     ; 2 cycles
-        cpx #0                  ; 2 cycles
-        bne meas_t1_rst_lp2     ; 3/2 cycles
-        cli
-        rts
-
-; ============================================================
-; Subroutine: meas_t2
-;
-; ** MUST BE BYTE-FOR-BYTE IDENTICAL TO via_test1_gen.a65 **
-;
-; Entry: A = latch low byte (high byte always $00)
-; Result: MEAS_BUF[0..255] = 256 T2CL readings
-; ============================================================
-meas_t2:
-        sei
-        sta VIA_BASE+VIA_T2CL
-        lda #$00
-        sta VIA_BASE+VIA_T2CH
-        ldx #0
-meas_t2_lp:
-        lda VIA_BASE+VIA_T2CL   ; 4 cycles
-        sta MEAS_BUF,x          ; 5 cycles
-        inx                     ; 2 cycles
-        bne meas_t2_lp          ; 3/2 cycles
-        cli
-        rts
-
-; ============================================================
-; Subroutine: meas_sr_t2
-;
-; ** MUST BE BYTE-FOR-BYTE IDENTICAL TO via_test1_gen.a65 **
-;
-; Result: MEAS_BUF[0..255] = 256 SR readings
-; ============================================================
-meas_sr_t2:
-        sei
-        lda VIA_BASE+VIA_ACR
-        and #ACR_SR_NMASK
-        ora #ACR_SR_OT2
-        sta VIA_BASE+VIA_ACR
-        lda #$05
-        sta VIA_BASE+VIA_T2CL
-        lda #$AA
-        sta VIA_BASE+VIA_SR
-        ldx #0
-meas_sr_t2_lp:
-        lda VIA_BASE+VIA_SR     ; 4 cycles
-        sta MEAS_BUF,x          ; 5 cycles
-        inx                     ; 2 cycles
-        bne meas_sr_t2_lp       ; 3/2 cycles
-        lda VIA_BASE+VIA_ACR
-        and #ACR_SR_NMASK
-        ora #ACR_SR_OFF
-        sta VIA_BASE+VIA_ACR
-        cli
-        rts
-
-; ============================================================
-; Subroutine: meas_sr_stop
-;
-; ** MUST BE BYTE-FOR-BYTE IDENTICAL TO via_test1_gen.a65 **
-;
-; Result: MEAS_BUF[0..63]   = phase-1 readings (data=$FF)
-;         MEAS_BUF[64..255] = phase-2 readings (data=$55)
-; ============================================================
-meas_sr_stop:
-        sei
-        lda VIA_BASE+VIA_ACR
-        and #ACR_SR_NMASK
-        ora #ACR_SR_OT2
-        sta VIA_BASE+VIA_ACR
-        lda #$0A
-        sta VIA_BASE+VIA_T2CL
-        lda #$FF
-        sta VIA_BASE+VIA_SR
-        ldx #0
-meas_sr_stop_lp1:
-        lda VIA_BASE+VIA_SR     ; 4 cycles
-        sta MEAS_BUF,x          ; 5 cycles
-        inx                     ; 2 cycles
-        cpx #64                 ; 2 cycles
-        bne meas_sr_stop_lp1    ; 3/2 cycles
-        lda #$55
-        sta VIA_BASE+VIA_SR
-meas_sr_stop_lp2:
-        lda VIA_BASE+VIA_SR     ; 4 cycles
-        sta MEAS_BUF,x          ; 5 cycles
-        inx                     ; 2 cycles
-        cpx #0                  ; 2 cycles
-        bne meas_sr_stop_lp2    ; 3/2 cycles
-        lda VIA_BASE+VIA_ACR
-        and #ACR_SR_NMASK
-        ora #ACR_SR_OFF
-        sta VIA_BASE+VIA_ACR
-        cli
-        rts
-
-; ============================================================
 ; Subroutine: compare_file
 ;
 ; Loads 256 bytes from a CBM sequential file on device 8 into
@@ -967,13 +841,14 @@ compare_file:
         stx FNPTR+1
         sty FNLEN
 
-        ; SETNAM
+        ; set filename via local SETNAM (writes to PET KERNAL ZP)
         lda FNLEN
         ldx FNPTR
         ldy FNPTR+1
         jsr SETNAM
 
-        ; SETLFS(lfn=1, device=8, secondary=2 -> sequential read)
+        ; set LFN/device/secondary via local SETLFS (writes to PET KERNAL ZP)
+        ; lfn=1, device=8, secondary=2 -> sequential read
         lda #1
         ldx #8
         ldy #2
@@ -1067,6 +942,43 @@ ps_lp:
         inc STRPTR+1
         jmp ps_lp
 ps_done:
+        rts
+
+; ============================================================
+; Subroutine: SETNAM  (PET-compatible implementation)
+;
+; The Commodore PET KERNAL does not provide SETNAM at $FFBD
+; (that address holds a different routine).  This local
+; implementation achieves the same effect by writing the
+; filename parameters directly to the KERNAL zero-page
+; variables that OPEN, CHKIN, CHKOUT etc. consult.
+;
+; Entry: A = filename length
+;        X = filename address, low byte
+;        Y = filename address, high byte
+; ============================================================
+SETNAM:
+        sta KERNAL_FNLEN        ; filename length
+        stx KERNAL_FNLO         ; filename pointer low
+        sty KERNAL_FNHI         ; filename pointer high
+        rts
+
+; ============================================================
+; Subroutine: SETLFS  (PET-compatible implementation)
+;
+; The Commodore PET KERNAL does not provide SETLFS at $FFBA.
+; This local implementation writes the logical-file /
+; device / secondary-address parameters directly to the
+; KERNAL zero-page variables.
+;
+; Entry: A = logical file number
+;        X = device number
+;        Y = secondary address
+; ============================================================
+SETLFS:
+        sta KERNAL_LFN          ; logical file number
+        stx KERNAL_DEVNO        ; device number
+        sty KERNAL_SA           ; secondary address
         rts
 
 ; ============================================================
