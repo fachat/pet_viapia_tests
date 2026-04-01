@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Run PIA Test Module 2 in VICE xpet (PET 4032 model)
+# Run PET IEEE488 Test 1 in VICE xpet (PET 4032 model)
 #
 # Requires: VICE xpet binary in PATH
-# Usage: bash vice/run_test2.sh [extra VICE options]
+# Usage: bash vice/run_pet_ieee_test1.sh [extra VICE options]
 #
 # The program is auto-started and prints test results on the
 # PET screen.  Close the VICE window to exit.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PRG="${SCRIPT_DIR}/../build/pia_test2.prg"
+PRG="${SCRIPT_DIR}/../build/pet_ieee_test1.prg"
 
 if [ ! -f "$PRG" ]; then
     echo "ERROR: $PRG not found. Run 'make' first." >&2

@@ -8,9 +8,9 @@ XAFLAGS = -W -XMASM
 
 BUILD   = build
 PRG1    = $(BUILD)/pia_test1.prg
-PRG2    = $(BUILD)/pia_test2.prg
-PRG3    = $(BUILD)/pia_test3.prg
-PRG4    = $(BUILD)/pia_test4.prg
+PRG2    = $(BUILD)/pet_pia_test1.prg
+PRG3    = $(BUILD)/pet_ieee_test1.prg
+PRG4    = $(BUILD)/pet_pia_test2.prg
 
 .PHONY: all clean run1 run2 run3 run4
 
@@ -22,30 +22,30 @@ $(BUILD):
 $(PRG1): pia_test1.a65 | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ $<
 
-$(PRG2): pia_test2.a65 | $(BUILD)
+$(PRG2): pet_pia_test1.a65 | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ $<
 
-$(PRG3): pia_test3.a65 | $(BUILD)
+$(PRG3): pet_ieee_test1.a65 | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ $<
 
-$(PRG4): pia_test4.a65 | $(BUILD)
+$(PRG4): pet_pia_test2.a65 | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ $<
 
-# Run Module 1 in VICE (PET 4032)
+# Run pia_test1 in VICE (PET 4032)
 run1: $(PRG1)
 	bash vice/run_test1.sh
 
-# Run Module 2 in VICE (PET 4032)
+# Run pet_pia_test1 in VICE (PET 4032)
 run2: $(PRG2)
-	bash vice/run_test2.sh
+	bash vice/run_pet_pia_test1.sh
 
-# Run Module 3 in VICE (PET 4032)
+# Run pet_ieee_test1 in VICE (PET 4032)
 run3: $(PRG3)
-	bash vice/run_test3.sh
+	bash vice/run_pet_ieee_test1.sh
 
-# Run Module 4 in VICE (PET 4032)
+# Run pet_pia_test2 in VICE (PET 4032)
 run4: $(PRG4)
-	bash vice/run_test4.sh
+	bash vice/run_pet_pia_test2.sh
 
 clean:
 	rm -rf $(BUILD)
