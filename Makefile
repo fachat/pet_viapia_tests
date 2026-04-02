@@ -40,10 +40,10 @@ $(PRG3): pet_ieee_test1.a65 | $(BUILD)
 $(PRG4): pet_pia_test2.a65 | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST4) $<
 
-$(PRG5): via_test1_gen.a65 | $(BUILD)
+$(PRG5): via_test1_gen.a65 via_meas.inc pet_kernal.inc | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST5) $<
 
-$(PRG6): via_test1.a65 | $(BUILD)
+$(PRG6): via_test1.a65 via_meas.inc pet_kernal.inc | $(BUILD)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST6) $<
 
 $(D64): $(PRG5) $(PRG6) | $(BUILD)
