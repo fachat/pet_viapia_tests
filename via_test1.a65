@@ -107,6 +107,7 @@ ACR_SAVE = $09              ; saved VIA ACR value
 IER_SAVE = $0A              ; saved VIA IER value
 TMP      = $0B              ; scratch byte
 MEAS_ACR = $0C              ; current measurement ACR, saved/restored around KERNAL calls
+FAIL_IDX = $0D              ; index of first mismatch byte from compare_file ($FF = file error)
 
 ; ============================================================
 ; Memory buffers
@@ -874,11 +875,14 @@ cf_cmp_lp:
         rts
 
 cf_mismatch:
+        stx FAIL_IDX        ; save index of first mismatching byte
         lda #1              ; fail - mismatch
         rts
 
 cf_file_err:
         jsr cf_via_restore
+        lda #$ff
+        sta FAIL_IDX        ; no valid index - flag as file error
         lda #1              ; fail - file not found / load error
         rts
 
@@ -901,6 +905,38 @@ pr_fail:
         lda #<msg_fail
         ldx #>msg_fail
         jsr print_str
+        lda FAIL_IDX
+        jsr print_hex
+        lda #$0d
+        jsr CHROUT
+        rts
+
+; ============================================================
+; Subroutine: print_hex
+;
+; Prints a byte as two uppercase hex digits via CHROUT.
+; Entry: A = byte to print
+; Clobbers: A
+; ============================================================
+print_hex:
+        pha                         ; save byte
+        lsr                         ; shift high nybble to low
+        lsr
+        lsr
+        lsr
+        jsr print_nybble
+        pla                         ; restore byte
+        and #$0f                    ; isolate low nybble
+        jsr print_nybble
+        rts
+
+print_nybble:
+        cmp #10
+        bcc ph_digit
+        adc #6                      ; 'A'-'9'-1 = 7, carry set so +7 -> 'A'..'F'
+ph_digit:
+        adc #'0'
+        jsr CHROUT
         rts
 
 ; ============================================================
@@ -985,7 +1021,7 @@ msg_t7a:      .byte "  7A SR T2-CLK DATA=AA: ", 0
 msg_t7b:      .byte "  7B SR STOP MID-OP: ", 0
 
 msg_ok:       .byte "OK", $0d, 0
-msg_fail:     .byte "FAIL", $0d, 0
+msg_fail:     .byte "FAIL @", 0
 msg_divider:  .byte "-----------------", $0d, 0
 msg_all_pass: .byte "ALL TESTS PASSED", $0d, 0
 msg_some_fail:.byte "SOME TESTS FAILED", $0d, 0
