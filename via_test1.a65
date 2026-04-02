@@ -106,6 +106,7 @@ KERNAL_SA    = $D3          ; secondary address
 KERNAL_DEVNO = $D4          ; device number
 KERNAL_FNLO  = $DA          ; filename pointer, low byte
 KERNAL_FNHI  = $DB          ; filename pointer, high byte
+KERNAL_STATUS = $96         ; KERNAL I/O status byte (bit 6 = EOF, other bits = error)
 
 ; ============================================================
 ; Zero-page ($02-$13)
@@ -1008,13 +1009,22 @@ cf_via_restore:
 ;        X = destination address, low byte  (stored in $fb)
 ;        Y = destination address, high byte (stored in $fc)
 ; Returns with carry clear on success, carry set on error.
+; Error is detected via KERNAL_STATUS ($96): any bit other than
+; bit 6 (EOF, $40) indicates an error.
 ; Clobbers: A, X, Y
 ; ============================================================
 PET_LOAD:
         stx $fb                 ; destination address low  -> KERNAL LOAD ptr lo
         sty $fc                 ; destination address high -> KERNAL LOAD ptr hi
         sta $9d                 ; load/verify flag
-        jmp $f356               ; PET inner LOAD (returns to caller via RTS in ROM)
+        jsr $f356               ; PET inner LOAD
+        lda KERNAL_STATUS       ; check I/O status
+        and #$bf                ; mask out bit 6 (EOF, not an error)
+        beq pl_ok               ; zero = no error
+        sec                     ; error: set carry
+        rts
+pl_ok:  clc                     ; success: clear carry
+        rts
 
 ; ============================================================
 ; Message strings (null-terminated, CBM uppercase charset)

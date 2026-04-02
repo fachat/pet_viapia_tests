@@ -93,6 +93,7 @@ KERNAL_SA    = $D3          ; secondary address
 KERNAL_DEVNO = $D4          ; device number
 KERNAL_FNLO  = $DA          ; filename pointer, low byte
 KERNAL_FNHI  = $DB          ; filename pointer, high byte
+KERNAL_STATUS = $96         ; KERNAL I/O status byte (bit 6 = EOF, other bits = error)
 
 ; ============================================================
 ; Zero-page ($02-$13 - safe for standalone ML on PET)
@@ -524,6 +525,8 @@ SETLFS:
 ;        X = end address, low byte
 ;        Y = end address, high byte
 ; Returns with carry clear on success, carry set on error.
+; Error is detected via KERNAL_STATUS ($96): any bit other than
+; bit 6 (EOF, $40) indicates an error.
 ; Clobbers: A, X
 ; ============================================================
 PET_SAVE:
@@ -534,7 +537,14 @@ PET_SAVE:
         sta $c7                 ; -> KERNAL SSTART lo
         lda $01,x               ; start address high from ZP[A+1]
         sta $c8                 ; -> KERNAL SSTART hi
-        jmp $f6e3               ; PET inner SAVE (returns to caller via RTS in ROM)
+        jsr $f6e3               ; PET inner SAVE
+        lda KERNAL_STATUS       ; check I/O status
+        and #$bf                ; mask out bit 6 (EOF, not an error)
+        beq ps_ok               ; zero = no error
+        sec                     ; error: set carry
+        rts
+ps_ok:  clc                     ; success: clear carry
+        rts
 
 ; ============================================================
 ; Message strings (null-terminated, CBM uppercase charset)
