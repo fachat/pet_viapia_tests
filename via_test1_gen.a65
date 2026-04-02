@@ -8,7 +8,7 @@
 ; a known-good machine or in the VICE emulator to produce the
 ; reference data that via_test1.a65 will compare against.
 ;
-; Files written (CBM SEQ, 256 bytes each):
+; Files written (CBM PRG, 256 bytes + 2-byte load address header):
 ;   VIA.T1.SS.0   T1 single-shot, latch=$00
 ;   VIA.T1.SS.1   T1 single-shot, latch=$01
 ;   VIA.T1.SS.2   T1 single-shot, latch=$02
@@ -25,9 +25,10 @@
 ;   VIA.SR.T2     SR shift-out under T2, data=$AA, T2 period=5
 ;   VIA.SR.STOP   SR shift-out under T2, mid-operation write
 ;
-; NOTE: existing files of the same name are scratched first
-; (the "@0:" prefix in the filename string tells CBM DOS to
-; overwrite).
+; Files are written using the PET-compatible PET_SAVE routine
+; (JMP $f6e3), bypassing the $FFD8 KERNAL entry which includes
+; BASIC parsing.  Existing files are scratched first by the
+; "@0:" filename prefix sent to CBM DOS.
 ;
 ; Target   : Commodore PET 4032
 ; Assembler: xa65  (command: xa -W -XMASM)
@@ -79,20 +80,13 @@ IFR_SR = $04                ; bit 2 = SR complete
 
 ; CBM KERNAL
 CHROUT = $FFD2              ; output char in A to current channel
-OPEN   = $FFC0              ; open logical file
-CLOSE  = $FFC3              ; close logical file
-CHKIN  = $FFC6              ; open channel for input
-CHKOUT = $FFC9              ; open channel for output
-CLRCHN = $FFCC              ; restore default I/O channels
-BASIN  = $FFCF              ; input byte from channel
 
 ; PET KERNAL zero-page file I/O variables.
 ; SETLFS and SETNAM are not present in the PET KERNAL jump
 ; table; the routines are implemented locally below by writing
 ; directly to these zero-page locations which the PET KERNAL
-; file-I/O routines (OPEN, CHKIN, CHKOUT, BASIN, CLRCHN,
-; CLOSE) read when they need the filename / LFN / device /
-; secondary-address parameters.
+; SAVE/LOAD routines ($f6e3/$f356) read when they need the
+; filename / LFN / device / secondary-address parameters.
 KERNAL_FNLEN = $B7          ; filename length
 KERNAL_LFN   = $B8          ; logical file number
 KERNAL_DEVNO = $B9          ; device number
@@ -110,7 +104,8 @@ FNPTR    = $06              ; 2-byte pointer to current filename ($06-$07)
 FNLEN    = $08              ; length of current filename
 ACR_SAVE = $09              ; saved VIA ACR value
 IER_SAVE = $0A              ; saved VIA IER value
-MEAS_ACR = $0B              ; current measurement ACR, saved/restored around KERNAL calls
+MEAS_ACR  = $0B              ; current measurement ACR, saved/restored around KERNAL calls
+SAVE_START = $0C             ; 2-byte ZP buffer ($0C-$0D) for start address passed to PET_SAVE
 
 ; ============================================================
 ; Memory buffers
@@ -360,16 +355,16 @@ main:
 ; ============================================================
 ; Subroutine: write_file
 ;
-; Writes MEAS_BUF (256 bytes) to a CBM sequential file on
-; device 8.  The filename string (passed in A=lo, X=hi, Y=len)
-; should include the "@0:" prefix to overwrite any existing
-; file and the ",S,W" suffix to specify sequential write mode.
+; Saves MEAS_BUF (256 bytes, $0800-$08FF) to a PRG file on
+; device 8 using the PET-compatible SAVE routine (PET_SAVE).
+; The filename string (passed in A=lo, X=hi, Y=len) should
+; include the "@0:" prefix to overwrite any existing file.
 ;
 ; Entry: A = low byte of filename string address
 ;        X = high byte of filename string address
 ;        Y = filename string length
-; On success: increments PASS_CNT, prints "OK"
-; On error:   increments FAIL_CNT, prints "ERR"
+; On success: increments PASS_CNT, prints "."
+; On error:   increments FAIL_CNT, prints "E"
 ; Clobbers: A, X, Y
 ; ============================================================
 write_file:
@@ -403,31 +398,24 @@ write_file:
         ldy FNPTR+1
         jsr SETNAM
 
-        ; set LFN/device/secondary via local SETLFS (writes to PET KERNAL ZP)
-        ; lfn=1, device=8, secondary=2 -> data write
+        ; LFN=1, device=8, SA=0 -> SAVE writes PRG file to IEEE-488 disk
         lda #1
         ldx #8
-        ldy #2
+        ldy #0
         jsr SETLFS
 
-        jsr OPEN
-        bcs wf_err          ; carry set on KERNAL open error
+        ; store MEAS_BUF start address in ZP for PET_SAVE
+        lda #<MEAS_BUF
+        sta SAVE_START
+        lda #>MEAS_BUF
+        sta SAVE_START+1
 
-        ldx #1
-        jsr CHKOUT
-        bcs wf_close_err
-
-        ; write 256 bytes from MEAS_BUF
-        ldx #0
-wf_loop:
-        lda MEAS_BUF,x
-        jsr CHROUT
-        inx
-        bne wf_loop
-
-        jsr CLRCHN
-        lda #1
-        jsr CLOSE
+        ; save MEAS_BUF ($0800-$08FF): A=ZP ptr to start, X=end lo, Y=end hi
+        lda #SAVE_START
+        ldx #<(MEAS_BUF+$100)
+        ldy #>(MEAS_BUF+$100)
+        jsr PET_SAVE
+        bcs wf_err
 
         inc PASS_CNT
         lda #<msg_ok
@@ -436,16 +424,7 @@ wf_loop:
         jsr wf_via_restore
         rts
 
-wf_close_err:
-        jsr CLRCHN
-        lda #1
-        jsr CLOSE
-        jmp wf_fail
-
 wf_err:
-        lda #1
-        jsr CLOSE
-wf_fail:
         inc FAIL_CNT
         lda #<msg_err
         ldx #>msg_err
@@ -498,7 +477,7 @@ ps_done:
 ; (that address holds a different routine).  This local
 ; implementation achieves the same effect by writing the
 ; filename parameters directly to the KERNAL zero-page
-; variables that OPEN, CHKIN, CHKOUT etc. consult.
+; variables that PET_LOAD and PET_SAVE consult.
 ;
 ; Entry: A = filename length
 ;        X = filename address, low byte
@@ -529,6 +508,35 @@ SETLFS:
         rts
 
 ; ============================================================
+; Subroutine: PET_SAVE  (PET-compatible implementation)
+;
+; The PET KERNAL SAVE at $FFD8 goes through BASIC parsing
+; which fails when called from ML.  This implementation
+; bypasses that by storing the start/end addresses directly
+; into the KERNAL zero-page variables and jumping to the
+; inner SAVE routine at $f6e3.
+;
+; SETNAM and SETLFS must be called first to set the filename,
+; logical file number, device number, and secondary address.
+;
+; Entry: A = zero-page address holding 2-byte start address
+;            (low byte at ZP[A], high byte at ZP[A+1])
+;        X = end address, low byte
+;        Y = end address, high byte
+; Returns with carry clear on success, carry set on error.
+; Clobbers: A, X
+; ============================================================
+PET_SAVE:
+        stx $c9                 ; end address low  -> KERNAL EAP lo
+        sty $ca                 ; end address high -> KERNAL EAP hi
+        tax                     ; ZP pointer -> X
+        lda $00,x               ; start address low  from ZP[A]
+        sta $c7                 ; -> KERNAL SSTART lo
+        lda $01,x               ; start address high from ZP[A+1]
+        sta $c8                 ; -> KERNAL SSTART hi
+        jmp $f6e3               ; PET inner SAVE (returns to caller via RTS in ROM)
+
+; ============================================================
 ; Message strings (null-terminated, CBM uppercase charset)
 ; ============================================================
 msg_banner: .byte "VIA TEST1 DATA GENERATOR", $0d
@@ -545,35 +553,36 @@ msg_err:    .byte "E", 0
 ; ============================================================
 ; Filename strings
 ; The "@0:" prefix tells CBM DOS to scratch-and-replace.
-; The ",S,W" suffix selects sequential-file write mode.
+; No type suffix: CBM DOS writes a PRG file (2-byte load
+; address header), compatible with PET_SAVE / PET_LOAD.
 ; ============================================================
-fn_t1ss0:   .byte "@0:VIA.T1.SS.0,S,W"
+fn_t1ss0:   .byte "@0:VIA.T1.SS.0"
 fn_t1ss0_end:
-fn_t1ss1:   .byte "@0:VIA.T1.SS.1,S,W"
+fn_t1ss1:   .byte "@0:VIA.T1.SS.1"
 fn_t1ss1_end:
-fn_t1ss2:   .byte "@0:VIA.T1.SS.2,S,W"
+fn_t1ss2:   .byte "@0:VIA.T1.SS.2"
 fn_t1ss2_end:
-fn_t1ssff:  .byte "@0:VIA.T1.SS.FF,S,W"
+fn_t1ssff:  .byte "@0:VIA.T1.SS.FF"
 fn_t1ssff_end:
-fn_t1fr0:   .byte "@0:VIA.T1.FR.0,S,W"
+fn_t1fr0:   .byte "@0:VIA.T1.FR.0"
 fn_t1fr0_end:
-fn_t1fr1:   .byte "@0:VIA.T1.FR.1,S,W"
+fn_t1fr1:   .byte "@0:VIA.T1.FR.1"
 fn_t1fr1_end:
-fn_t1fr2:   .byte "@0:VIA.T1.FR.2,S,W"
+fn_t1fr2:   .byte "@0:VIA.T1.FR.2"
 fn_t1fr2_end:
-fn_t1frff:  .byte "@0:VIA.T1.FR.FF,S,W"
+fn_t1frff:  .byte "@0:VIA.T1.FR.FF"
 fn_t1frff_end:
-fn_t1rst:   .byte "@0:VIA.T1.RST,S,W"
+fn_t1rst:   .byte "@0:VIA.T1.RST"
 fn_t1rst_end:
-fn_t20:     .byte "@0:VIA.T2.0,S,W"
+fn_t20:     .byte "@0:VIA.T2.0"
 fn_t20_end:
-fn_t21:     .byte "@0:VIA.T2.1,S,W"
+fn_t21:     .byte "@0:VIA.T2.1"
 fn_t21_end:
-fn_t22:     .byte "@0:VIA.T2.2,S,W"
+fn_t22:     .byte "@0:VIA.T2.2"
 fn_t22_end:
-fn_t2ff:    .byte "@0:VIA.T2.FF,S,W"
+fn_t2ff:    .byte "@0:VIA.T2.FF"
 fn_t2ff_end:
-fn_srt2:    .byte "@0:VIA.SR.T2,S,W"
+fn_srt2:    .byte "@0:VIA.SR.T2"
 fn_srt2_end:
-fn_srstop:  .byte "@0:VIA.SR.STOP,S,W"
+fn_srstop:  .byte "@0:VIA.SR.STOP"
 fn_srstop_end:

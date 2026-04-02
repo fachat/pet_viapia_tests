@@ -93,20 +93,13 @@ IFR_SR = $04                ; bit 2 = SR complete
 
 ; CBM KERNAL
 CHROUT = $FFD2
-OPEN   = $FFC0
-CLOSE  = $FFC3
-CHKIN  = $FFC6
-CHKOUT = $FFC9
-CLRCHN = $FFCC
-BASIN  = $FFCF
 
 ; PET KERNAL zero-page file I/O variables.
 ; SETLFS and SETNAM are not present in the PET KERNAL jump
 ; table; the routines are implemented locally below by writing
 ; directly to these zero-page locations which the PET KERNAL
-; file-I/O routines (OPEN, CHKIN, CHKOUT, BASIN, CLRCHN,
-; CLOSE) read when they need the filename / LFN / device /
-; secondary-address parameters.
+; LOAD/SAVE routines ($f356/$f6e3) read when they need the
+; filename / LFN / device / secondary-address parameters.
 KERNAL_FNLEN = $B7          ; filename length
 KERNAL_LFN   = $B8          ; logical file number
 KERNAL_DEVNO = $B9          ; device number
@@ -125,6 +118,7 @@ FNLEN    = $08              ; length of current filename
 ACR_SAVE = $09              ; saved VIA ACR value
 IER_SAVE = $0A              ; saved VIA IER value
 TMP      = $0B              ; scratch byte
+MEAS_ACR = $0C              ; current measurement ACR, saved/restored around KERNAL calls
 
 ; ============================================================
 ; Memory buffers
@@ -841,37 +835,43 @@ compare_file:
         stx FNPTR+1
         sty FNLEN
 
+        ; Save the current measurement ACR and restore the VIA to a
+        ; KERNAL-safe state before LOAD.  Measurement routines leave VIA
+        ; T1 latch at the measured value (possibly $0000), which would
+        ; fire the IEEE-488 timeout instantly inside the LOAD routine.
+        sei
+        lda VIA_BASE+VIA_ACR
+        sta MEAS_ACR
+        lda ACR_SAVE
+        sta VIA_BASE+VIA_ACR
+        lda #$ff
+        sta VIA_BASE+VIA_T1LL
+        sta VIA_BASE+VIA_T1LH   ; write latch high (clears IFR6; does not start timer)
+        lda IER_SAVE
+        ora #$80
+        sta VIA_BASE+VIA_IER
+        cli
+
         ; set filename via local SETNAM (writes to PET KERNAL ZP)
         lda FNLEN
         ldx FNPTR
         ldy FNPTR+1
         jsr SETNAM
 
-        ; set LFN/device/secondary via local SETLFS (writes to PET KERNAL ZP)
-        ; lfn=1, device=8, secondary=2 -> sequential read
+        ; LFN=1, device=8, SA=1 -> LOAD overrides load address with $fb/$fc (REF_BUF)
         lda #1
         ldx #8
-        ldy #2
+        ldy #1
         jsr SETLFS
 
-        jsr OPEN
+        ; load PRG file into REF_BUF ($0900): A=0 (load), X=lo, Y=hi
+        lda #0
+        ldx #<REF_BUF
+        ldy #>REF_BUF
+        jsr PET_LOAD
         bcs cf_file_err
 
-        ldx #1
-        jsr CHKIN
-        bcs cf_close_err
-
-        ; read 256 bytes into REF_BUF
-        ldx #0
-cf_rd_lp:
-        jsr BASIN
-        sta REF_BUF,x
-        inx
-        bne cf_rd_lp
-
-        jsr CLRCHN
-        lda #1
-        jsr CLOSE
+        jsr cf_via_restore
 
         ; compare MEAS_BUF against REF_BUF
         ldx #0
@@ -889,17 +889,9 @@ cf_mismatch:
         lda #1              ; fail - mismatch
         rts
 
-cf_close_err:
-        jsr CLRCHN
-        lda #1
-        jsr CLOSE
-        lda #1
-        rts
-
 cf_file_err:
-        lda #1
-        jsr CLOSE
-        lda #1              ; fail - file not found / open error
+        jsr cf_via_restore
+        lda #1              ; fail - file not found / load error
         rts
 
 ; ============================================================
@@ -951,7 +943,7 @@ ps_done:
 ; (that address holds a different routine).  This local
 ; implementation achieves the same effect by writing the
 ; filename parameters directly to the KERNAL zero-page
-; variables that OPEN, CHKIN, CHKOUT etc. consult.
+; variables that PET_LOAD and PET_SAVE consult.
 ;
 ; Entry: A = filename length
 ;        X = filename address, low byte
@@ -980,6 +972,49 @@ SETLFS:
         stx KERNAL_DEVNO        ; device number
         sty KERNAL_SA           ; secondary address
         rts
+
+; ============================================================
+; Subroutine: cf_via_restore
+;
+; Restores the VIA to measurement state after PET_LOAD inside
+; compare_file.  Writes MEAS_ACR back to VIA_ACR and
+; re-disables T1/T2/SR interrupts so the next measurement
+; subroutine finds the VIA configured as expected.
+; ============================================================
+cf_via_restore:
+        sei
+        lda MEAS_ACR
+        sta VIA_BASE+VIA_ACR
+        lda #IFR_T1|IFR_T2|IFR_SR  ; bit7=0: disable these IRQ sources
+        sta VIA_BASE+VIA_IER
+        cli
+        rts
+
+; ============================================================
+; Subroutine: PET_LOAD  (PET-compatible implementation)
+;
+; The PET KERNAL LOAD at $FFD5 goes through BASIC parsing
+; which fails when called from ML.  This implementation
+; bypasses that by storing the start address and load/verify
+; flag directly into the KERNAL zero-page variables and
+; jumping to the inner LOAD routine at $f356.
+;
+; SETNAM and SETLFS must be called first to set the filename,
+; logical file number, device number, and secondary address.
+; Use SA=1 in SETLFS to override the load address to X/Y
+; (i.e., load to $fb/$fc regardless of the 2-byte file header).
+;
+; Entry: A = load/verify flag (0 = load, 1 = verify)
+;        X = destination address, low byte  (stored in $fb)
+;        Y = destination address, high byte (stored in $fc)
+; Returns with carry clear on success, carry set on error.
+; Clobbers: A, X, Y
+; ============================================================
+PET_LOAD:
+        stx $fb                 ; destination address low  -> KERNAL LOAD ptr lo
+        sty $fc                 ; destination address high -> KERNAL LOAD ptr hi
+        sta $9d                 ; load/verify flag
+        jmp $f356               ; PET inner LOAD (returns to caller via RTS in ROM)
 
 ; ============================================================
 ; Message strings (null-terminated, CBM uppercase charset)
