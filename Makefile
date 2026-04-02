@@ -14,6 +14,12 @@ PRG4    = $(BUILD)/pet_pia_test2.prg
 PRG5    = $(BUILD)/via_test1_gen.prg
 PRG6    = $(BUILD)/via_test1.prg
 D64     = $(BUILD)/via_test.d64
+LST1    = $(BUILD)/pia_test1.lst
+LST2    = $(BUILD)/pet_pia_test1.lst
+LST3    = $(BUILD)/pet_ieee_test1.lst
+LST4    = $(BUILD)/pet_pia_test2.lst
+LST5    = $(BUILD)/via_test1_gen.lst
+LST6    = $(BUILD)/via_test1.lst
 
 .PHONY: all clean run1 run2 run3 run4 gen5 run5
 
@@ -23,22 +29,22 @@ $(BUILD):
 	mkdir -p $(BUILD)
 
 $(PRG1): pia_test1.a65 | $(BUILD)
-	$(XA) $(XAFLAGS) -o $@ $<
+	$(XA) $(XAFLAGS) -o $@ -P $(LST1) $<
 
 $(PRG2): pet_pia_test1.a65 | $(BUILD)
-	$(XA) $(XAFLAGS) -o $@ $<
+	$(XA) $(XAFLAGS) -o $@ -P $(LST2) $<
 
 $(PRG3): pet_ieee_test1.a65 | $(BUILD)
-	$(XA) $(XAFLAGS) -o $@ $<
+	$(XA) $(XAFLAGS) -o $@ -P $(LST3) $<
 
 $(PRG4): pet_pia_test2.a65 | $(BUILD)
-	$(XA) $(XAFLAGS) -o $@ $<
+	$(XA) $(XAFLAGS) -o $@ -P $(LST4) $<
 
 $(PRG5): via_test1_gen.a65 | $(BUILD)
-	$(XA) $(XAFLAGS) -o $@ $<
+	$(XA) $(XAFLAGS) -o $@ -P $(LST5) $<
 
 $(PRG6): via_test1.a65 | $(BUILD)
-	$(XA) $(XAFLAGS) -o $@ $<
+	$(XA) $(XAFLAGS) -o $@ -P $(LST6) $<
 
 $(D64): $(PRG5) $(PRG6) | $(BUILD)
 	c1541 -format "via tests,vt" d64 $@

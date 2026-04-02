@@ -100,12 +100,12 @@ CHROUT = $FFD2
 ; directly to these zero-page locations which the PET KERNAL
 ; LOAD/SAVE routines ($f356/$f6e3) read when they need the
 ; filename / LFN / device / secondary-address parameters.
-KERNAL_FNLEN = $B7          ; filename length
-KERNAL_LFN   = $B8          ; logical file number
-KERNAL_DEVNO = $B9          ; device number
-KERNAL_SA    = $BA          ; secondary address
-KERNAL_FNLO  = $BB          ; filename pointer, low byte
-KERNAL_FNHI  = $BC          ; filename pointer, high byte
+KERNAL_FNLEN = $D1          ; filename length
+KERNAL_LFN   = $D2          ; logical file number
+KERNAL_SA    = $D3          ; secondary address
+KERNAL_DEVNO = $D4          ; device number
+KERNAL_FNLO  = $DA          ; filename pointer, low byte
+KERNAL_FNHI  = $DB          ; filename pointer, high byte
 
 ; ============================================================
 ; Zero-page ($02-$13)

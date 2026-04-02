@@ -24,5 +24,5 @@ fi
 
 exec xpet -model 4032 \
      -8 "$D64" \
-     -keybuf $'LOAD"VIA_TEST1",8,1\nRUN\n' \
+     -keybuf $'load"via_test1",8,1\nrun\n' \
      "$@"
