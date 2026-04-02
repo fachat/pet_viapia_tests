@@ -124,8 +124,8 @@ MEAS_ACR = $0C              ; current measurement ACR, saved/restored around KER
 ; ============================================================
 ; Memory buffers
 ; ============================================================
-MEAS_BUF = $0800            ; measurement result buffer (256 bytes, $0800-$08FF)
-REF_BUF  = $0900            ; reference data buffer    (256 bytes, $0900-$09FF)
+MEAS_BUF = $7E00            ; measurement result buffer (256 bytes, $7E00-$7EFF, top of RAM)
+REF_BUF  = $7F00            ; reference data buffer    (256 bytes, $7F00-$7FFF, top of RAM)
 
 ; ============================================================
 ; .PRG file header
@@ -865,7 +865,7 @@ compare_file:
         ldy #1
         jsr SETLFS
 
-        ; load PRG file into REF_BUF ($0900): A=0 (load), X=lo, Y=hi
+        ; load PRG file into REF_BUF ($7F00): A=0 (load), X=lo, Y=hi
         lda #0
         ldx #<REF_BUF
         ldy #>REF_BUF

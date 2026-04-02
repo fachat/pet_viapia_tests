@@ -111,7 +111,7 @@ SAVE_START = $0C             ; 2-byte ZP buffer ($0C-$0D) for start address pass
 ; ============================================================
 ; Memory buffers
 ; ============================================================
-MEAS_BUF = $0800            ; measurement result buffer (256 bytes, $0800-$08FF)
+MEAS_BUF = $7F00            ; measurement result buffer (256 bytes, $7F00-$7FFF, top of RAM)
 
 ; ============================================================
 ; .PRG file header
@@ -356,7 +356,7 @@ main:
 ; ============================================================
 ; Subroutine: write_file
 ;
-; Saves MEAS_BUF (256 bytes, $0800-$08FF) to a PRG file on
+; Saves MEAS_BUF (256 bytes, $7F00-$7FFF) to a PRG file on
 ; device 8 using the PET-compatible SAVE routine (PET_SAVE).
 ; The filename string (passed in A=lo, X=hi, Y=len) should
 ; include the "@0:" prefix to overwrite any existing file.
@@ -411,7 +411,7 @@ write_file:
         lda #>MEAS_BUF
         sta SAVE_START+1
 
-        ; save MEAS_BUF ($0800-$08FF): A=ZP ptr to start, X=end lo, Y=end hi
+        ; save MEAS_BUF ($7F00-$7FFF): A=ZP ptr to start, X=end lo, Y=end hi
         lda #SAVE_START
         ldx #<(MEAS_BUF+$100)
         ldy #>(MEAS_BUF+$100)
