@@ -534,9 +534,9 @@ PET_SAVE:
         sty $ca                 ; end address high -> KERNAL EAP hi
         tax                     ; ZP pointer -> X
         lda $00,x               ; start address low  from ZP[A]
-        sta $c7                 ; -> KERNAL SSTART lo
+        sta $fb                 ; -> KERNAL SSTART lo
         lda $01,x               ; start address high from ZP[A+1]
-        sta $c8                 ; -> KERNAL SSTART hi
+        sta $fc                 ; -> KERNAL SSTART hi
         jsr $f6e3               ; PET inner SAVE
         lda KERNAL_STATUS       ; check I/O status
         and #$bf                ; mask out bit 6 (EOF, not an error)
