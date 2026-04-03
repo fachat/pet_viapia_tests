@@ -14,8 +14,8 @@ PRG3    = $(BUILD)/pet_ieee_test1
 PRG4    = $(BUILD)/pet_pia_test2
 PRG5    = $(BUILD)/via_test1_gen
 PRG6    = $(BUILD)/via_test1
-PRG7    = $(BUILD)/pet_userport_test1
-PRG8    = $(BUILD)/pet_userport_test2
+PRG7    = $(BUILD)/userport_test1
+PRG8    = $(BUILD)/userport_test2
 D64     = $(BUILD)/via_test.d64
 LST1    = $(LISTING)/pia_test1.lst
 LST2    = $(LISTING)/pet_pia_test1.lst
@@ -23,8 +23,8 @@ LST3    = $(LISTING)/pet_ieee_test1.lst
 LST4    = $(LISTING)/pet_pia_test2.lst
 LST5    = $(LISTING)/via_test1_gen.lst
 LST6    = $(LISTING)/via_test1.lst
-LST7    = $(LISTING)/pet_userport_test1.lst
-LST8    = $(LISTING)/pet_userport_test2.lst
+LST7    = $(LISTING)/userport_test1.lst
+LST8    = $(LISTING)/userport_test2.lst
 
 .PHONY: all clean run1 run2 run3 run4 gen5 run5 run7 run8
 
