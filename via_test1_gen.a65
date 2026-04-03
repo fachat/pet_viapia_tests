@@ -99,6 +99,9 @@ SAVE_START = $0C             ; 2-byte ZP buffer ($0C-$0D) for start address pass
 ; Memory buffers
 ; ============================================================
 MEAS_BUF = $7F00            ; measurement result buffer (256 bytes, $7F00-$7FFF, top of RAM)
+; NOTE: MEAS_BUF must equal REF_BUF in via_test1.a65 ($7F00) so that the PRG
+; file header embeds the correct load address and via_test1 can load it without
+; an address override (SA=0).
 
 ; ============================================================
 ; .PRG file header
