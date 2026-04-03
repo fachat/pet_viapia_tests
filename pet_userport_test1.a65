@@ -81,7 +81,6 @@ PCR_CB2_IND  = $20          ; CB2 independent interrupt mode (bits 7:5 = 001)
 ; ============================================================
 ; VIA IFR / IER bit masks
 ; ============================================================
-IFR_CA2    = $01            ; bit 0 = CA2 interrupt flag
 IFR_CA1    = $02            ; bit 1 = CA1 interrupt flag
 IFR_CB2    = $08            ; bit 3 = CB2 interrupt flag
 IFR_CB1    = $10            ; bit 4 = CB1 interrupt flag
