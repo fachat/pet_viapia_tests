@@ -1211,7 +1211,7 @@ msg_t2c: .byte "PA WRITE HS:      ", 0
 
 msg_ok:        .byte "OK", $0d, 0
 msg_fail:      .byte "FAIL S:", 0
-msg_val:       .byte " v:", 0
+msg_val:       .byte " V:", 0
 
 msg_divider:   .byte "----------------------", $0d, 0
 msg_all_pass:  .byte "ALL TESTS PASSED", $0d, 0
