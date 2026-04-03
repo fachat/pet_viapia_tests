@@ -97,6 +97,8 @@ PET_SAVE:
         sta $fb                 ; -> KERNAL SSTART lo
         lda $01,x               ; start address high from ZP[A+1]
         sta $fc                 ; -> KERNAL SSTART hi
+        lda #0
+        sta KERNAL_STATUS       ; clear IEEE-488 status before SAVE
         jsr $f6e3               ; PET inner SAVE
         lda KERNAL_STATUS       ; check I/O status
         and #$bf                ; mask out bit 6 (EOF, not an error)
@@ -134,6 +136,8 @@ PET_LOAD:
         stx $fb                 ; destination address low  -> KERNAL LOAD ptr lo
         sty $fc                 ; destination address high -> KERNAL LOAD ptr hi
         sta $9d                 ; load/verify flag
+        lda #0
+        sta KERNAL_STATUS       ; clear IEEE-488 status before LOAD
         jsr $f356               ; PET inner LOAD
         lda KERNAL_STATUS       ; check I/O status
         and #$bf                ; mask out bit 6 (EOF, not an error)
