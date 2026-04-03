@@ -8,7 +8,7 @@
 # PET screen.  Close the VICE window to exit.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PRG="${SCRIPT_DIR}/../build/pia_test1.prg"
+PRG="${SCRIPT_DIR}/../build/pia_test1"
 
 if [ ! -f "$PRG" ]; then
     echo "ERROR: $PRG not found. Run 'make' first." >&2
