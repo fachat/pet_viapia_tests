@@ -93,6 +93,7 @@ IFR_SR = $04                ; bit 2 = SR complete
 
 ; CBM KERNAL
 CHROUT = $FFD2
+GETIN  = $FFE4
 
 
 ; ============================================================
@@ -225,6 +226,7 @@ main:
         jsr print_str
         jsr test_t2ch_starts
         jsr print_result
+        jsr wait_key
 
         ; --------------------------------------------------------
         ; Group 3 - T1 single-shot timing (vs. reference files)
@@ -365,6 +367,7 @@ main:
         ldy #fn_t1rst_end - fn_t1rst
         jsr compare_file
         jsr print_result
+        jsr wait_key
 
         ; --------------------------------------------------------
         ; Group 6 - T2 one-shot timing (vs. reference files)
@@ -422,6 +425,7 @@ main:
         ldy #fn_t2ff_end - fn_t2ff
         jsr compare_file
         jsr print_result
+        jsr wait_key
 
         ; --------------------------------------------------------
         ; Group 7 - Shift register tests (vs. reference files)
@@ -887,6 +891,21 @@ cf_file_err:
         rts
 
 ; ============================================================
+; Subroutine: wait_key
+;
+; Prints a "PRESS ANY KEY" prompt and blocks until a key is
+; pressed (GETIN returns a non-zero value).
+; Clobbers: A
+; ============================================================
+wait_key:
+        lda #<msg_press_key
+        ldx #>msg_press_key
+        jsr print_str
+wk_lp:  jsr GETIN
+        beq wk_lp
+        rts
+
+; ============================================================
 ; Subroutine: print_result
 ;
 ; Prints "OK" or "FAIL" and updates PASS_CNT / FAIL_CNT.
@@ -1022,6 +1041,7 @@ msg_t7b:      .byte "  7B SR STOP MID-OP: ", 0
 
 msg_ok:       .byte "OK", $0d, 0
 msg_fail:     .byte "FAIL @", 0
+msg_press_key:.byte "PRESS ANY KEY...", $0d, 0
 msg_divider:  .byte "-----------------", $0d, 0
 msg_all_pass: .byte "ALL TESTS PASSED", $0d, 0
 msg_some_fail:.byte "SOME TESTS FAILED", $0d, 0
