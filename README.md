@@ -71,32 +71,36 @@ Tests PIA1 CB1 input (vertical blank / frame-sync signal), which also appears on
 ### `pet_userport_test1.a65` — PET Userport Test Module 1: VIA Userport Connection Tests
 
 Tests the VIA and PIA1 using specific connections wired at the PET userport.
+Only output-by-default pins drive input-by-default pins to avoid bus contention.
 
 Required connections:
 
-| Userport pins | Signal |
-|---------------|--------|
-| C – D | VIA PA0 – PA1 (loopback pair) |
-| E – F | VIA PA2 – PA3 (loopback pair) |
-| H – J | VIA PA4 – PA5 (loopback pair) |
-| K – L | VIA PA6 – PA7 (loopback pair) |
-| 6 – 7 | VIA CB1 – VIA PB3 (CB1 input; PB3 output driver) |
-| M – 5 | VIA CB2 – PIA1 PA7 / DIAG (CB2 input; PIA1 PA7 output driver) |
-| 11 – B | VIA CA2 – VIA CA1 (CA2 manual output drives CA1 input) |
+| Userport pin | Signal |
+|---|---|
+| C (PA0) – D (PA1) | PA0/PA1 loopback pair |
+| E (PA2) – F (PA3) | PA2/PA3 loopback pair |
+| H (PA4) – 7 (PB3) | PA4 / PB3 cross-loopback |
+| J (PA5) – K (PA6) | PA5/PA6 loopback pair |
+| L (PA7) – M (CB2) | PA7 / CB2 cross-loopback |
+| 5 (PIA1 PA7) – 6 (CB1) | PIA1 PA7 output drives CB1 input |
+| B (CA1) – 11 (CA2) | CA2 manual output drives CA1 input |
 
 | Test | Description |
 |------|-------------|
-| 1a — PA EVEN OUT | DDRA=$55: PA0/PA2/PA4/PA6 as outputs drive PA1/PA3/PA5/PA7 as inputs. Writes $00 (expect read $00) and $55 (expect read $FF). |
-| 1b — PA ODD OUT | DDRA=$AA: PA1/PA3/PA5/PA7 as outputs drive PA0/PA2/PA4/PA6 as inputs. Writes $00 (expect read $00) and $AA (expect read $FF). |
-| 2a — CB1 NEG FLAG | PB3 drives CB1 1→0 (PCR bit 4=0). Checks IFR bit 4 is set, then that reading ORB clears IFR bit 4. |
-| 2b — CB1 POS FLAG | PB3 drives CB1 0→1 (PCR bit 4=1). Checks IFR bit 4 is set, then that reading ORB clears IFR bit 4. |
-| 3a — CB2 NEG NORM | PIA1 PA7 drives CB2 1→0 in normal interrupt mode (PCR[7:5]=000). Checks IFR bit 3 set; verifies ORB read clears it. |
-| 3b — CB2 NEG INDP | PIA1 PA7 drives CB2 1→0 in independent interrupt mode (PCR[7:5]=001). Checks IFR bit 3 set; verifies ORB read does NOT clear it; clears IFR via direct write. |
-| 4a — CA1 NEG FLAG | CA2 manual output drives CA1 1→0 (PCR CA2 bits=110). Checks IFR bit 1 set; verifies reading ORA (reg $01, with handshake) clears IFR bit 1. |
-| 4b — CA1 POS FLAG | CA2 manual output drives CA1 0→1 (PCR CA2 bits=111). Checks IFR bit 1 set; verifies reading ORA clears IFR bit 1. |
-| 5a — CB1 NEG IRQ | Enables IER.CB1; installs IRQ handler at $0090; drives CB1 negative edge via PB3; verifies CPU /IRQ fires and IRQ_FLAG is set. |
-| 5b — CB2 NEG IRQ | Enables IER.CB2 (normal mode); drives CB2 negative edge via PIA1 PA7; verifies CPU /IRQ fires. |
-| 5c — CA1 NEG IRQ | Enables IER.CA1; drives CA1 negative edge via CA2 manual output; verifies CPU /IRQ fires. |
+| 1a — PA LO OUT | DDRA=$25 (PA0,PA2,PA5 outputs → PA1,PA3,PA6 inputs). Writes $00 (read & $4A = $00) and $25 (read & $4A = $4A). PA4 and PA7 are masked out. |
+| 1b — PA HI OUT | DDRA=$4A (PA1,PA3,PA6 outputs → PA0,PA2,PA5 inputs). Writes $00 (read & $25 = $00) and $4A (read & $25 = $25). |
+| 2a — PA4→PB3 | PA4 = output, PB3 = input (DDRB bit 3 temporarily cleared). PA4=1 → PB3 reads 1; PA4=0 → PB3 reads 0. |
+| 2b — PB3→PA4 | PB3 = output (default), PA4 = input. PB3=1 → PA4 reads 1; PB3=0 → PA4 reads 0. |
+| 3a — CB2→PA7 | CB2 as manual output drives PA7 as input. PCR[7:5]=111 → PA7 reads 1; PCR[7:5]=110 → PA7 reads 0. |
+| 3b — PA7→CB2 NORM | PA7 output drives CB2 input, normal mode (PCR[7:5]=000). PA7 1→0 sets IFR bit 3; reading ORB clears it. |
+| 3c — PA7→CB2 INDP | PA7 output drives CB2 input, independent mode (PCR[7:5]=001). PA7 1→0 sets IFR bit 3; reading ORB does NOT clear it; cleared by direct IFR write. |
+| 4a — CA1 NEG FLAG | CA2 manual output drives CA1 1→0. Checks IFR bit 1 set; reading ORA (reg $01, with handshake) clears it. |
+| 4b — CA1 POS FLAG | CA2 manual output drives CA1 0→1. Checks IFR bit 1 set; reading ORA clears it. |
+| 5a — CB1 NEG FLAG | PIA1 PA7 drives CB1 1→0 (ACR SR disabled so CB1 = input; PCR bit 4=0). IFR bit 4 set; reading ORB clears it. |
+| 5b — CB1 POS FLAG | PIA1 PA7 drives CB1 0→1 (PCR bit 4=1). IFR bit 4 set; reading ORB clears it. |
+| 6a — CB1 NEG IRQ | Enables IER.CB1; PIA1 PA7 drives CB1 1→0; IRQ handler clears IFR.CB1 via direct IFR write; verifies CPU /IRQ fired. |
+| 6b — CB2 NEG IRQ | Enables IER.CB2 (normal mode); VIA PA7 output drives CB2 1→0; IRQ handler clears IFR.CB2; verifies CPU /IRQ fired. |
+| 6c — CA1 NEG IRQ | Enables IER.CA1; CA2 manual output drives CA1 1→0; IRQ handler clears IFR.CA1; verifies CPU /IRQ fired. |
 
 ---
 

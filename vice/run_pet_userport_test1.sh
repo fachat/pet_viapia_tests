@@ -5,13 +5,13 @@
 # Usage: bash vice/run_pet_userport_test1.sh [extra VICE options]
 #
 # The userport must have the following connections wired:
-#   Pins C-D  = VIA PA0 - PA1
-#   Pins E-F  = VIA PA2 - PA3
-#   Pins H-J  = VIA PA4 - PA5
-#   Pins K-L  = VIA PA6 - PA7
-#   Pins 6-7  = VIA CB1 - VIA PB3
-#   Pins M-5  = VIA CB2 - PIA1 PA7 (DIAG)
-#   Pins 11-B = VIA CA2 - VIA CA1
+#   Pin C  (PA0)     - Pin D  (PA1)  : PA0/PA1 loopback
+#   Pin E  (PA2)     - Pin F  (PA3)  : PA2/PA3 loopback
+#   Pin H  (PA4)     - Pin 7  (PB3)  : PA4 / PB3 cross-loopback
+#   Pin J  (PA5)     - Pin K  (PA6)  : PA5/PA6 loopback
+#   Pin L  (PA7)     - Pin M  (CB2)  : PA7 / CB2 cross-loopback
+#   Pin 5 (PIA1 PA7) - Pin 6  (CB1)  : PIA1 PA7 drives CB1
+#   Pin B  (CA1)     - Pin 11 (CA2)  : CA2 manual output drives CA1
 #
 # The program is auto-started and prints test results on the
 # PET screen.  Close the VICE window to exit.
