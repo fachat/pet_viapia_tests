@@ -4,7 +4,7 @@ Test programs for the PIA and VIA chips in 6502 assembler.
 Target: **Commodore PET 4032**  
 Assembler: **xa65** (`xa -W -XMASM`)  
 Build: `make all`  
-Run in VICE: `make run1` … `make run5` (see Makefile)
+Run in VICE: `make run1` … `make run5`, `make run7` (see Makefile)
 
 ---
 
@@ -65,6 +65,38 @@ Tests PIA1 CB1 input (vertical blank / frame-sync signal), which also appears on
 | 3b — IRQFLAG NEG | Verifies IRQB1 is set on a negative CB1 transition (CRB bit1=0, bit0=0). |
 | 4a — CPU IRQ POS | Verifies a positive CB1 transition triggers a CPU /IRQ (CRB bit1=1, bit0=1) by redirecting the user IRQ vector to a test handler. |
 | 4b — CPU IRQ NEG | Verifies a negative CB1 transition triggers a CPU /IRQ (CRB bit1=0, bit0=1). |
+
+---
+
+### `pet_userport_test1.a65` — PET Userport Test Module 1: VIA Userport Connection Tests
+
+Tests the VIA and PIA1 using specific connections wired at the PET userport.
+
+Required connections:
+
+| Userport pins | Signal |
+|---------------|--------|
+| C – D | VIA PA0 – PA1 (loopback pair) |
+| E – F | VIA PA2 – PA3 (loopback pair) |
+| H – J | VIA PA4 – PA5 (loopback pair) |
+| K – L | VIA PA6 – PA7 (loopback pair) |
+| 6 – 7 | VIA CB1 – VIA PB3 (CB1 input; PB3 output driver) |
+| M – 5 | VIA CB2 – PIA1 PA7 / DIAG (CB2 input; PIA1 PA7 output driver) |
+| 11 – B | VIA CA2 – VIA CA1 (CA2 manual output drives CA1 input) |
+
+| Test | Description |
+|------|-------------|
+| 1a — PA EVEN OUT | DDRA=$55: PA0/PA2/PA4/PA6 as outputs drive PA1/PA3/PA5/PA7 as inputs. Writes $00 (expect read $00) and $55 (expect read $FF). |
+| 1b — PA ODD OUT | DDRA=$AA: PA1/PA3/PA5/PA7 as outputs drive PA0/PA2/PA4/PA6 as inputs. Writes $00 (expect read $00) and $AA (expect read $FF). |
+| 2a — CB1 NEG FLAG | PB3 drives CB1 1→0 (PCR bit 4=0). Checks IFR bit 4 is set, then that reading ORB clears IFR bit 4. |
+| 2b — CB1 POS FLAG | PB3 drives CB1 0→1 (PCR bit 4=1). Checks IFR bit 4 is set, then that reading ORB clears IFR bit 4. |
+| 3a — CB2 NEG NORM | PIA1 PA7 drives CB2 1→0 in normal interrupt mode (PCR[7:5]=000). Checks IFR bit 3 set; verifies ORB read clears it. |
+| 3b — CB2 NEG INDP | PIA1 PA7 drives CB2 1→0 in independent interrupt mode (PCR[7:5]=001). Checks IFR bit 3 set; verifies ORB read does NOT clear it; clears IFR via direct write. |
+| 4a — CA1 NEG FLAG | CA2 manual output drives CA1 1→0 (PCR CA2 bits=110). Checks IFR bit 1 set; verifies reading ORA (reg $01, with handshake) clears IFR bit 1. |
+| 4b — CA1 POS FLAG | CA2 manual output drives CA1 0→1 (PCR CA2 bits=111). Checks IFR bit 1 set; verifies reading ORA clears IFR bit 1. |
+| 5a — CB1 NEG IRQ | Enables IER.CB1; installs IRQ handler at $0090; drives CB1 negative edge via PB3; verifies CPU /IRQ fires and IRQ_FLAG is set. |
+| 5b — CB2 NEG IRQ | Enables IER.CB2 (normal mode); drives CB2 negative edge via PIA1 PA7; verifies CPU /IRQ fires. |
+| 5c — CA1 NEG IRQ | Enables IER.CA1; drives CA1 negative edge via CA2 manual output; verifies CPU /IRQ fires. |
 
 ---
 

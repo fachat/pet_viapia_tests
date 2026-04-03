@@ -1,0 +1,1370 @@
+; ============================================================
+; pet_userport_test1.a65
+; PET Userport Test Module 1 - VIA Userport Connection Tests
+;
+; Assumes the following connections at the PET userport:
+;
+;   Pins C-D  = VIA PA0 - PA1      (loopback pair)
+;   Pins E-F  = VIA PA2 - PA3      (loopback pair)
+;   Pins H-J  = VIA PA4 - PA5      (loopback pair)
+;   Pins K-L  = VIA PA6 - PA7      (loopback pair)
+;   Pins 6-7  = VIA CB1 - VIA PB3  (CB1 input; PB3 output driver)
+;   Pins M-5  = VIA CB2 - PIA1 PA7 (CB2 input; PIA1 PA7 output driver)
+;   Pins 11-B = VIA CA2 - VIA CA1  (CA2 manual output drives CA1 input)
+;
+; Tests performed:
+;
+;   1a: Port A loopback, even bits out (DDRA=$55: PA0,PA2,PA4,PA6
+;       drive PA1,PA3,PA5,PA7): write $00->read $00, write $55->read $FF
+;   1b: Port A loopback, odd bits out (DDRA=$AA: PA1,PA3,PA5,PA7
+;       drive PA0,PA2,PA4,PA6): write $00->read $00, write $AA->read $FF
+;   2a: CB1 negative edge: PB3 drives 1->0; check IFR bit 4 set;
+;       read ORB; check IFR bit 4 cleared
+;   2b: CB1 positive edge: PB3 drives 0->1; check IFR bit 4 set;
+;       read ORB; check IFR bit 4 cleared
+;   3a: CB2 negative edge, normal interrupt mode (PCR[7:5]=000):
+;       PIA1 PA7 drives 1->0; check IFR bit 3 set; read ORB;
+;       check IFR bit 3 cleared
+;   3b: CB2 negative edge, independent interrupt mode (PCR[7:5]=001):
+;       PIA1 PA7 drives 1->0; check IFR bit 3 set; read ORB;
+;       check IFR bit 3 remains set; clear via IFR write
+;   4a: CA1 negative edge: CA2 manual output drives 1->0; check IFR
+;       bit 1 set; read ORA (with handshake, reg $01); check cleared
+;   4b: CA1 positive edge: CA2 manual output drives 0->1; check IFR
+;       bit 1 set; read ORA; check IFR bit 1 cleared
+;   5a: CB1 CPU /IRQ on negative edge (IER.CB1 enabled; PB3 driver)
+;   5b: CB2 CPU /IRQ on negative edge (IER.CB2 enabled; PIA1 PA7)
+;   5c: CA1 CPU /IRQ on negative edge (IER.CA1 enabled; CA2 driver)
+;
+; For tests 5a-5c the PET user IRQ vector at $0090 is redirected
+; to a test handler that checks for the expected VIA IFR bit, clears
+; it, sets IRQ_FLAG, and chains to the original handler so that the
+; KERNAL continues to run normally.
+;
+; Target   : Commodore PET 4032
+; Assembler: xa65  (command: xa -W -XMASM)
+; Load     : CBM BASIC LOAD then RUN - or autostart in VICE
+; ============================================================
+
+; ============================================================
+; Hardware addresses
+; ============================================================
+VIA_BASE   = $E840          ; VIA (6522) base address
+
+; VIA register offsets from VIA_BASE
+VIA_ORB    = $00            ; Port B data register
+VIA_ORA    = $01            ; Port A data (read: clears CA1/CA2 IFR bits)
+VIA_DDRB   = $02            ; Port B data direction register (1=output)
+VIA_DDRA   = $03            ; Port A data direction register (1=output)
+VIA_PCR    = $0C            ; Peripheral control register
+VIA_IFR    = $0D            ; Interrupt flag register
+VIA_IER    = $0E            ; Interrupt enable register
+VIA_ORA_NH = $0F            ; Port A data, no handshake (no IFR side-effect)
+
+; PIA1
+PIA1_BASE  = $E810          ; PIA1 base address
+PIA_ORA    = 0              ; Port A / DDRA (selected by CRA bit 2)
+PIA_CRA    = 1              ; Control register A (bit 2: 0=DDRA, 1=data)
+
+; CBM KERNAL
+CHROUT     = $FFD2          ; Output character in A to current channel
+
+; ============================================================
+; VIA PCR bit constants
+; ============================================================
+PCR_CA1_POS  = $01          ; CA1 positive active edge (bit 0 = 1)
+PCR_CA2_HI   = $0E          ; CA2 manual output high (bits 3:1 = 111)
+PCR_CA2_LO   = $0C          ; CA2 manual output low  (bits 3:1 = 110)
+PCR_CB1_POS  = $10          ; CB1 positive active edge (bit 4 = 1)
+PCR_CB2_IND  = $20          ; CB2 independent interrupt mode (bits 7:5 = 001)
+
+; ============================================================
+; VIA IFR / IER bit masks
+; ============================================================
+IFR_CA2    = $01            ; bit 0 = CA2 interrupt flag
+IFR_CA1    = $02            ; bit 1 = CA1 interrupt flag
+IFR_CB2    = $08            ; bit 3 = CB2 interrupt flag
+IFR_CB1    = $10            ; bit 4 = CB1 interrupt flag
+IFR_ALL    = $7F            ; all clearable bits (bit 7=0 = disable in IER)
+
+; VIA Port B bit mask
+VIA_PB3    = $08            ; PB3 = bit 3 (drives CB1 via userport pin 7)
+
+; PET user IRQ vector (KERNAL does JMP ($0090) from its IRQ handler)
+PET_IRQ_VEC = $0090
+
+; ============================================================
+; Zero-page variables ($02-$0A - safe for standalone ML on PET)
+; ============================================================
+STRPTR         = $02        ; 2-byte string pointer for print_str
+PASS_CNT       = $04        ; running pass counter
+FAIL_CNT       = $05        ; running fail counter
+IRQ_FLAG       = $06        ; $FF when test-5 IRQ handler fires; 0 otherwise
+ORIG_VEC_LO    = $07        ; saved $0090 vector low  (irq_handler chains here)
+ORIG_VEC_HI    = $08        ; saved $0090 vector high
+PIA1_DDRA_SAVE = $09        ; saved PIA1 DDRA value (CB2 and test-5b setup)
+IRQ_EXPECT     = $0A        ; IFR bit mask expected in irq_handler (tests 5a-5c)
+
+; ============================================================
+; .PRG file header - first two bytes are the CBM load address
+; ============================================================
+* = $0401 - 2
+        .word $0401         ; .prg load address (little-endian)
+
+; ============================================================
+; BASIC stub at $0401:  10 SYS 1037
+; ============================================================
+* = $0401
+        .word basic_end     ; pointer to next BASIC line
+        .word 10            ; BASIC line number
+        .byte $9e           ; SYS token
+        .byte "1037"        ; decimal address of main
+        .byte 0             ; end of BASIC line
+basic_end:
+        .word 0             ; end of BASIC program
+
+; ============================================================
+; Machine code entry point  ($040D = 1037 decimal)
+; ============================================================
+* = $040D
+main:
+        lda #0
+        sta PASS_CNT
+        sta FAIL_CNT
+
+        ; Clear screen
+        lda #$93
+        jsr CHROUT
+
+        ; Print banner
+        lda #<msg_banner
+        ldx #>msg_banner
+        jsr print_str
+
+        ; --------------------------------------------------------
+        ; Test 1a - Port A loopback, even bits out
+        ; DDRA=$55: PA0,PA2,PA4,PA6 outputs; PA1,PA3,PA5,PA7 inputs.
+        ; Connections: PA0-PA1, PA2-PA3, PA4-PA5, PA6-PA7.
+        ; --------------------------------------------------------
+        lda #<msg_t1a
+        ldx #>msg_t1a
+        jsr print_str
+
+        jsr test_pa_loopback_even
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 1b - Port A loopback, odd bits out
+        ; DDRA=$AA: PA1,PA3,PA5,PA7 outputs; PA0,PA2,PA4,PA6 inputs.
+        ; --------------------------------------------------------
+        lda #<msg_t1b
+        ldx #>msg_t1b
+        jsr print_str
+
+        jsr test_pa_loopback_odd
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 2a - CB1 negative edge flag
+        ; PB3 (userport pin 7) drives CB1 (userport pin 6) 1->0.
+        ; IFR bit 4 must be set; read ORB clears it.
+        ; --------------------------------------------------------
+        lda #<msg_t2a
+        ldx #>msg_t2a
+        jsr print_str
+
+        jsr test_cb1_neg_flag
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 2b - CB1 positive edge flag
+        ; PB3 drives CB1 0->1; IFR bit 4 set; read ORB clears it.
+        ; --------------------------------------------------------
+        lda #<msg_t2b
+        ldx #>msg_t2b
+        jsr print_str
+
+        jsr test_cb1_pos_flag
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 3a - CB2 negative edge, normal interrupt mode
+        ; PCR[7:5]=000; PIA1 PA7 (userport pin 5) drives CB2 1->0.
+        ; IFR bit 3 set; read ORB clears it in normal mode.
+        ; --------------------------------------------------------
+        lda #<msg_t3a
+        ldx #>msg_t3a
+        jsr print_str
+
+        jsr test_cb2_neg_normal
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 3b - CB2 negative edge, independent interrupt mode
+        ; PCR[7:5]=001; PIA1 PA7 drives CB2 1->0.
+        ; IFR bit 3 set; read ORB must NOT clear it.
+        ; --------------------------------------------------------
+        lda #<msg_t3b
+        ldx #>msg_t3b
+        jsr print_str
+
+        jsr test_cb2_neg_indep
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 4a - CA1 negative edge flag
+        ; CA2 manual output (userport pin 11) drives CA1 (pin B) 1->0.
+        ; IFR bit 1 set; read ORA (with handshake) clears it.
+        ; --------------------------------------------------------
+        lda #<msg_t4a
+        ldx #>msg_t4a
+        jsr print_str
+
+        jsr test_ca1_neg_flag
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 4b - CA1 positive edge flag
+        ; CA2 drives CA1 0->1; IFR bit 1 set; read ORA clears it.
+        ; --------------------------------------------------------
+        lda #<msg_t4b
+        ldx #>msg_t4b
+        jsr print_str
+
+        jsr test_ca1_pos_flag
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 5a - CB1 CPU /IRQ on negative edge
+        ; IER.CB1 enabled; PB3 drives CB1 1->0; handler at $0090.
+        ; --------------------------------------------------------
+        lda #<msg_t5a
+        ldx #>msg_t5a
+        jsr print_str
+
+        jsr test_cb1_irq
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 5b - CB2 CPU /IRQ on negative edge
+        ; IER.CB2 enabled; PIA1 PA7 drives CB2 1->0.
+        ; --------------------------------------------------------
+        lda #<msg_t5b
+        ldx #>msg_t5b
+        jsr print_str
+
+        jsr test_cb2_irq
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 5c - CA1 CPU /IRQ on negative edge
+        ; IER.CA1 enabled; CA2 manual output drives CA1 1->0.
+        ; --------------------------------------------------------
+        lda #<msg_t5c
+        ldx #>msg_t5c
+        jsr print_str
+
+        jsr test_ca1_irq
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Summary
+        ; --------------------------------------------------------
+        lda #<msg_divider
+        ldx #>msg_divider
+        jsr print_str
+
+        lda FAIL_CNT
+        bne m_some_fail
+
+        lda #<msg_all_pass
+        ldx #>msg_all_pass
+        jsr print_str
+        jmp m_done
+
+m_some_fail:
+        lda #<msg_some_fail
+        ldx #>msg_some_fail
+        jsr print_str
+
+m_done:
+        rts                     ; return to BASIC
+
+; ============================================================
+; Subroutine: test_pa_loopback_even
+;
+; Tests Port A loopback with even-numbered bits as outputs and
+; odd-numbered bits as inputs (DDRA = $55).
+;
+; Pairs: PA0->PA1, PA2->PA3, PA4->PA5, PA6->PA7.
+;
+; Pattern 1: write $00 (all outputs low)   -> read $00
+; Pattern 2: write $55 (all outputs high)  -> all input pins high
+;            -> read $FF (output latch $55 + inputs $AA = $FF)
+;
+; Uses VIA_ORA_NH ($0F) so that reading Port A does not clear
+; the CA1/CA2 interrupt flags as a side-effect.
+;
+; Saves and restores VIA DDRA and ORA latch.
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_pa_loopback_even:
+        sei
+        lda VIA_BASE+VIA_DDRA
+        pha                     ; save DDRA  [stack: DDRA]
+        lda VIA_BASE+VIA_ORA_NH
+        pha                     ; save ORA   [stack: ORA, DDRA]
+
+        lda #$55
+        sta VIA_BASE+VIA_DDRA   ; PA0,PA2,PA4,PA6 = outputs
+
+        ; Pattern $00: all outputs low -> all inputs low -> read $00
+        lda #$00
+        sta VIA_BASE+VIA_ORA_NH
+        lda VIA_BASE+VIA_ORA_NH
+        cmp #$00
+        bne tple_fail
+
+        ; Pattern $55: even outputs high -> odd inputs high -> read $FF
+        lda #$55
+        sta VIA_BASE+VIA_ORA_NH
+        lda VIA_BASE+VIA_ORA_NH
+        cmp #$FF
+        bne tple_fail
+
+        pla
+        sta VIA_BASE+VIA_ORA_NH ; restore ORA latch
+        pla
+        sta VIA_BASE+VIA_DDRA   ; restore DDRA
+        cli
+        lda #0
+        rts
+
+tple_fail:
+        pla
+        sta VIA_BASE+VIA_ORA_NH
+        pla
+        sta VIA_BASE+VIA_DDRA
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_pa_loopback_odd
+;
+; Tests Port A loopback with odd-numbered bits as outputs and
+; even-numbered bits as inputs (DDRA = $AA).
+;
+; Pairs: PA1->PA0, PA3->PA2, PA5->PA4, PA7->PA6.
+;
+; Pattern 1: write $00 -> read $00
+; Pattern 2: write $AA (all outputs high) -> all input pins high
+;            -> read $FF
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_pa_loopback_odd:
+        sei
+        lda VIA_BASE+VIA_DDRA
+        pha                     ; save DDRA
+        lda VIA_BASE+VIA_ORA_NH
+        pha                     ; save ORA
+
+        lda #$AA
+        sta VIA_BASE+VIA_DDRA   ; PA1,PA3,PA5,PA7 = outputs
+
+        ; Pattern $00: all outputs low -> all inputs low -> read $00
+        lda #$00
+        sta VIA_BASE+VIA_ORA_NH
+        lda VIA_BASE+VIA_ORA_NH
+        cmp #$00
+        bne tplo_fail
+
+        ; Pattern $AA: odd outputs high -> even inputs high -> read $FF
+        lda #$AA
+        sta VIA_BASE+VIA_ORA_NH
+        lda VIA_BASE+VIA_ORA_NH
+        cmp #$FF
+        bne tplo_fail
+
+        pla
+        sta VIA_BASE+VIA_ORA_NH
+        pla
+        sta VIA_BASE+VIA_DDRA
+        cli
+        lda #0
+        rts
+
+tplo_fail:
+        pla
+        sta VIA_BASE+VIA_ORA_NH
+        pla
+        sta VIA_BASE+VIA_DDRA
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_cb1_neg_flag
+;
+; Verifies that a 1->0 transition on CB1 (driven by PB3) sets
+; IFR bit 4, and that reading ORB then clears IFR bit 4.
+;
+; PCR bit 4 = 0 selects negative active edge for CB1.
+;
+; Sequence:
+;   1. PB3 = output; drive PB3 = 1 (CB1 line high)
+;   2. Configure PCR: CB1 negative edge (clear bit 4)
+;   3. Clear IFR.CB1 by writing $10 to IFR
+;   4. Drive PB3 = 0 (1->0 = negative edge on CB1)
+;   5. Check IFR bit 4 = 1 (flag set)
+;   6. Read ORB (side-effect clears IFR.CB1 in all CB2 modes)
+;   7. Check IFR bit 4 = 0 (flag cleared)
+;
+; Saves and restores VIA PCR, DDRB, ORB output latch.
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_cb1_neg_flag:
+        sei
+        lda VIA_BASE+VIA_PCR
+        pha                     ; save PCR  [stack: PCR]
+        lda VIA_BASE+VIA_DDRB
+        pha                     ; save DDRB [stack: DDRB, PCR]
+        lda VIA_BASE+VIA_ORB
+        pha                     ; save ORB  [stack: ORB, DDRB, PCR]
+
+        ; Make PB3 an output and drive it high (CB1 = 1)
+        lda VIA_BASE+VIA_DDRB
+        ora #VIA_PB3
+        sta VIA_BASE+VIA_DDRB
+        lda VIA_BASE+VIA_ORB
+        ora #VIA_PB3
+        sta VIA_BASE+VIA_ORB
+
+        ; Configure CB1 for negative active edge: clear PCR bit 4
+        lda VIA_BASE+VIA_PCR
+        and #$EF
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear IFR.CB1 (write 1 to bit 4 clears the flag)
+        lda #IFR_CB1
+        sta VIA_BASE+VIA_IFR
+
+        ; Drive PB3 = 0 (negative edge on CB1)
+        lda VIA_BASE+VIA_ORB
+        and #$F7
+        sta VIA_BASE+VIA_ORB
+
+        ; IFR bit 4 must be set
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CB1
+        cmp #IFR_CB1
+        bne tcb1n_fail
+
+        ; Read ORB -> clears IFR.CB1
+        lda VIA_BASE+VIA_ORB
+
+        ; IFR bit 4 must now be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CB1
+        cmp #$00
+        bne tcb1n_fail
+
+        pla
+        sta VIA_BASE+VIA_ORB    ; restore ORB
+        pla
+        sta VIA_BASE+VIA_DDRB   ; restore DDRB
+        pla
+        sta VIA_BASE+VIA_PCR    ; restore PCR
+        cli
+        lda #0
+        rts
+
+tcb1n_fail:
+        pla
+        sta VIA_BASE+VIA_ORB
+        pla
+        sta VIA_BASE+VIA_DDRB
+        pla
+        sta VIA_BASE+VIA_PCR
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_cb1_pos_flag
+;
+; Verifies that a 0->1 transition on CB1 (driven by PB3) sets
+; IFR bit 4, and that reading ORB then clears IFR bit 4.
+;
+; PCR bit 4 = 1 selects positive active edge for CB1.
+;
+; Sequence:
+;   1. PB3 = output; drive PB3 = 0 (CB1 line low)
+;   2. Configure PCR: CB1 positive edge (set bit 4)
+;   3. Clear IFR.CB1
+;   4. Drive PB3 = 1 (0->1 = positive edge on CB1)
+;   5. Check IFR bit 4 = 1
+;   6. Read ORB -> clears IFR.CB1
+;   7. Check IFR bit 4 = 0
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_cb1_pos_flag:
+        sei
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR]
+        lda VIA_BASE+VIA_DDRB
+        pha                     ; [stack: DDRB, PCR]
+        lda VIA_BASE+VIA_ORB
+        pha                     ; [stack: ORB, DDRB, PCR]
+
+        ; PB3 = output, drive low (CB1 = 0)
+        lda VIA_BASE+VIA_DDRB
+        ora #VIA_PB3
+        sta VIA_BASE+VIA_DDRB
+        lda VIA_BASE+VIA_ORB
+        and #$F7
+        sta VIA_BASE+VIA_ORB
+
+        ; Configure CB1 for positive active edge: set PCR bit 4
+        lda VIA_BASE+VIA_PCR
+        ora #PCR_CB1_POS
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear IFR.CB1
+        lda #IFR_CB1
+        sta VIA_BASE+VIA_IFR
+
+        ; Drive PB3 = 1 (positive edge on CB1)
+        lda VIA_BASE+VIA_ORB
+        ora #VIA_PB3
+        sta VIA_BASE+VIA_ORB
+
+        ; IFR bit 4 must be set
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CB1
+        cmp #IFR_CB1
+        bne tcb1p_fail
+
+        ; Read ORB -> clears IFR.CB1
+        lda VIA_BASE+VIA_ORB
+
+        ; IFR bit 4 must now be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CB1
+        cmp #$00
+        bne tcb1p_fail
+
+        pla
+        sta VIA_BASE+VIA_ORB
+        pla
+        sta VIA_BASE+VIA_DDRB
+        pla
+        sta VIA_BASE+VIA_PCR
+        cli
+        lda #0
+        rts
+
+tcb1p_fail:
+        pla
+        sta VIA_BASE+VIA_ORB
+        pla
+        sta VIA_BASE+VIA_DDRB
+        pla
+        sta VIA_BASE+VIA_PCR
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: setup_pia1_pa7_out
+;
+; Configures PIA1 PA7 as an output.
+;   - Reads and saves original DDRA to PIA1_DDRA_SAVE (ZP)
+;   - Sets DDRA bit 7 = 1 (PA7 = output)
+;   - Restores CRA so the data register remains selected
+;
+; This helper uses PHA/PLA internally and is stack-balanced.
+; Clobbers: A
+; ============================================================
+setup_pia1_pa7_out:
+        lda PIA1_BASE+PIA_CRA
+        pha                     ; save CRA
+        and #$FB                ; clear bit 2 -> select DDRA
+        sta PIA1_BASE+PIA_CRA
+        lda PIA1_BASE+PIA_ORA   ; read DDRA
+        sta PIA1_DDRA_SAVE      ; save original DDRA
+        ora #$80                ; set bit 7 -> PA7 = output
+        sta PIA1_BASE+PIA_ORA   ; write DDRA
+        pla
+        sta PIA1_BASE+PIA_CRA   ; restore CRA (re-selects data register)
+        rts
+
+; ============================================================
+; Subroutine: restore_pia1_ddra
+;
+; Restores PIA1 DDRA from PIA1_DDRA_SAVE (ZP), reversing the
+; change made by setup_pia1_pa7_out.
+;
+; This helper uses PHA/PLA internally and is stack-balanced.
+; Clobbers: A
+; ============================================================
+restore_pia1_ddra:
+        lda PIA1_BASE+PIA_CRA
+        pha                     ; save CRA
+        and #$FB                ; clear bit 2 -> select DDRA
+        sta PIA1_BASE+PIA_CRA
+        lda PIA1_DDRA_SAVE
+        sta PIA1_BASE+PIA_ORA   ; restore DDRA
+        pla
+        sta PIA1_BASE+PIA_CRA   ; restore CRA (re-selects data register)
+        rts
+
+; ============================================================
+; Subroutine: test_cb2_neg_normal
+;
+; Verifies that a 1->0 transition on CB2 (driven by PIA1 PA7)
+; sets IFR bit 3 in normal interrupt mode (PCR[7:5]=000), and
+; that reading ORB clears IFR bit 3.
+;
+; Sequence:
+;   1. PIA1 PA7 = output; drive PA7 = 1 (CB2 line high)
+;   2. Configure PCR CB2: neg edge, normal mode (bits 7:5 = 000)
+;   3. Clear IFR.CB2
+;   4. Drive PA7 = 0 (negative edge on CB2)
+;   5. Check IFR bit 3 = 1
+;   6. Read ORB -> clears IFR.CB2 (normal mode)
+;   7. Check IFR bit 3 = 0
+;
+; Stack on entry to test body (after setup_pia1_pa7_out):
+;   [stack: PCR, ORA]  (ORA pushed first; PCR on top)
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_cb2_neg_normal:
+        sei
+        jsr setup_pia1_pa7_out  ; DDRA bit 7 set; original saved to ZP
+
+        ; Save PIA1 ORA data and drive PA7 high
+        lda PIA1_BASE+PIA_ORA
+        pha                     ; [stack: ORA]
+        ora #$80
+        sta PIA1_BASE+PIA_ORA   ; PA7 = 1 (CB2 line high)
+
+        ; Save and configure VIA PCR for CB2 normal neg edge
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR, ORA]
+        and #$1F                ; clear bits 7:5 (CB2 control = 000)
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear IFR.CB2
+        lda #IFR_CB2
+        sta VIA_BASE+VIA_IFR
+
+        ; Drive PA7 = 0 (negative edge on CB2)
+        lda PIA1_BASE+PIA_ORA
+        and #$7F
+        sta PIA1_BASE+PIA_ORA
+
+        ; IFR bit 3 must be set
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CB2
+        cmp #IFR_CB2
+        bne tcb2nn_fail
+
+        ; Read ORB -> clears IFR.CB2 (normal mode)
+        lda VIA_BASE+VIA_ORB
+
+        ; IFR bit 3 must now be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CB2
+        cmp #$00
+        bne tcb2nn_fail
+
+        pla
+        sta VIA_BASE+VIA_PCR    ; restore VIA PCR
+        pla
+        sta PIA1_BASE+PIA_ORA   ; restore PIA1 ORA data
+        jsr restore_pia1_ddra   ; restore PIA1 DDRA
+        cli
+        lda #0
+        rts
+
+tcb2nn_fail:
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla
+        sta PIA1_BASE+PIA_ORA
+        jsr restore_pia1_ddra
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_cb2_neg_indep
+;
+; Verifies that in independent interrupt mode (PCR[7:5]=001),
+; reading ORB does NOT clear IFR bit 3 after a CB2 negative edge.
+; After verifying, IFR.CB2 is cleared by writing directly to IFR.
+;
+; Sequence:
+;   1. PIA1 PA7 = output; drive PA7 = 1 (CB2 line high)
+;   2. Configure PCR CB2: neg edge, independent mode (bits 7:5=001)
+;   3. Clear IFR.CB2
+;   4. Drive PA7 = 0 (negative edge on CB2)
+;   5. Check IFR bit 3 = 1 (flag set by edge)
+;   6. Read ORB (must NOT clear IFR.CB2 in independent mode)
+;   7. Check IFR bit 3 STILL = 1 -> pass condition
+;   8. Clear IFR.CB2 via direct IFR write (cleanup)
+;
+; Returns: A = 0 pass (flag survived ORB read),  A = 1 fail
+; ============================================================
+test_cb2_neg_indep:
+        sei
+        jsr setup_pia1_pa7_out
+
+        lda PIA1_BASE+PIA_ORA
+        pha                     ; [stack: ORA]
+        ora #$80
+        sta PIA1_BASE+PIA_ORA   ; PA7 = 1
+
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR, ORA]
+        and #$1F                ; clear bits 7:5
+        ora #PCR_CB2_IND        ; set bits 7:5 = 001 (independent mode)
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear IFR.CB2
+        lda #IFR_CB2
+        sta VIA_BASE+VIA_IFR
+
+        ; Drive PA7 = 0 (negative edge on CB2)
+        lda PIA1_BASE+PIA_ORA
+        and #$7F
+        sta PIA1_BASE+PIA_ORA
+
+        ; IFR bit 3 must be set (edge was detected)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CB2
+        cmp #IFR_CB2
+        bne tcb2ni_fail
+
+        ; Read ORB -> must NOT clear IFR.CB2 in independent mode
+        lda VIA_BASE+VIA_ORB
+
+        ; IFR bit 3 must STILL be set
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CB2
+        cmp #IFR_CB2
+        bne tcb2ni_fail
+
+        ; Cleanup: clear IFR.CB2 via direct write to IFR
+        lda #IFR_CB2
+        sta VIA_BASE+VIA_IFR
+
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla
+        sta PIA1_BASE+PIA_ORA
+        jsr restore_pia1_ddra
+        cli
+        lda #0
+        rts
+
+tcb2ni_fail:
+        ; Clear any residual IFR.CB2 on the fail path
+        lda #IFR_CB2
+        sta VIA_BASE+VIA_IFR
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla
+        sta PIA1_BASE+PIA_ORA
+        jsr restore_pia1_ddra
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_ca1_neg_flag
+;
+; Verifies that a 1->0 transition on CA1 (driven by CA2 manual
+; output) sets IFR bit 1, and that reading ORA (with handshake,
+; register $01) clears IFR bit 1.
+;
+; CA2 is configured as manual output; CA1 detects negative edge.
+;
+; Sequence:
+;   1. Configure PCR: CA2 manual high (bits 3:1=111), CA1 neg (bit 0=0)
+;   2. Clear IFR.CA1
+;   3. Drive CA2 low: set PCR bits 3:1 = 110 (negative edge on CA1)
+;   4. Check IFR bit 1 = 1
+;   5. Read VIA_ORA ($01) -> side-effect clears IFR.CA1
+;   6. Check IFR bit 1 = 0
+;
+; Saves and restores VIA PCR.
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_ca1_neg_flag:
+        sei
+        lda VIA_BASE+VIA_PCR
+        pha                     ; save PCR [stack: PCR]
+
+        ; CA2 = manual output high (bits 3:1 = 111), CA1 = neg edge (bit 0 = 0)
+        and #$F0                ; clear bits 3:0
+        ora #PCR_CA2_HI         ; bits 3:1 = 111, bit 0 = 0
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear IFR.CA1
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IFR
+
+        ; Drive CA2 low (bits 3:1 = 110): creates 1->0 on CA1
+        lda VIA_BASE+VIA_PCR
+        and #$F1                ; clear bits 3:1
+        ora #PCR_CA2_LO         ; bits 3:1 = 110 (CA2 manual output low)
+        sta VIA_BASE+VIA_PCR
+
+        ; IFR bit 1 must be set
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        cmp #IFR_CA1
+        bne tca1n_fail
+
+        ; Read ORA with handshake (reg $01) -> clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+
+        ; IFR bit 1 must now be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        cmp #$00
+        bne tca1n_fail
+
+        pla
+        sta VIA_BASE+VIA_PCR    ; restore PCR
+        cli
+        lda #0
+        rts
+
+tca1n_fail:
+        pla
+        sta VIA_BASE+VIA_PCR
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_ca1_pos_flag
+;
+; Verifies that a 0->1 transition on CA1 (driven by CA2 manual
+; output) sets IFR bit 1, and that reading ORA clears IFR bit 1.
+;
+; Sequence:
+;   1. Configure PCR: CA2 manual low (bits 3:1=110), CA1 pos (bit 0=1)
+;   2. Clear IFR.CA1
+;   3. Drive CA2 high: set PCR bits 3:1 = 111 (positive edge on CA1)
+;   4. Check IFR bit 1 = 1
+;   5. Read VIA_ORA ($01) -> clears IFR.CA1
+;   6. Check IFR bit 1 = 0
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_ca1_pos_flag:
+        sei
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR]
+
+        ; CA2 = manual output low (bits 3:1=110), CA1 = pos edge (bit 0=1)
+        and #$F0                ; clear bits 3:0
+        ora #$0D                ; $0D = PCR_CA2_LO($0C) | PCR_CA1_POS($01)
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear IFR.CA1
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IFR
+
+        ; Drive CA2 high (bits 3:1 = 111): creates 0->1 on CA1
+        lda VIA_BASE+VIA_PCR
+        and #$F1                ; clear bits 3:1
+        ora #PCR_CA2_HI         ; bits 3:1 = 111 (CA2 manual output high)
+        sta VIA_BASE+VIA_PCR
+
+        ; IFR bit 1 must be set
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        cmp #IFR_CA1
+        bne tca1p_fail
+
+        ; Read ORA with handshake -> clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+
+        ; IFR bit 1 must now be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        cmp #$00
+        bne tca1p_fail
+
+        pla
+        sta VIA_BASE+VIA_PCR
+        cli
+        lda #0
+        rts
+
+tca1p_fail:
+        pla
+        sta VIA_BASE+VIA_PCR
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_cb1_irq
+;
+; Verifies that a CB1 negative edge generates a CPU /IRQ when
+; IER.CB1 is enabled.
+;
+; Setup:
+;   - Install irq_handler at PET_IRQ_VEC ($0090)
+;   - Set IRQ_EXPECT = IFR_CB1 so the handler recognises our IRQ
+;   - Disable all VIA IRQs; enable CB1 only
+;   - PB3 = output; configure PCR CB1 = negative edge
+;   - Drive PB3 = 1; clear IFR.CB1; clear IRQ_FLAG
+;   - CLI; drive PB3 = 0 (negative edge -> IRQ pending)
+;   - Poll IRQ_FLAG (256 iterations ~2000 cycles)
+;   - SEI; disable IER.CB1; restore all saved state
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_cb1_irq:
+        sei
+
+        ; Install irq_handler; save original vector
+        lda PET_IRQ_VEC
+        sta ORIG_VEC_LO
+        pha                     ; [stack: vec_lo]
+        lda PET_IRQ_VEC+1
+        sta ORIG_VEC_HI
+        pha                     ; [stack: vec_hi, vec_lo]
+        lda #<irq_handler
+        sta PET_IRQ_VEC
+        lda #>irq_handler
+        sta PET_IRQ_VEC+1
+
+        lda #IFR_CB1
+        sta IRQ_EXPECT          ; handler checks for this IFR bit
+
+        ; Save IER; disable all VIA IRQs; enable CB1 only
+        lda VIA_BASE+VIA_IER    ; bit 7 always 1; bits 6:0 = enables
+        pha                     ; [stack: IER, vec_hi, vec_lo]
+        lda #IFR_ALL            ; bit 7=0 = disable mode; all bits -> disable
+        sta VIA_BASE+VIA_IER
+        lda #($80|IFR_CB1)      ; bit 7=1 = enable mode; enable CB1
+        sta VIA_BASE+VIA_IER
+
+        ; Save PCR, DDRB, ORB
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR, IER, vec_hi, vec_lo]
+        lda VIA_BASE+VIA_DDRB
+        pha                     ; [stack: DDRB, PCR, IER, vec_hi, vec_lo]
+        lda VIA_BASE+VIA_ORB
+        pha                     ; [stack: ORB, DDRB, PCR, IER, vec_hi, vec_lo]
+
+        ; PB3 = output; drive high (CB1 = 1)
+        lda VIA_BASE+VIA_DDRB
+        ora #VIA_PB3
+        sta VIA_BASE+VIA_DDRB
+        lda VIA_BASE+VIA_ORB
+        ora #VIA_PB3
+        sta VIA_BASE+VIA_ORB
+
+        ; Configure PCR CB1 = negative edge (clear bit 4)
+        lda VIA_BASE+VIA_PCR
+        and #$EF
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear IFR.CB1 and IRQ_FLAG
+        lda #IFR_CB1
+        sta VIA_BASE+VIA_IFR
+        lda #0
+        sta IRQ_FLAG
+
+        ; Enable CPU interrupts; drive negative edge; poll
+        cli
+        lda VIA_BASE+VIA_ORB
+        and #$F7                ; PB3 = 0 (1->0 = negative edge on CB1)
+        sta VIA_BASE+VIA_ORB
+
+        ldx #0                  ; 256-iteration poll (~2000 cycles)
+tcb1i_w:
+        lda IRQ_FLAG
+        bne tcb1i_ok
+        dex
+        bne tcb1i_w
+
+        ; Timeout - IRQ did not fire
+        sei
+        lda #IFR_CB1            ; bit 7=0 -> disable CB1 IRQ
+        sta VIA_BASE+VIA_IER
+        lda #IFR_CB1
+        sta VIA_BASE+VIA_IFR    ; clear any residual flag
+        pla
+        sta VIA_BASE+VIA_ORB
+        pla
+        sta VIA_BASE+VIA_DDRB
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla                     ; saved IER value
+        and #$7F                ; strip bit 7 (always 1 when read)
+        ora #$80                ; add enable-mode bit
+        sta VIA_BASE+VIA_IER    ; re-enable originally-enabled bits
+        pla
+        sta PET_IRQ_VEC+1       ; restore vector high
+        pla
+        sta PET_IRQ_VEC         ; restore vector low
+        cli
+        lda #1                  ; fail
+        rts
+
+tcb1i_ok:
+        sei
+        lda #IFR_CB1            ; disable CB1 IRQ
+        sta VIA_BASE+VIA_IER
+        pla
+        sta VIA_BASE+VIA_ORB
+        pla
+        sta VIA_BASE+VIA_DDRB
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla                     ; saved IER value
+        and #$7F
+        ora #$80
+        sta VIA_BASE+VIA_IER    ; re-enable originally-enabled bits
+        pla
+        sta PET_IRQ_VEC+1
+        pla
+        sta PET_IRQ_VEC
+        cli
+        lda #0                  ; pass
+        rts
+
+; ============================================================
+; Subroutine: test_cb2_irq
+;
+; Verifies that a CB2 negative edge generates a CPU /IRQ when
+; IER.CB2 is enabled (normal mode, PCR[7:5]=000).
+; PIA1 PA7 drives the CB2 line 1->0.
+;
+; Stack inside test body (after setup_pia1_pa7_out):
+;   [stack: ORA, PCR, IER, vec_hi, vec_lo]
+;   (ORA pushed first, PCR next, on top of IER/vec)
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_cb2_irq:
+        sei
+        jsr setup_pia1_pa7_out  ; DDRA bit 7 set; original saved to ZP
+
+        ; Install irq_handler; save original vector
+        lda PET_IRQ_VEC
+        sta ORIG_VEC_LO
+        pha                     ; [stack: vec_lo]
+        lda PET_IRQ_VEC+1
+        sta ORIG_VEC_HI
+        pha                     ; [stack: vec_hi, vec_lo]
+        lda #<irq_handler
+        sta PET_IRQ_VEC
+        lda #>irq_handler
+        sta PET_IRQ_VEC+1
+
+        lda #IFR_CB2
+        sta IRQ_EXPECT
+
+        ; Save IER; disable all VIA IRQs; enable CB2 only
+        lda VIA_BASE+VIA_IER
+        pha                     ; [stack: IER, vec_hi, vec_lo]
+        lda #IFR_ALL
+        sta VIA_BASE+VIA_IER
+        lda #($80|IFR_CB2)
+        sta VIA_BASE+VIA_IER
+
+        ; Save PCR
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR, IER, vec_hi, vec_lo]
+
+        ; Save PIA1 ORA data; drive PA7 high (CB2 = 1)
+        lda PIA1_BASE+PIA_ORA
+        pha                     ; [stack: ORA, PCR, IER, vec_hi, vec_lo]
+        ora #$80
+        sta PIA1_BASE+PIA_ORA
+
+        ; Configure PCR CB2 = neg edge, normal mode (clear bits 7:5)
+        lda VIA_BASE+VIA_PCR
+        and #$1F
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear IFR.CB2 and IRQ_FLAG
+        lda #IFR_CB2
+        sta VIA_BASE+VIA_IFR
+        lda #0
+        sta IRQ_FLAG
+
+        ; Enable CPU interrupts; drive PA7 = 0 (neg edge on CB2); poll
+        cli
+        lda PIA1_BASE+PIA_ORA
+        and #$7F                ; PA7 = 0 (1->0 = negative edge on CB2)
+        sta PIA1_BASE+PIA_ORA
+
+        ldx #0
+tcb2i_w:
+        lda IRQ_FLAG
+        bne tcb2i_ok
+        dex
+        bne tcb2i_w
+
+        ; Timeout
+        sei
+        lda #IFR_CB2
+        sta VIA_BASE+VIA_IER    ; disable CB2 IRQ
+        lda #IFR_CB2
+        sta VIA_BASE+VIA_IFR    ; clear residual flag
+        pla
+        sta PIA1_BASE+PIA_ORA   ; restore ORA
+        pla
+        sta VIA_BASE+VIA_PCR    ; restore PCR
+        pla                     ; saved IER
+        and #$7F
+        ora #$80
+        sta VIA_BASE+VIA_IER
+        pla
+        sta PET_IRQ_VEC+1
+        pla
+        sta PET_IRQ_VEC
+        jsr restore_pia1_ddra
+        cli
+        lda #1
+        rts
+
+tcb2i_ok:
+        sei
+        lda #IFR_CB2
+        sta VIA_BASE+VIA_IER    ; disable CB2 IRQ
+        pla
+        sta PIA1_BASE+PIA_ORA   ; restore ORA
+        pla
+        sta VIA_BASE+VIA_PCR    ; restore PCR
+        pla                     ; saved IER
+        and #$7F
+        ora #$80
+        sta VIA_BASE+VIA_IER
+        pla
+        sta PET_IRQ_VEC+1
+        pla
+        sta PET_IRQ_VEC
+        jsr restore_pia1_ddra
+        cli
+        lda #0
+        rts
+
+; ============================================================
+; Subroutine: test_ca1_irq
+;
+; Verifies that a CA1 negative edge generates a CPU /IRQ when
+; IER.CA1 is enabled. CA2 manual output drives CA1 1->0.
+;
+; Stack inside test body:
+;   [stack: PCR, IER, vec_hi, vec_lo]
+;
+; Returns: A = 0 pass,  A = 1 fail
+; ============================================================
+test_ca1_irq:
+        sei
+
+        ; Install irq_handler; save original vector
+        lda PET_IRQ_VEC
+        sta ORIG_VEC_LO
+        pha                     ; [stack: vec_lo]
+        lda PET_IRQ_VEC+1
+        sta ORIG_VEC_HI
+        pha                     ; [stack: vec_hi, vec_lo]
+        lda #<irq_handler
+        sta PET_IRQ_VEC
+        lda #>irq_handler
+        sta PET_IRQ_VEC+1
+
+        lda #IFR_CA1
+        sta IRQ_EXPECT
+
+        ; Save IER; disable all VIA IRQs; enable CA1 only
+        lda VIA_BASE+VIA_IER
+        pha                     ; [stack: IER, vec_hi, vec_lo]
+        lda #IFR_ALL
+        sta VIA_BASE+VIA_IER
+        lda #($80|IFR_CA1)
+        sta VIA_BASE+VIA_IER
+
+        ; Save PCR; configure CA2 = manual high, CA1 = neg edge
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR, IER, vec_hi, vec_lo]
+        and #$F0                ; clear bits 3:0
+        ora #PCR_CA2_HI         ; bits 3:1=111 (CA2 high), bit 0=0 (CA1 neg)
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear IFR.CA1 and IRQ_FLAG
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IFR
+        lda #0
+        sta IRQ_FLAG
+
+        ; Enable CPU interrupts; drive CA2 low (1->0 on CA1); poll
+        cli
+        lda VIA_BASE+VIA_PCR
+        and #$F1                ; clear bits 3:1
+        ora #PCR_CA2_LO         ; bits 3:1=110 (CA2 manual output low)
+        sta VIA_BASE+VIA_PCR
+
+        ldx #0
+tca1i_w:
+        lda IRQ_FLAG
+        bne tca1i_ok
+        dex
+        bne tca1i_w
+
+        ; Timeout
+        sei
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IER    ; disable CA1 IRQ
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IFR    ; clear residual flag
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla                     ; saved IER
+        and #$7F
+        ora #$80
+        sta VIA_BASE+VIA_IER
+        pla
+        sta PET_IRQ_VEC+1
+        pla
+        sta PET_IRQ_VEC
+        cli
+        lda #1
+        rts
+
+tca1i_ok:
+        sei
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IER    ; disable CA1 IRQ
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla                     ; saved IER
+        and #$7F
+        ora #$80
+        sta VIA_BASE+VIA_IER
+        pla
+        sta PET_IRQ_VEC+1
+        pla
+        sta PET_IRQ_VEC
+        cli
+        lda #0
+        rts
+
+; ============================================================
+; irq_handler
+;
+; User IRQ routine installed at PET_IRQ_VEC ($0090).
+;
+; The PET KERNAL IRQ handler saves A, X, Y on the hardware
+; stack and then executes JMP ($0090).  This routine:
+;
+;   1. Checks VIA IFR for the bit in IRQ_EXPECT.
+;      If the expected bit is not set, this is a different IRQ
+;      (e.g. vertical blank via PIA1 CB1) - chain without acting.
+;   2. If the expected bit is set:
+;      a. Read ORB (clears IFR.CB1 and IFR.CB2 in normal mode)
+;      b. Read ORA (clears IFR.CA1 and IFR.CA2 in normal mode)
+;      c. Set IRQ_FLAG = $FF to signal the wait loop
+;   3. Chain to the original handler at ORIG_VEC_LO/HI.
+;      The original handler is responsible for restoring Y, X, A
+;      and executing RTI.
+; ============================================================
+irq_handler:
+        lda VIA_BASE+VIA_IFR
+        and IRQ_EXPECT          ; is the expected VIA interrupt pending?
+        beq ih_chain            ; no - different IRQ source; just chain
+        lda VIA_BASE+VIA_ORB    ; clear IFR.CB1 / IFR.CB2 (normal mode)
+        lda VIA_BASE+VIA_ORA    ; clear IFR.CA1 / IFR.CA2 (normal mode)
+        lda #$FF
+        sta IRQ_FLAG            ; signal the polling loop in tests 5a-5c
+ih_chain:
+        jmp (ORIG_VEC_LO)       ; chain to original $0090 handler
+
+; ============================================================
+; Subroutine: print_result
+;
+; Prints "OK" or "FAIL" (with CR) and updates PASS_CNT/FAIL_CNT.
+; Input: A = 0 -> pass,  A != 0 -> fail
+; ============================================================
+print_result:
+        cmp #0
+        bne pr_fail
+
+        inc PASS_CNT
+        lda #<msg_ok
+        ldx #>msg_ok
+        jsr print_str
+        rts
+
+pr_fail:
+        inc FAIL_CNT
+        lda #<msg_fail
+        ldx #>msg_fail
+        jsr print_str
+        rts
+
+; ============================================================
+; Subroutine: print_str
+;
+; Prints a null-terminated string via CHROUT.
+; Inputs: A = low byte of string address, X = high byte.
+; ============================================================
+print_str:
+        sta STRPTR
+        stx STRPTR+1
+ps_loop:
+        ldy #0
+        lda (STRPTR),y
+        beq ps_done
+        jsr CHROUT
+        inc STRPTR
+        bne ps_loop
+        inc STRPTR+1
+        jmp ps_loop
+ps_done:
+        rts
+
+; ============================================================
+; Message strings (null-terminated, CBM uppercase charset)
+; ============================================================
+msg_banner:
+        .byte "PET USERPORT TEST 1", $0d
+        .byte "VIA PA/CB1/CB2/CA1", $0d
+        .byte "------------------", $0d
+        .byte 0
+
+msg_t1a: .byte "PA EVEN OUT:  ", 0
+msg_t1b: .byte "PA ODD  OUT:  ", 0
+msg_t2a: .byte "CB1 NEG FLAG: ", 0
+msg_t2b: .byte "CB1 POS FLAG: ", 0
+msg_t3a: .byte "CB2 NEG NORM: ", 0
+msg_t3b: .byte "CB2 NEG INDP: ", 0
+msg_t4a: .byte "CA1 NEG FLAG: ", 0
+msg_t4b: .byte "CA1 POS FLAG: ", 0
+msg_t5a: .byte "CB1 NEG IRQ:  ", 0
+msg_t5b: .byte "CB2 NEG IRQ:  ", 0
+msg_t5c: .byte "CA1 NEG IRQ:  ", 0
+
+msg_ok:        .byte "OK", $0d, 0
+msg_fail:      .byte "FAIL", $0d, 0
+
+msg_divider:   .byte "------------------", $0d, 0
+msg_all_pass:  .byte "ALL TESTS PASSED", $0d, 0
+msg_some_fail: .byte "SOME TESTS FAILED", $0d, 0
