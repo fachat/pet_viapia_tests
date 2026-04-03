@@ -425,7 +425,6 @@ test_pa_latch_neg:
         ; Read latch & TPLA_IMSK -> expect $00 (latch updated with inverted)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
-        cmp #$00
         bne tpln_fail8
 
         pla
@@ -633,7 +632,6 @@ test_pa_latch_pos:
         ; Read latch & TPLA_IMSK -> expect $00 (latch updated)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
-        cmp #$00
         bne tplp_fail9
 
         pla
@@ -797,7 +795,6 @@ test_cb2_hs_neg:
         ; Read VIA PA7 (CB2 via loopback) -> expect LOW ($00)
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
-        cmp #$00
         bne tcbn_fail1
 
         ; Drive PIA1 PA7 = 0 -> CB1 falls (neg active edge) -> CB2 goes HIGH
@@ -831,7 +828,6 @@ test_cb2_hs_neg:
         ; Read PA7 -> expect LOW
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
-        cmp #$00
         bne tcbn_fail4
 
         ; CB1 falls (neg active edge) -> CB2 goes HIGH
@@ -979,7 +975,6 @@ test_cb2_hs_pos:
         ; Read VIA PA7 (CB2 via loopback) -> expect LOW ($00)
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
-        cmp #$00
         bne tcbp_fail1
 
         ; Drive PIA1 PA7 = 1 -> CB1 rises (pos active edge) -> CB2 goes HIGH
@@ -1013,7 +1008,6 @@ test_cb2_hs_pos:
         ; Read PA7 -> expect LOW
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
-        cmp #$00
         bne tcbp_fail4
 
         ; CB1 rises (pos active edge) -> CB2 goes HIGH
