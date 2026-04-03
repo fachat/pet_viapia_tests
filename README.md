@@ -97,34 +97,34 @@ Run this **once** on a known-good machine or in VICE to produce the reference fi
 
 Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Groups 3–7 compare a live 256-byte timing capture against the reference files produced by `via_test1_gen.prg`.  On a mismatch the output shows `FAIL @xx` where `xx` is the hex index of the first differing byte.
 
-| Test | Description |
-|------|-------------|
-| **GRP1: T1 LATCH/COUNTER REGS** | |
-| 1A — T1LL/T1LH RD/WR | Writes values to the T1 low and high latch registers and reads them back via the latch addresses. |
-| 1B — T1LL/T1LH NO-START | Confirms that writing T1LL/T1LH does not start the T1 counter. |
-| 1C — T1LH CLEARS IFR6 | Verifies that writing the T1 latch-high register clears IFR bit 6 (T1 interrupt flag). |
-| 1D — T1CH LOADS+STARTS | Confirms that writing T1CH loads the counter from the latch and starts T1 counting. |
-| **GRP2: T2 LATCH/COUNTER REGS** | |
-| 2A — T2CL NO-START | Writes T2CL latch and confirms that writing T2CL alone does not start the counter. |
-| 2B — T2CH STARTS | Confirms that writing T2CH loads the counter from the T2CL latch and starts T2. |
-| **GRP3: T1 SINGLE-SHOT** | |
-| 3A — T1-SS LATCH=00 | Captures 256 T1 single-shot timing samples with latch=$00 and compares against `VIA.T1.SS.0`. |
-| 3B — T1-SS LATCH=01 | Same test with latch=$01; compares against `VIA.T1.SS.1`. |
-| 3C — T1-SS LATCH=02 | Same test with latch=$02; compares against `VIA.T1.SS.2`. |
-| 3D — T1-SS LATCH=FF | Same test with latch=$FF; compares against `VIA.T1.SS.FF`. |
-| **GRP4: T1 FREE-RUN** | |
-| 4A — T1-FR LATCH=00 | Captures 256 T1 free-run timing samples with latch=$00 and compares against `VIA.T1.FR.0`. |
-| 4B — T1-FR LATCH=01 | Same test with latch=$01; compares against `VIA.T1.FR.1`. |
-| 4C — T1-FR LATCH=02 | Same test with latch=$02; compares against `VIA.T1.FR.2`. |
-| 4D — T1-FR LATCH=FF | Same test with latch=$FF; compares against `VIA.T1.FR.FF`. |
-| **GRP5: T1 RESET MID-COUNT** | |
-| 5 — T1-RST FF→80 | Starts T1 at latch=$FF, resets mid-count to $80, captures 256 timing samples and compares against `VIA.T1.RST`. |
-| **GRP6: T2 ONE-SHOT** | |
-| 6A — T2 LATCH=00 | Captures 256 T2 one-shot timing samples with latch=$00 and compares against `VIA.T2.0`. |
-| 6B — T2 LATCH=01 | Same test with latch=$01; compares against `VIA.T2.1`. |
-| 6C — T2 LATCH=02 | Same test with latch=$02; compares against `VIA.T2.2`. |
-| 6D — T2 LATCH=FF | Same test with latch=$FF; compares against `VIA.T2.FF`. |
-| **GRP7: SHIFT REGISTER** | |
-| 7A — SR T2-CLK DATA=AA | Shifts out $AA under T2 clock, captures 256 bytes and compares against `VIA.SR.T2`. |
-| 7B — SR STOP MID-OP | Rewrites the SR control register mid-operation, captures the result and compares against `VIA.SR.STOP`. |
+| Test | ACR setup | Description |
+|------|-----------|-------------|
+| **GRP1: T1 LATCH/COUNTER REGS** | — (no change) | |
+| 1A — T1LL/T1LH RD/WR | | Writes values to the T1 low and high latch registers and reads them back via the latch addresses. |
+| 1B — T1LL/T1LH NO-START | | Confirms that writing T1LL/T1LH does not start the T1 counter. |
+| 1C — T1LH CLEARS IFR6 | | Verifies that writing the T1 latch-high register clears IFR bit 6 (T1 interrupt flag). |
+| 1D — T1CH LOADS+STARTS | | Confirms that writing T1CH loads the counter from the latch and starts T1 counting. |
+| **GRP2: T2 LATCH/COUNTER REGS** | — (no change) | |
+| 2A — T2CL NO-START | | Writes T2CL latch and confirms that writing T2CL alone does not start the counter. |
+| 2B — T2CH STARTS | | Confirms that writing T2CH loads the counter from the T2CL latch and starts T2. |
+| **GRP3: T1 SINGLE-SHOT** | bits 7–6 = `$00` (T1 single-shot, no PB7) | |
+| 3A — T1-SS LATCH=00 | | Captures 256 T1 single-shot timing samples with latch=$00 and compares against `VIA.T1.SS.0`. |
+| 3B — T1-SS LATCH=01 | | Same test with latch=$01; compares against `VIA.T1.SS.1`. |
+| 3C — T1-SS LATCH=02 | | Same test with latch=$02; compares against `VIA.T1.SS.2`. |
+| 3D — T1-SS LATCH=FF | | Same test with latch=$FF; compares against `VIA.T1.SS.FF`. |
+| **GRP4: T1 FREE-RUN** | bits 7–6 = `$80` (T1 free-run, no PB7) | |
+| 4A — T1-FR LATCH=00 | | Captures 256 T1 free-run timing samples with latch=$00 and compares against `VIA.T1.FR.0`. |
+| 4B — T1-FR LATCH=01 | | Same test with latch=$01; compares against `VIA.T1.FR.1`. |
+| 4C — T1-FR LATCH=02 | | Same test with latch=$02; compares against `VIA.T1.FR.2`. |
+| 4D — T1-FR LATCH=FF | | Same test with latch=$FF; compares against `VIA.T1.FR.FF`. |
+| **GRP5: T1 RESET MID-COUNT** | bits 7–6 = `$00` (T1 single-shot, no PB7) | |
+| 5 — T1-RST FF→80 | | Starts T1 at latch=$FF, resets mid-count to $80, captures 256 timing samples and compares against `VIA.T1.RST`. |
+| **GRP6: T2 ONE-SHOT** | bit 5 = `0` (T2 timer mode, bit 5 cleared) | |
+| 6A — T2 LATCH=00 | | Captures 256 T2 one-shot timing samples with latch=$00 and compares against `VIA.T2.0`. |
+| 6B — T2 LATCH=01 | | Same test with latch=$01; compares against `VIA.T2.1`. |
+| 6C — T2 LATCH=02 | | Same test with latch=$02; compares against `VIA.T2.2`. |
+| 6D — T2 LATCH=FF | | Same test with latch=$FF; compares against `VIA.T2.FF`. |
+| **GRP7: SHIFT REGISTER** | bits 4–2 = `$14` (SR shift-out under T2 clock) | |
+| 7A — SR T2-CLK DATA=AA | | Shifts out $AA under T2 clock, captures 256 bytes and compares against `VIA.SR.T2`. |
+| 7B — SR STOP MID-OP | | Starts SR shift-out under T2, rewrites SR control mid-operation (bits 4–2 cleared to `$00`), captures the result and compares against `VIA.SR.STOP`. |
 
