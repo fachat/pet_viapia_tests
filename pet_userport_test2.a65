@@ -46,6 +46,12 @@
 ;       Write ORB -> CB2 lo; CB1 hi -> CB2 hi; CB1 lo -> CB2 hi.
 ;       Repeat once.
 ;
+;   2c: PA write handshake, CA2 pulse, CA1 pos edge (IFR check)
+;       CA2 and CA1 are wired together (loopback).
+;       PCR: CA2 pulse output (bits 3:1=101), CA1 positive edge (bit 0=1).
+;       Write to ORA -> CA2 pulses low then back high -> CA1 sees rising
+;       edge -> IFR bit 1 (CA1) must be set.
+;
 ; Target   : Commodore PET 4032
 ; Assembler: xa65  (command: xa -W -XMASM)
 ; Load     : CBM BASIC LOAD then RUN - or autostart in VICE
@@ -78,10 +84,11 @@ CHROUT     = $FFD2          ; Output character in A to current channel
 ; ============================================================
 ; VIA PCR bit-field constants (bits 3:0 = CA2/CA1 settings)
 ; ============================================================
-PCR_CA2_HI      = $0E       ; CA2 manual hi (bits 3:1=111), CA1 neg edge (bit 0=0)
-PCR_CA2_LO      = $0C       ; CA2 manual lo (bits 3:1=110), CA1 neg edge (bit 0=0)
-PCR_CA2_HI_POS  = $0F       ; CA2 manual hi (bits 3:1=111), CA1 pos edge (bit 0=1)
-PCR_CA2_LO_POS  = $0D       ; CA2 manual lo (bits 3:1=110), CA1 pos edge (bit 0=1)
+PCR_CA2_HI        = $0E     ; CA2 manual hi (bits 3:1=111), CA1 neg edge (bit 0=0)
+PCR_CA2_LO        = $0C     ; CA2 manual lo (bits 3:1=110), CA1 neg edge (bit 0=0)
+PCR_CA2_HI_POS    = $0F     ; CA2 manual hi (bits 3:1=111), CA1 pos edge (bit 0=1)
+PCR_CA2_LO_POS    = $0D     ; CA2 manual lo (bits 3:1=110), CA1 pos edge (bit 0=1)
+PCR_CA2_PULSE_POS = $0B     ; CA2 pulse output (bits 3:1=101), CA1 pos edge (bit 0=1)
 
 ; VIA PCR CB2/CB1 settings (bits 7:4)
 PCR_CB2_HS      = $80       ; CB2 handshake output (bits 7:5=100), CB1 neg (bit 4=0)
@@ -122,6 +129,7 @@ TPLA_OPAT      = $09        ; PA latch test param: output pattern
 TPLA_IMSK      = $0A        ; PA latch test param: input bit mask
 FAIL_STEP      = $0B        ; step number where the current test last failed
 FAIL_VAL       = $0C        ; actual value read at the failing compare
+ORA_SAVE       = $0D        ; saved PA output value (test_pa_write_hs)
 
 ; ============================================================
 ; .PRG file header - first two bytes are the CBM load address
@@ -227,6 +235,17 @@ main:
         jsr print_str
 
         jsr test_cb2_hs_pos
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 2c - PA write handshake, CA2 pulse, CA1 pos edge
+        ; Write to ORA -> CA2 pulses -> CA1 rising edge -> IFR CA1 set.
+        ; --------------------------------------------------------
+        lda #<msg_t2c
+        ldx #>msg_t2c
+        jsr print_str
+
+        jsr test_pa_write_hs
         jsr print_result
 
         ; --------------------------------------------------------
@@ -1021,7 +1040,90 @@ tcbp_fail:
         rts
 
 ; ============================================================
-; Subroutine: print_result
+; Subroutine: test_pa_write_hs
+;
+; Tests PA write handshake: writing to ORA causes CA2 to pulse
+; low then back high.  CA1 and CA2 are wired together (Pin B =
+; CA1, Pin 11 = CA2), so the rising end of the CA2 pulse is
+; seen by CA1 as a positive (rising) edge and sets IFR bit 1.
+;
+; Setup:
+;   ACR PA latch is disabled (bit 0 = 0).
+;   PCR bits 3:0 = PCR_CA2_PULSE_POS ($0B):
+;     CA2 pulse output (bits 3:1 = 101), CA1 positive edge (bit 0 = 1).
+;
+; Sequence:
+;   1. Read ORA_NH; save PA output value to ORA_SAVE (ZP).
+;   2. Save ACR to stack; disable PA latch.
+;   3. Save PCR to stack; set PCR bits 3:0 = $0B.
+;   4. Read VIA ORA to clear any stale IFR CA1/CA2 flags.
+;   5. Write ORA_SAVE to VIA ORA -> CA2 pulses -> CA1 rising edge
+;      -> IFR bit 1 (CA1) is set.
+;   6. Read IFR; check IFR_CA1 (bit 1) is set -> pass.
+;   7. Restore PCR, ACR.
+;
+; Saves and restores: PCR, ACR.  ORA output is written with the
+; same value that was already latched, so DDRA and PA output
+; levels are unchanged.
+; Stack (top-first): PCR, ACR
+; Returns: A = 0 pass, A = 1 fail
+; ============================================================
+test_pa_write_hs:
+        sei
+
+        ; Save current PA output value for the ORA write that triggers handshake
+        lda VIA_BASE+VIA_ORA_NH
+        sta ORA_SAVE
+
+        ; Save VIA ACR; disable PA latch (bit 0 = 0)
+        lda VIA_BASE+VIA_ACR
+        pha                     ; [stack: ACR]
+        and #ACR_PA_LATCH_NMASK
+        sta VIA_BASE+VIA_ACR
+
+        ; Save VIA PCR; set CA2 pulse output (bits 3:1=101), CA1 pos edge (bit 0=1)
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR, ACR]
+        and #$F0                ; keep CB2/CB1 bits (7:4); clear CA2/CA1 bits (3:0)
+        ora #PCR_CA2_PULSE_POS  ; bits 3:0 = $0B
+        sta VIA_BASE+VIA_PCR
+
+        ; Clear any stale IFR CA1/CA2 flags by reading ORA
+        lda VIA_BASE+VIA_ORA
+
+        ; Write to ORA -> CA2 pulses low then high -> CA1 sees rising edge -> IFR CA1 set
+        lda ORA_SAVE
+        sta VIA_BASE+VIA_ORA
+
+        ; Step 1: IFR CA1 flag must be set
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        cmp #IFR_CA1
+        bne tpwh_fail1
+
+        ; Pass: restore and return 0
+        pla
+        sta VIA_BASE+VIA_PCR    ; restore PCR
+        pla
+        sta VIA_BASE+VIA_ACR    ; restore ACR
+        cli
+        lda #0
+        rts
+
+tpwh_fail1:
+        sta FAIL_VAL
+        lda #1
+        sta FAIL_STEP
+tpwh_fail:
+        pla
+        sta VIA_BASE+VIA_PCR    ; restore PCR
+        pla
+        sta VIA_BASE+VIA_ACR    ; restore ACR
+        cli
+        lda #1
+        rts
+
+
 ;
 ; Prints "OK" or "FAIL" (with CR) and updates PASS_CNT/FAIL_CNT.
 ; Input: A = 0 -> pass,  A != 0 -> fail
@@ -1112,6 +1214,7 @@ msg_t1c: .byte "PA LATCH LO POS:  ", 0
 msg_t1d: .byte "PA LATCH HI POS:  ", 0
 msg_t2a: .byte "CB2 HS CB1 NEG:   ", 0
 msg_t2b: .byte "CB2 HS CB1 POS:   ", 0
+msg_t2c: .byte "PA WRITE HS:      ", 0
 
 msg_ok:        .byte "OK", $0d, 0
 msg_fail:      .byte "FAIL S:", 0
