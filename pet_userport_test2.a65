@@ -121,6 +121,7 @@ TPLA_DDRA      = $08        ; PA latch test param: DDRA value to set
 TPLA_OPAT      = $09        ; PA latch test param: output pattern
 TPLA_IMSK      = $0A        ; PA latch test param: input bit mask
 FAIL_STEP      = $0B        ; step number where the current test last failed
+FAIL_VAL       = $0C        ; actual value read at the failing compare
 
 ; ============================================================
 ; .PRG file header - first two bytes are the CBM load address
@@ -402,14 +403,17 @@ test_pa_latch_neg:
         rts
 
 tpln_fail5:
+        sta FAIL_VAL
         lda #5
         sta FAIL_STEP
         jmp tpln_fail
 tpln_fail6:
+        sta FAIL_VAL
         lda #6
         sta FAIL_STEP
         jmp tpln_fail
 tpln_fail8:
+        sta FAIL_VAL
         lda #8
         sta FAIL_STEP
 tpln_fail:
@@ -578,14 +582,17 @@ test_pa_latch_pos:
         rts
 
 tplp_fail6:
+        sta FAIL_VAL
         lda #6
         sta FAIL_STEP
         jmp tplp_fail
 tplp_fail7:
+        sta FAIL_VAL
         lda #7
         sta FAIL_STEP
         jmp tplp_fail
 tplp_fail9:
+        sta FAIL_VAL
         lda #9
         sta FAIL_STEP
 tplp_fail:
@@ -789,26 +796,32 @@ test_cb2_hs_neg:
         rts
 
 tcbn_fail1:
+        sta FAIL_VAL
         lda #1
         sta FAIL_STEP
         jmp tcbn_fail
 tcbn_fail2:
+        sta FAIL_VAL
         lda #2
         sta FAIL_STEP
         jmp tcbn_fail
 tcbn_fail3:
+        sta FAIL_VAL
         lda #3
         sta FAIL_STEP
         jmp tcbn_fail
 tcbn_fail4:
+        sta FAIL_VAL
         lda #4
         sta FAIL_STEP
         jmp tcbn_fail
 tcbn_fail5:
+        sta FAIL_VAL
         lda #5
         sta FAIL_STEP
         jmp tcbn_fail
 tcbn_fail6:
+        sta FAIL_VAL
         lda #6
         sta FAIL_STEP
 tcbn_fail:
@@ -965,26 +978,32 @@ test_cb2_hs_pos:
         rts
 
 tcbp_fail1:
+        sta FAIL_VAL
         lda #1
         sta FAIL_STEP
         jmp tcbp_fail
 tcbp_fail2:
+        sta FAIL_VAL
         lda #2
         sta FAIL_STEP
         jmp tcbp_fail
 tcbp_fail3:
+        sta FAIL_VAL
         lda #3
         sta FAIL_STEP
         jmp tcbp_fail
 tcbp_fail4:
+        sta FAIL_VAL
         lda #4
         sta FAIL_STEP
         jmp tcbp_fail
 tcbp_fail5:
+        sta FAIL_VAL
         lda #5
         sta FAIL_STEP
         jmp tcbp_fail
 tcbp_fail6:
+        sta FAIL_VAL
         lda #6
         sta FAIL_STEP
 tcbp_fail:
@@ -1026,6 +1045,11 @@ pr_fail:
         clc
         adc #$30                ; convert to ASCII digit
         jsr CHROUT              ; print step digit
+        lda #<msg_val
+        ldx #>msg_val
+        jsr print_str           ; prints " v:"
+        lda FAIL_VAL
+        jsr print_hex           ; print actual value as 2 hex digits
         lda #$0d
         jsr CHROUT              ; print CR
         rts
@@ -1052,8 +1076,30 @@ ps_done:
         rts
 
 ; ============================================================
-; Message strings (null-terminated, CBM uppercase charset)
+; Subroutine: print_hex
+;
+; Prints byte in A as exactly 2 uppercase hex digits via CHROUT.
+; Clobbers: A
 ; ============================================================
+print_hex:
+        pha                     ; save full byte
+        lsr
+        lsr
+        lsr
+        lsr                     ; high nibble into bits 3:0
+        jsr print_hex_nibble
+        pla                     ; restore full byte
+        and #$0F                ; low nibble
+        ; fall through
+print_hex_nibble:
+        cmp #$0A
+        bcc phx_digit
+        adc #$06                ; C=1 from cmp, so +6+1=+7: maps 10->17, 15->22
+phx_digit:
+        adc #$30                ; C=0; maps 0-9 -> '0'-'9', 17-22 -> 'A'-'F'
+        jmp CHROUT
+
+
 msg_banner:
         .byte "PET USERPORT TEST 2", $0d
         .byte "VIA PA LATCH/HANDSHAKE", $0d
@@ -1069,6 +1115,7 @@ msg_t2b: .byte "CB2 HS CB1 POS:   ", 0
 
 msg_ok:        .byte "OK", $0d, 0
 msg_fail:      .byte "FAIL S:", 0
+msg_val:       .byte " v:", 0
 
 msg_divider:   .byte "----------------------", $0d, 0
 msg_all_pass:  .byte "ALL TESTS PASSED", $0d, 0
