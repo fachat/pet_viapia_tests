@@ -13,7 +13,8 @@
 ; Required symbols (defined in the including .a65 file):
 ;   VIA_BASE, VIA_T1CL, VIA_T1CH, VIA_T1LL, VIA_T1LH
 ;   VIA_T2CL, VIA_T2CH, VIA_SR, VIA_ACR
-;   ACR_SR_NMASK, ACR_SR_OT2, ACR_SR_OFF
+;   ACR_SR_NMASK, ACR_SR_IT2, ACR_SR_OFF
+;   ACR_T2_NMASK
 ;   MEAS_BUF
 ; ============================================================
 
@@ -136,42 +137,98 @@ meas_t2_lp:
         rts
 
 ; ============================================================
-; Subroutine: meas_sr_t2
+; Subroutines: meas_sr_it2_ah / meas_sr_it2_al
 ;
-; Configures the SR in shift-out / T2-clock mode (ACR=101),
-; loads T2 latch with period=5, writes $AA to SR to start
-; shifting, then reads SR 256 times.
+; Scenario A - SR shift-in via T2, T2 pre-set to $04FF then $0210.
 ;
-; In this mode each T2 timeout (every 6 CPU cycles = latch+1)
-; shifts one bit out on CB2.  After 8 complete shifts IFR
-; bit 2 is set and shifting stops; the SR value at that point
-; freezes.  The 256 readings thus capture the shift-out
-; sequence followed by the final static value.
+; Setup sequence:
+;   1. SR disabled, T2 in timed (CPU-clock) mode.
+;   2. Set T2 to $04FF (write T2CL=$FF, T2CH=$04).
+;   3. Set SR to shift-in-via-T2 mode (ACR bits 4-2 = 001).
+;   4. Set T2 to $0210 (write T2CL=$10, T2CH=$02).
+;   5. Read SR to arm shifting (CB1 driven as output clock).
 ;
-; Result: MEAS_BUF[0..255] = 256 SR readings
+; NOTE: In SR shift-in modes, the VIA drives CB1 as an output
+;       clock.  CB1 must NOT be hard-wired as an input on the
+;       board; doing so creates a bus conflict on that line.
+;
+; meas_sr_it2_ah: samples T2CH (counter high byte) 256 times.
+; meas_sr_it2_al: samples T2CL (counter low byte)  256 times.
+;
+; Result: MEAS_BUF[0..255] = 256 T2CH (or T2CL) readings
 ; Clobbers: A, X
 ; ============================================================
-meas_sr_t2:
+meas_sr_it2_ah:
         sei
-        ; configure SR: shift out under T2 (ACR bits 4-2 = 101)
+        ; SR disabled, T2 in timed (CPU-clock) mode
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK       ; clear SR mode bits (SR off)
+        and #ACR_T2_NMASK       ; clear T2 mode bit (timer mode)
+        sta VIA_BASE+VIA_ACR
+        ; Set T2 to $04FF
+        lda #$FF
+        sta VIA_BASE+VIA_T2CL   ; T2 latch low = $FF
+        lda #$04
+        sta VIA_BASE+VIA_T2CH   ; load counter $04FF, start T2
+        ; Set SR to shift in under T2 (ACR bits 4-2 = 001)
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
-        ora #ACR_SR_OT2
+        ora #ACR_SR_IT2
         sta VIA_BASE+VIA_ACR
-        ; set T2 latch for SR clock period (latch+1 = 6 cycles)
-        lda #$05
-        sta VIA_BASE+VIA_T2CL
-        ; write data to SR - this starts the shift-out sequence
-        lda #$AA
-        sta VIA_BASE+VIA_SR
-        ; read SR 256 times
+        ; Set T2 to $0210
+        lda #$10
+        sta VIA_BASE+VIA_T2CL   ; T2 latch low = $10
+        lda #$02
+        sta VIA_BASE+VIA_T2CH   ; load counter $0210, start T2
+        ; Read SR to arm shifting; CB1 is driven as output clock
+        lda VIA_BASE+VIA_SR
+        ; Sample T2CH 256 times
         ldx #0
-meas_sr_t2_lp:
-        lda VIA_BASE+VIA_SR     ; 4 cycles
+meas_sr_it2_ah_lp:
+        lda VIA_BASE+VIA_T2CH   ; 4 cycles
         sta MEAS_BUF,x          ; 5 cycles
         inx                     ; 2 cycles
-        bne meas_sr_t2_lp       ; 3 cycles (taken) / 2 (not taken)
-        ; disable SR
+        bne meas_sr_it2_ah_lp   ; 3 cycles (2 on last)
+        ; Disable SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        rts
+
+meas_sr_it2_al:
+        sei
+        ; SR disabled, T2 in timed (CPU-clock) mode
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        and #ACR_T2_NMASK
+        sta VIA_BASE+VIA_ACR
+        ; Set T2 to $04FF
+        lda #$FF
+        sta VIA_BASE+VIA_T2CL
+        lda #$04
+        sta VIA_BASE+VIA_T2CH
+        ; Set SR to shift in under T2
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_IT2
+        sta VIA_BASE+VIA_ACR
+        ; Set T2 to $0210
+        lda #$10
+        sta VIA_BASE+VIA_T2CL
+        lda #$02
+        sta VIA_BASE+VIA_T2CH
+        ; Read SR to arm shifting
+        lda VIA_BASE+VIA_SR
+        ; Sample T2CL 256 times (clears IFR5 on each read)
+        ldx #0
+meas_sr_it2_al_lp:
+        lda VIA_BASE+VIA_T2CL   ; 4 cycles - read counter, clears IFR5
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        bne meas_sr_it2_al_lp   ; 3 cycles (2 on last)
+        ; Disable SR
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
         ora #ACR_SR_OFF
@@ -180,52 +237,198 @@ meas_sr_t2_lp:
         rts
 
 ; ============================================================
-; Subroutine: meas_sr_stop
+; Subroutines: meas_sr_it2_bh / meas_sr_it2_bl
 ;
-; Tests stopping the SR mid-operation by writing a new value
-; while shifting is in progress.
-; Phase 1: write $FF to SR (starts shifting), read SR 64 times.
-; Restart: write $55 to SR (resets / restarts shifting).
-; Phase 2: read SR 192 more times.
+; Scenario B - SR shift-in via T2, T2 set directly to $0210.
 ;
-; Uses T2 latch=10 (11-cycle SR clock period) so that
-; multiple shift steps occur within the 64-iteration window.
+; Setup sequence:
+;   1. SR disabled, T2 in timed (CPU-clock) mode.
+;   2. Set T2 to $0210 (write T2CL=$10, T2CH=$02).
+;   3. Set SR to shift-in-via-T2 mode (ACR bits 4-2 = 001).
+;   4. Read SR to arm shifting.
 ;
-; Result: MEAS_BUF[0..63]    = phase-1 readings (data=$FF)
-;         MEAS_BUF[64..255]  = phase-2 readings (data=$55)
+; meas_sr_it2_bh: samples T2CH (counter high byte) 256 times.
+; meas_sr_it2_bl: samples T2CL (counter low byte)  256 times.
+;
+; Result: MEAS_BUF[0..255] = 256 T2CH (or T2CL) readings
+; Clobbers: A, X
 ; ============================================================
-meas_sr_stop:
+meas_sr_it2_bh:
         sei
-        ; configure SR: shift out under T2
+        ; SR disabled, T2 in timed (CPU-clock) mode
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
-        ora #ACR_SR_OT2
+        and #ACR_T2_NMASK
         sta VIA_BASE+VIA_ACR
-        ; T2 latch = 10 (11-cycle SR clock period)
-        lda #$0A
+        ; Set T2 to $0210
+        lda #$10
         sta VIA_BASE+VIA_T2CL
-        ; write initial value to SR - starts shifting
-        lda #$FF
-        sta VIA_BASE+VIA_SR
-        ; phase 1: 64 reads (X = 0..63)
+        lda #$02
+        sta VIA_BASE+VIA_T2CH   ; load counter $0210, start T2
+        ; Set SR to shift in under T2
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_IT2
+        sta VIA_BASE+VIA_ACR
+        ; Read SR to arm shifting
+        lda VIA_BASE+VIA_SR
+        ; Sample T2CH 256 times
         ldx #0
-meas_sr_stop_lp1:
-        lda VIA_BASE+VIA_SR     ; 4 cycles
+meas_sr_it2_bh_lp:
+        lda VIA_BASE+VIA_T2CH   ; 4 cycles
         sta MEAS_BUF,x          ; 5 cycles
         inx                     ; 2 cycles
-        cpx #64                 ; 2 cycles
-        bne meas_sr_stop_lp1    ; 3 cycles (taken) / 2 (not taken)
-        ; restart SR with new value mid-operation
-        lda #$55
-        sta VIA_BASE+VIA_SR
-        ; phase 2: 192 more reads (X = 64..255, wraps at 0)
-meas_sr_stop_lp2:
-        lda VIA_BASE+VIA_SR     ; 4 cycles
+        bne meas_sr_it2_bh_lp   ; 3 cycles (2 on last)
+        ; Disable SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        rts
+
+meas_sr_it2_bl:
+        sei
+        ; SR disabled, T2 in timed (CPU-clock) mode
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        and #ACR_T2_NMASK
+        sta VIA_BASE+VIA_ACR
+        ; Set T2 to $0210
+        lda #$10
+        sta VIA_BASE+VIA_T2CL
+        lda #$02
+        sta VIA_BASE+VIA_T2CH
+        ; Set SR to shift in under T2
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_IT2
+        sta VIA_BASE+VIA_ACR
+        ; Read SR to arm shifting
+        lda VIA_BASE+VIA_SR
+        ; Sample T2CL 256 times (clears IFR5 on each read)
+        ldx #0
+meas_sr_it2_bl_lp:
+        lda VIA_BASE+VIA_T2CL   ; 4 cycles - read counter, clears IFR5
         sta MEAS_BUF,x          ; 5 cycles
         inx                     ; 2 cycles
-        cpx #0                  ; 2 cycles
-        bne meas_sr_stop_lp2    ; 3 cycles (taken) / 2 (not taken)
-        ; disable SR
+        bne meas_sr_it2_bl_lp   ; 3 cycles (2 on last)
+        ; Disable SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        rts
+
+; ============================================================
+; Subroutines: meas_sr_it2_ch / meas_sr_it2_cl
+;
+; Scenario C - SR shift-in via T2, T2=$0210, 16-cycle wait,
+;              then update T2 latch low byte only to $20.
+;
+; Setup sequence:
+;   1. SR disabled, T2 in timed (CPU-clock) mode.
+;   2. Set T2 to $0210 (write T2CL=$10, T2CH=$02).
+;   3. Wait 16 cycles (8 NOPs) for the T2 low byte to reach $00
+;      (the first low-byte underflow: $10 decrements to $00).
+;   4. Write T2CL=$20 only (latch low byte; no counter reload).
+;   5. Set SR to shift-in-via-T2 mode (ACR bits 4-2 = 001).
+;   6. Read SR to arm shifting.
+;
+; meas_sr_it2_ch: samples T2CH (counter high byte) 256 times.
+; meas_sr_it2_cl: samples T2CL (counter low byte)  256 times.
+;
+; Result: MEAS_BUF[0..255] = 256 T2CH (or T2CL) readings
+; Clobbers: A, X
+; ============================================================
+meas_sr_it2_ch:
+        sei
+        ; SR disabled, T2 in timed (CPU-clock) mode
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        and #ACR_T2_NMASK
+        sta VIA_BASE+VIA_ACR
+        ; Set T2 to $0210
+        lda #$10
+        sta VIA_BASE+VIA_T2CL
+        lda #$02
+        sta VIA_BASE+VIA_T2CH   ; start T2 at $0210
+        ; Wait 16 cycles (8 NOPs x 2 cycles each) for low byte
+        ; to count down from $10 to $00 (first low-byte underflow)
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        ; Update T2 latch low byte to $20 only (counter not reloaded)
+        lda #$20
+        sta VIA_BASE+VIA_T2CL
+        ; Set SR to shift in under T2
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_IT2
+        sta VIA_BASE+VIA_ACR
+        ; Read SR to arm shifting
+        lda VIA_BASE+VIA_SR
+        ; Sample T2CH 256 times
+        ldx #0
+meas_sr_it2_ch_lp:
+        lda VIA_BASE+VIA_T2CH   ; 4 cycles
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        bne meas_sr_it2_ch_lp   ; 3 cycles (2 on last)
+        ; Disable SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        rts
+
+meas_sr_it2_cl:
+        sei
+        ; SR disabled, T2 in timed (CPU-clock) mode
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        and #ACR_T2_NMASK
+        sta VIA_BASE+VIA_ACR
+        ; Set T2 to $0210
+        lda #$10
+        sta VIA_BASE+VIA_T2CL
+        lda #$02
+        sta VIA_BASE+VIA_T2CH   ; start T2 at $0210
+        ; Wait 16 cycles (8 NOPs x 2 cycles each) for low byte
+        ; to count down from $10 to $00 (first low-byte underflow)
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        ; Update T2 latch low byte to $20 only (counter not reloaded)
+        lda #$20
+        sta VIA_BASE+VIA_T2CL
+        ; Set SR to shift in under T2
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_IT2
+        sta VIA_BASE+VIA_ACR
+        ; Read SR to arm shifting
+        lda VIA_BASE+VIA_SR
+        ; Sample T2CL 256 times (clears IFR5 on each read)
+        ldx #0
+meas_sr_it2_cl_lp:
+        lda VIA_BASE+VIA_T2CL   ; 4 cycles - read counter, clears IFR5
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        bne meas_sr_it2_cl_lp   ; 3 cycles (2 on last)
+        ; Disable SR
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
         ora #ACR_SR_OFF

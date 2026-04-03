@@ -8,6 +8,10 @@
 ; a known-good machine or in the VICE emulator to produce the
 ; reference data that via_test1.a65 will compare against.
 ;
+; The SR tests use SR shift-in-under-T2 mode.
+; NOTE: CB1 must not be hard-wired as input; the VIA drives CB1
+;       as an output clock in SR shift-in modes (bus conflict risk).
+;
 ; Files written (CBM PRG, 256 bytes + 2-byte load address header):
 ;   VIA.T1.SS.0   T1 single-shot, latch=$00
 ;   VIA.T1.SS.1   T1 single-shot, latch=$01
@@ -22,8 +26,12 @@
 ;   VIA.T2.1      T2 one-shot,    latch=$01
 ;   VIA.T2.2      T2 one-shot,    latch=$02
 ;   VIA.T2.FF     T2 one-shot,    latch=$FF
-;   VIA.SR.T2     SR shift-out under T2, data=$AA, T2 period=5
-;   VIA.SR.STOP   SR shift-out under T2, mid-operation write
+;   VIA.SR.IT2.A.H  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH samples
+;   VIA.SR.IT2.A.L  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL samples
+;   VIA.SR.IT2.B.H  SR shift-in via T2, T2=$0210 direct, T2CH samples
+;   VIA.SR.IT2.B.L  SR shift-in via T2, T2=$0210 direct, T2CL samples
+;   VIA.SR.IT2.C.H  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH samples
+;   VIA.SR.IT2.C.L  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL samples
 ;
 ; Files are written using the PET-compatible PET_SAVE routine
 ; (JMP $f6e3), bypassing the $FFD8 KERNAL entry which includes
@@ -65,7 +73,7 @@ ACR_T1_FR    = $80          ; 10 -> free-run,    no PB7
 ACR_SR_MASK  = $1C          ; mask for SR mode bits
 ACR_SR_NMASK = $E3          ; inverse mask: bits NOT in SR mode field
 ACR_SR_OFF   = $00          ; 000 -> SR disabled
-ACR_SR_OT2   = $14          ; 101 -> shift out under T2 (8-bit, stops after 8 shifts)
+ACR_SR_IT2   = $04          ; 001 -> shift in under T2 control
 ACR_SR_FRT2  = $10          ; 100 -> shift out, T2 free-running
 
 ; ACR T2 mode (bit 5):  0=timer, 1=count PB6 pulses
@@ -304,25 +312,47 @@ main:
         jsr write_file
 
         ; --------------------------------------------------------
-        ; Shift register - shift out under T2, 8-bit mode
+        ; Shift register - shift in under T2 control
+        ; (6 reference files: 3 scenarios x 2 byte lanes)
         ; --------------------------------------------------------
         lda #<msg_sr
         ldx #>msg_sr
         jsr print_str
 
-        jsr meas_sr_t2
-        lda #<fn_srt2
-        ldx #>fn_srt2
-        ldy #fn_srt2_end - fn_srt2
+        jsr meas_sr_it2_ah
+        lda #<fn_srit2ah
+        ldx #>fn_srit2ah
+        ldy #fn_srit2ah_end - fn_srit2ah
         jsr write_file
 
-        ; --------------------------------------------------------
-        ; Shift register - stop (rewrite) mid-operation
-        ; --------------------------------------------------------
-        jsr meas_sr_stop
-        lda #<fn_srstop
-        ldx #>fn_srstop
-        ldy #fn_srstop_end - fn_srstop
+        jsr meas_sr_it2_al
+        lda #<fn_srit2al
+        ldx #>fn_srit2al
+        ldy #fn_srit2al_end - fn_srit2al
+        jsr write_file
+
+        jsr meas_sr_it2_bh
+        lda #<fn_srit2bh
+        ldx #>fn_srit2bh
+        ldy #fn_srit2bh_end - fn_srit2bh
+        jsr write_file
+
+        jsr meas_sr_it2_bl
+        lda #<fn_srit2bl
+        ldx #>fn_srit2bl
+        ldy #fn_srit2bl_end - fn_srit2bl
+        jsr write_file
+
+        jsr meas_sr_it2_ch
+        lda #<fn_srit2ch
+        ldx #>fn_srit2ch
+        ldy #fn_srit2ch_end - fn_srit2ch
+        jsr write_file
+
+        jsr meas_sr_it2_cl
+        lda #<fn_srit2cl
+        ldx #>fn_srit2cl
+        ldy #fn_srit2cl_end - fn_srit2cl
         jsr write_file
 
         ; --------------------------------------------------------
@@ -469,7 +499,7 @@ msg_t1ss:   .byte "T1 SINGLE-SHOT...", 0
 msg_t1fr:   .byte $0d, "T1 FREE-RUN...", 0
 msg_t1rst:  .byte $0d, "T1 RESET MID-COUNT...", 0
 msg_t2:     .byte $0d, "T2 ONE-SHOT...", 0
-msg_sr:     .byte $0d, "SHIFT REGISTER...", 0
+msg_sr:     .byte $0d, "SR SHIFT-IN VIA T2...", 0
 msg_done:   .byte $0d, "DONE.", $0d, 0
 msg_ok:     .byte ".", 0
 msg_err:    .byte "E", 0
@@ -505,7 +535,15 @@ fn_t22:     .byte "VIA.T2.2"
 fn_t22_end:
 fn_t2ff:    .byte "VIA.T2.FF"
 fn_t2ff_end:
-fn_srt2:    .byte "VIA.SR.T2"
-fn_srt2_end:
-fn_srstop:  .byte "VIA.SR.STOP"
-fn_srstop_end:
+fn_srit2ah: .byte "VIA.SR.IT2.A.H"
+fn_srit2ah_end:
+fn_srit2al: .byte "VIA.SR.IT2.A.L"
+fn_srit2al_end:
+fn_srit2bh: .byte "VIA.SR.IT2.B.H"
+fn_srit2bh_end:
+fn_srit2bl: .byte "VIA.SR.IT2.B.L"
+fn_srit2bl_end:
+fn_srit2ch: .byte "VIA.SR.IT2.C.H"
+fn_srit2ch_end:
+fn_srit2cl: .byte "VIA.SR.IT2.C.L"
+fn_srit2cl_end:
