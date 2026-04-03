@@ -27,8 +27,7 @@
 ;
 ; Files are written using the PET-compatible PET_SAVE routine
 ; (JMP $f6e3), bypassing the $FFD8 KERNAL entry which includes
-; BASIC parsing.  Existing files are scratched first by the
-; "@0:" filename prefix sent to CBM DOS.
+; BASIC parsing.  Each file is written once only.
 ;
 ; Target   : Commodore PET 4032
 ; Assembler: xa65  (command: xa -W -XMASM)
@@ -348,8 +347,6 @@ main:
 ;
 ; Saves MEAS_BUF (256 bytes, $7F00-$7FFF) to a PRG file on
 ; device 8 using the PET-compatible SAVE routine (PET_SAVE).
-; The filename string (passed in A=lo, X=hi, Y=len) should
-; include the "@0:" prefix to overwrite any existing file.
 ;
 ; Entry: A = low byte of filename string address
 ;        X = high byte of filename string address
@@ -479,37 +476,36 @@ msg_err:    .byte "E", 0
 
 ; ============================================================
 ; Filename strings
-; The "@0:" prefix tells CBM DOS to scratch-and-replace.
 ; No type suffix: CBM DOS writes a PRG file (2-byte load
 ; address header), compatible with PET_SAVE / PET_LOAD.
 ; ============================================================
-fn_t1ss0:   .byte "@0:VIA.T1.SS.0"
+fn_t1ss0:   .byte "VIA.T1.SS.0"
 fn_t1ss0_end:
-fn_t1ss1:   .byte "@0:VIA.T1.SS.1"
+fn_t1ss1:   .byte "VIA.T1.SS.1"
 fn_t1ss1_end:
-fn_t1ss2:   .byte "@0:VIA.T1.SS.2"
+fn_t1ss2:   .byte "VIA.T1.SS.2"
 fn_t1ss2_end:
-fn_t1ssff:  .byte "@0:VIA.T1.SS.FF"
+fn_t1ssff:  .byte "VIA.T1.SS.FF"
 fn_t1ssff_end:
-fn_t1fr0:   .byte "@0:VIA.T1.FR.0"
+fn_t1fr0:   .byte "VIA.T1.FR.0"
 fn_t1fr0_end:
-fn_t1fr1:   .byte "@0:VIA.T1.FR.1"
+fn_t1fr1:   .byte "VIA.T1.FR.1"
 fn_t1fr1_end:
-fn_t1fr2:   .byte "@0:VIA.T1.FR.2"
+fn_t1fr2:   .byte "VIA.T1.FR.2"
 fn_t1fr2_end:
-fn_t1frff:  .byte "@0:VIA.T1.FR.FF"
+fn_t1frff:  .byte "VIA.T1.FR.FF"
 fn_t1frff_end:
-fn_t1rst:   .byte "@0:VIA.T1.RST"
+fn_t1rst:   .byte "VIA.T1.RST"
 fn_t1rst_end:
-fn_t20:     .byte "@0:VIA.T2.0"
+fn_t20:     .byte "VIA.T2.0"
 fn_t20_end:
-fn_t21:     .byte "@0:VIA.T2.1"
+fn_t21:     .byte "VIA.T2.1"
 fn_t21_end:
-fn_t22:     .byte "@0:VIA.T2.2"
+fn_t22:     .byte "VIA.T2.2"
 fn_t22_end:
-fn_t2ff:    .byte "@0:VIA.T2.FF"
+fn_t2ff:    .byte "VIA.T2.FF"
 fn_t2ff_end:
-fn_srt2:    .byte "@0:VIA.SR.T2"
+fn_srt2:    .byte "VIA.SR.T2"
 fn_srt2_end:
-fn_srstop:  .byte "@0:VIA.SR.STOP"
+fn_srstop:  .byte "VIA.SR.STOP"
 fn_srstop_end:
