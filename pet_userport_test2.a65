@@ -325,12 +325,12 @@ test_pa_latch_neg_hi:
 ;   5. Write $00 to ORA_NH (invert outputs; latch still holds old value).
 ;   6. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch held).
 ;   7. PCR bit 1 set (CA2 hi) -> CA1 rises (NOT active in neg mode).
-;      IFR & $02 -> expect $00 (CA1 flag clear on non-active edge).
-;      Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch unchanged).
-;   8. PCR bit 1 cleared (CA2 lo) -> CA1 falls (active neg edge) ->
+;   8. IFR & $02 -> expect $00 (CA1 flag clear on non-active edge).
+;   9. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch unchanged).
+;  10. PCR bit 1 cleared (CA2 lo) -> CA1 falls (active neg edge) ->
 ;      latch captures new PA: input bits = $00 (inverted outputs).
-;   9. IFR & $02 -> expect $02 (CA1 flag set on active edge).  Clear IFR.CA1.
-;  10. Read ORA_NH & TPLA_IMSK -> expect $00 (latch updated).
+;  11. IFR & $02 -> expect $02 (CA1 flag set on active edge).  Clear IFR.CA1.
+;  12. Read ORA_NH & TPLA_IMSK -> expect $00 (latch updated).
 ;
 ; Saves and restores DDRA, ORA_NH, ACR, PCR.
 ; Stack (top-first): PCR, ACR, ORA, DDRA
@@ -391,7 +391,7 @@ test_pa_latch_neg:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tpln_fail5
+        bne tpln_fail6
 
         ; Drive CA2 hi -> CA1 rises (NOT active in neg mode)
         lda VIA_BASE+VIA_PCR
@@ -401,13 +401,13 @@ test_pa_latch_neg:
         ; IFR.CA1 must be clear (non-active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tpln_fail7
+        bne tpln_fail8
 
         ; Read latch -> TPLA_IMSK (latch unchanged on non-active edge)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tpln_fail6
+        bne tpln_fail9
 
         ; Drive CA2 lo -> CA1 falls (active) ->
         ; latch captures PA: loopback inputs now follow inverted outputs -> $00
@@ -418,14 +418,14 @@ test_pa_latch_neg:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        beq tpln_fail9
+        beq tpln_fail11
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1
 
         ; Read latch & TPLA_IMSK -> expect $00 (latch updated with inverted)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
-        bne tpln_fail8
+        bne tpln_fail12
 
         pla
         sta VIA_BASE+VIA_PCR    ; restore PCR
@@ -442,20 +442,20 @@ test_pa_latch_neg:
 tpln_fail4:
         ldx #4
         jmp tpln_fail
-tpln_fail5:
-        ldx #5
-        jmp tpln_fail
 tpln_fail6:
         ldx #6
-        jmp tpln_fail
-tpln_fail7:
-        ldx #7
         jmp tpln_fail
 tpln_fail8:
         ldx #8
         jmp tpln_fail
 tpln_fail9:
         ldx #9
+        jmp tpln_fail
+tpln_fail11:
+        ldx #11
+        jmp tpln_fail
+tpln_fail12:
+        ldx #12
 tpln_fail:
         sta FAIL_VAL
         stx FAIL_STEP
@@ -521,13 +521,13 @@ test_pa_latch_pos_hi:
 ;      IFR & $02 -> expect $02 (CA1 flag set on active edge).  Clear IFR.CA1.
 ;   5. Write $00 to ORA_NH (invert outputs).
 ;   6. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch held).
-;   7. PCR bit 1 cleared (CA2 lo) -> CA1 falls (NOT active).
+;   7. PCR bit 1 cleared (CA2 lo) -> CA1 falls (NOT active in pos mode).
 ;      IFR & $02 -> expect $00 (CA1 flag clear on non-active edge).
-;      Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch unchanged).
-;   8. PCR bit 1 set (CA2 hi) -> CA1 rises (active pos edge) ->
+;   8. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch unchanged).
+;   9. PCR bit 1 set (CA2 hi) -> CA1 rises (active pos edge) ->
 ;      latch captures new PA: input bits = $00 (inverted outputs).
 ;      IFR & $02 -> expect $02 (CA1 flag set on active edge).  Clear IFR.CA1.
-;   9. Read ORA_NH & TPLA_IMSK -> expect $00.
+;  10. Read ORA_NH & TPLA_IMSK -> expect $00.
 ;
 ; Saves and restores DDRA, ORA_NH, ACR, PCR.
 ; Stack (top-first): PCR, ACR, ORA, DDRA
@@ -575,7 +575,7 @@ test_pa_latch_pos:
         ; IFR.CA1 must be clear (non-active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tplp_fail4
+        bne tplp_fail3
 
         ; Drive CA2 hi -> CA1 rises (active pos edge) ->
         ; latch captures PA: loopback inputs follow outputs -> TPLA_IMSK
@@ -586,7 +586,7 @@ test_pa_latch_pos:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        beq tplp_fail5
+        beq tplp_fail4
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1 for next check
 
@@ -608,13 +608,13 @@ test_pa_latch_pos:
         ; IFR.CA1 must be clear (non-active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tplp_fail8
+        bne tplp_fail7
 
         ; Read latch -> still TPLA_IMSK (latch unchanged on non-active edge)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tplp_fail7
+        bne tplp_fail8
 
         ; Drive CA2 hi -> CA1 rises (active) ->
         ; latch captures PA: loopback inputs follow inverted outputs -> $00
@@ -625,14 +625,14 @@ test_pa_latch_pos:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        beq tplp_fail10
+        beq tplp_fail9
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1
 
         ; Read latch & TPLA_IMSK -> expect $00 (latch updated)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
-        bne tplp_fail9
+        bne tplp_fail10
 
         pla
         sta VIA_BASE+VIA_PCR    ; restore PCR
@@ -646,11 +646,11 @@ test_pa_latch_pos:
         lda #0
         rts
 
+tplp_fail3:
+        ldx #3
+        jmp tplp_fail
 tplp_fail4:
         ldx #4
-        jmp tplp_fail
-tplp_fail5:
-        ldx #5
         jmp tplp_fail
 tplp_fail6:
         ldx #6
