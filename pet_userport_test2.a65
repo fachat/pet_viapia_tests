@@ -296,9 +296,9 @@ test_pa_latch_neg_hi:
 ;                    equals the expected latch value after first edge
 ;
 ; Sequence:
-;   1. Set DDRA = TPLA_DDRA.  Enable ACR PA input latch (bit 0=1).
-;      PCR bits 3:0 = $0E (CA2 manual hi, CA1 neg edge).
-;   2. Write TPLA_OPAT to ORA_NH.  Clear IFR.CA1.
+;   1. Set DDRA = TPLA_DDRA.  Write TPLA_OPAT to ORA_NH (PA outputs stable
+;      before latch is enabled).  PCR bits 3:0 = $0E (CA2 manual hi, CA1 neg edge).
+;   2. Enable ACR PA input latch (bit 0=1).  Clear IFR.CA1.
 ;   3. PCR bits 3:0 = $0C (CA2 manual lo) -> CA1 falls (active) ->
 ;      latch captures PA: input bits = TPLA_IMSK.
 ;   4. Write $00 to ORA_NH (invert outputs; latch still holds old value).
@@ -328,20 +328,20 @@ test_pa_latch_neg:
         lda TPLA_DDRA
         sta VIA_BASE+VIA_DDRA
 
-        ; Enable PA input latch: ACR bit 0 = 1
-        lda VIA_BASE+VIA_ACR
-        ora #ACR_PA_LATCH
-        sta VIA_BASE+VIA_ACR
-
         ; PCR: CA2 manual hi (bits 3:1=111), CA1 neg edge (bit 0=0)
         lda VIA_BASE+VIA_PCR
         and #$F0                ; clear bits 3:0 (CA2 mode + CA1 edge-select)
         ora #PCR_CA2_HI         ; bits 3:0 = $0E
         sta VIA_BASE+VIA_PCR
 
-        ; Write output pattern: all designated outputs high
+        ; Write output pattern before enabling latch so PA pins are stable
         lda TPLA_OPAT
         sta VIA_BASE+VIA_ORA_NH
+
+        ; Enable PA input latch: ACR bit 0 = 1
+        lda VIA_BASE+VIA_ACR
+        ora #ACR_PA_LATCH
+        sta VIA_BASE+VIA_ACR
 
         ; Clear IFR.CA1 to start with a known state
         lda #IFR_CA1
@@ -465,9 +465,9 @@ test_pa_latch_pos_hi:
 ; in pos mode, only the rising edge triggers the latch.
 ;
 ; Sequence:
-;   1. Set DDRA = TPLA_DDRA.  Enable ACR PA input latch.
-;      PCR bits 3:0 = $0F (CA2 hi, CA1 pos edge).
-;   2. Write TPLA_OPAT to ORA_NH.  Clear IFR.CA1.
+;   1. Set DDRA = TPLA_DDRA.  Write TPLA_OPAT to ORA_NH (PA outputs stable
+;      before latch is enabled).  PCR bits 3:0 = $0F (CA2 hi, CA1 pos edge).
+;   2. Enable ACR PA input latch (bit 0=1).  Clear IFR.CA1.
 ;   3. PCR bits 3:0 = $0D (CA2 lo) -> CA1 falls (NOT active in pos mode).
 ;   4. PCR bits 3:0 = $0F (CA2 hi) -> CA1 rises (active) ->
 ;      latch captures PA: input bits = TPLA_IMSK.
@@ -498,20 +498,20 @@ test_pa_latch_pos:
         lda TPLA_DDRA
         sta VIA_BASE+VIA_DDRA
 
-        ; Enable PA input latch: ACR bit 0 = 1
-        lda VIA_BASE+VIA_ACR
-        ora #ACR_PA_LATCH
-        sta VIA_BASE+VIA_ACR
-
         ; PCR: CA2 hi (bits 3:1=111), CA1 pos edge (bit 0=1) -> bits 3:0 = $0F
         lda VIA_BASE+VIA_PCR
         and #$F0                ; clear bits 3:0
         ora #PCR_CA2_HI_POS     ; bits 3:0 = $0F
         sta VIA_BASE+VIA_PCR
 
-        ; Write output pattern: all designated outputs high
+        ; Write output pattern before enabling latch so PA pins are stable
         lda TPLA_OPAT
         sta VIA_BASE+VIA_ORA_NH
+
+        ; Enable PA input latch: ACR bit 0 = 1
+        lda VIA_BASE+VIA_ACR
+        ora #ACR_PA_LATCH
+        sta VIA_BASE+VIA_ACR
 
         ; Clear IFR.CA1
         lda #IFR_CA1
