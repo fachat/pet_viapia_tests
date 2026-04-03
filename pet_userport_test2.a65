@@ -14,25 +14,33 @@
 ;
 ; Tests performed:
 ;
-;   1a: PA latch, lower-of-pair out, CA1 neg (falling) edge
-;       DDRA=$25 (PA0,PA2,PA5=out); write $25 (outputs hi); ACR PA
-;       latch on; PCR CA2 hi + CA1 neg.  CA2 lo -> CA1 falls ->
-;       latch captures $4A.  Write $00 (invert outputs).
-;       Read & $4A -> $4A (latched); CA2 hi -> read -> $4A (unchanged);
-;       CA2 lo -> CA1 falls -> latch=$00; read -> $00.
+; PA input latch behaviour (IRA transparent when IFR.CA1=0; latches on
+; CA1 active edge; ORA read returns latched value AND clears IFR.CA1,
+; making IRA transparent again):
+;
+;   1a: PA latch, lower-of-pair out, CA1 neg edge
+;       DDRA=$25 (PA0,PA2,PA5=out).  23-step sequence: verify transparent
+;       reads, latch on CA1 falling edge, ORA read clears flag and reopens
+;       latch, second latch cycle with inactive edge test.
 ;
 ;   1b: PA latch, upper-of-pair out, CA1 neg edge
-;       DDRA=$4A (PA1,PA3,PA6=out); write $4A; same sequence;
-;       input mask $25; expect $25, then $25, then $00.
+;       DDRA=$4A (PA1,PA3,PA6=out); same 23-step sequence.
 ;
 ;   1c: PA latch, lower-of-pair out, CA1 pos (rising) edge
-;       DDRA=$25; PCR CA2 hi + CA1 pos; write $25; CA2 lo (not active);
-;       CA2 hi -> CA1 rises -> latch=$4A; write $00; read -> $4A;
-;       CA2 lo (not active) -> read -> $4A;
-;       CA2 hi -> CA1 rises -> latch=$00; read -> $00.
+;       DDRA=$25; CA2 hi = active edge; same 23-step sequence.
 ;
 ;   1d: PA latch, upper-of-pair out, CA1 pos edge
-;       DDRA=$4A; same as 1c; input mask $25.
+;       DDRA=$4A; same as 1c.
+;
+;   1e: PA latch, PA7 input via CB2 loopback, CA1 neg edge
+;       CB2 manual output drives PA7 as test data source.
+;
+;   1f: PA latch, PA7 input via CB2 loopback, CA1 pos edge
+;
+;   1g: PA latch, PA4 input via PB3 loopback, CA1 neg edge
+;       PB3 output drives PA4 as test data source.
+;
+;   1h: PA latch, PA4 input via PB3 loopback, CA1 pos edge
 ;
 ;   2a: CB2 write handshake, CB1 neg edge trigger
 ;       Store ORB; VIA PA7=input (reads CB2 via loopback).
@@ -91,8 +99,16 @@ PCR_CA2_LO_POS    = $0D     ; CA2 manual lo (bits 3:1=110), CA1 pos edge (bit 0=
 PCR_CA2_PULSE_POS = $0B     ; CA2 pulse output (bits 3:1=101), CA1 pos edge (bit 0=1)
 
 ; VIA PCR CB2/CB1 settings (bits 7:4)
-PCR_CB2_HS      = $80       ; CB2 handshake output (bits 7:5=100), CB1 neg (bit 4=0)
-PCR_CB2_HS_POS  = $90       ; CB2 handshake output (bits 7:5=100), CB1 pos (bit 4=1)
+PCR_CB2_HS          = $80   ; CB2 handshake output (bits 7:5=100), CB1 neg (bit 4=0)
+PCR_CB2_HS_POS      = $90   ; CB2 handshake output (bits 7:5=100), CB1 pos (bit 4=1)
+PCR_CB2_MANUAL_HI   = $E0   ; CB2 manual hi output (PCR bits 7:5=111)
+PCR_CB2_MANUAL_LO   = $C0   ; CB2 manual lo output (PCR bits 7:5=110)
+
+; ============================================================
+; Port B / PA4 loopback masks
+; ============================================================
+PB3_MASK   = $08            ; PB3 bit in ORB/DDRB (drives PA4 via loopback)
+PA4_MASK   = $10            ; PA4 bit in ORA/DDRA
 
 ; ============================================================
 ; VIA IFR bit masks
@@ -214,6 +230,48 @@ main:
         jsr print_result
 
         ; --------------------------------------------------------
+        ; Test 1e - PA latch, PA7 via CB2 loopback, CA1 neg edge
+        ; CB2 manual output drives PA7; 23-step latch sequence.
+        ; --------------------------------------------------------
+        lda #<msg_t1e
+        ldx #>msg_t1e
+        jsr print_str
+
+        jsr test_pa_latch_neg_pa7
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 1f - PA latch, PA7 via CB2 loopback, CA1 pos edge
+        ; --------------------------------------------------------
+        lda #<msg_t1f
+        ldx #>msg_t1f
+        jsr print_str
+
+        jsr test_pa_latch_pos_pa7
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 1g - PA latch, PA4 via PB3 loopback, CA1 neg edge
+        ; PB3 output drives PA4; 23-step latch sequence.
+        ; --------------------------------------------------------
+        lda #<msg_t1g
+        ldx #>msg_t1g
+        jsr print_str
+
+        jsr test_pa_latch_neg_pa4
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Test 1h - PA latch, PA4 via PB3 loopback, CA1 pos edge
+        ; --------------------------------------------------------
+        lda #<msg_t1h
+        ldx #>msg_t1h
+        jsr print_str
+
+        jsr test_pa_latch_pos_pa4
+        jsr print_result
+
+        ; --------------------------------------------------------
         ; Test 2a - CB2 write handshake, CB1 neg edge trigger
         ; PIA1 PA7 drives CB1 hi; write ORB->CB2 lo; CB1 lo->CB2 hi;
         ; CB1 hi->CB2 stays hi.  Repeated twice.
@@ -311,26 +369,40 @@ test_pa_latch_neg_hi:
 ; Common core: PA input latch test with CA1 negative (falling)
 ; active edge.  Reads test parameters from zero page:
 ;   TPLA_DDRA ($08): DDRA value (which PA lines are outputs)
-;   TPLA_OPAT ($09): output pattern written to ORA_NH
-;   TPLA_IMSK ($0A): mask for the input-configured PA lines;
-;                    equals the expected latch value after first edge
+;   TPLA_OPAT ($09): original output pattern written to ORA_NH
+;   TPLA_IMSK ($0A): mask for the input-configured PA lines
+;
+; IRA is transparent (reads live PA) when IFR.CA1 = 0.
+; On the CA1 active edge IRA latches and holds the captured value.
+; Reading ORA ($01) returns the latched value AND clears IFR.CA1,
+; making IRA transparent again.
 ;
 ; Sequence:
-;   1. Set DDRA = TPLA_DDRA.  Write TPLA_OPAT to ORA_NH (PA outputs stable
-;      before latch is enabled).  PCR bits 3:0 = $0E (CA2 manual hi, CA1 neg edge).
-;   2. Enable ACR PA input latch (bit 0=1).  Clear IFR.CA1.
-;   3. PCR bit 1 cleared (CA2 lo) -> CA1 falls (active neg edge) ->
-;      latch captures PA: input bits = TPLA_IMSK.
-;   4. IFR & $02 -> expect $02 (CA1 flag set on active edge).  Clear IFR.CA1.
-;   5. Write $00 to ORA_NH (invert outputs; latch still holds old value).
-;   6. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch held).
-;   7. PCR bit 1 set (CA2 hi) -> CA1 rises (NOT active in neg mode).
-;   8. IFR & $02 -> expect $00 (CA1 flag clear on non-active edge).
-;   9. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch unchanged).
-;  10. PCR bit 1 cleared (CA2 lo) -> CA1 falls (active neg edge) ->
-;      latch captures new PA: input bits = $00 (inverted outputs).
-;  11. IFR & $02 -> expect $02 (CA1 flag set on active edge).  Clear IFR.CA1.
-;  12. Read ORA_NH & TPLA_IMSK -> expect $00 (latch updated).
+;   1. Set DDRA = TPLA_DDRA.  Write TPLA_OPAT to ORA_NH.
+;   2. PCR bits 3:0 = $0E (CA2 manual hi, CA1 neg edge).
+;   3. Enable ACR PA input latch (bit 0=1).
+;   4. Clear IFR.CA1 (IRA now transparent).
+;   5. ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (transparent, outputs hi).
+;   6. Write $00 to ORA_NH (invert outputs).
+;   7. ORA_NH & TPLA_IMSK -> expect $00 (transparent, outputs lo).
+;   8. CA2 lo -> CA1 falls (active neg edge); IRA latches $00 for input bits.
+;   9. IFR & $02 -> expect $02 (CA1 set); do NOT clear IFR.CA1.
+;  10. Write TPLA_OPAT to ORA_NH (restore original outputs).
+;  11. ORA & TPLA_IMSK -> expect $00 (latch holds inverted);
+;      ORA read clears IFR.CA1, making IRA transparent.
+;  12. IFR & $02 -> expect $00 (IFR.CA1 cleared by ORA read).
+;  13. ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (transparent, original outputs).
+;  14. CA2 hi -> CA1 rises (NOT active in neg mode).
+;  15. IFR & $02 -> expect $00 (non-active edge; IFR.CA1 still clear).
+;  16. CA2 lo -> CA1 falls (active); IRA latches TPLA_IMSK (original outputs).
+;  17. IFR & $02 -> expect $02 (CA1 set); do NOT clear IFR.CA1.
+;  18. CA2 hi -> CA1 rises (inactive).
+;  19. IFR & $02 -> expect $02 (non-active edge does NOT clear IFR.CA1).
+;  20. Write $00 to ORA_NH (invert outputs).
+;  21. ORA & TPLA_IMSK -> expect TPLA_IMSK (latch holds original);
+;      ORA read clears IFR.CA1.
+;  22. IFR & $02 -> expect $00 (IFR.CA1 cleared).
+;  23. ORA_NH & TPLA_IMSK -> expect $00 (transparent, inverted outputs).
 ;
 ; Saves and restores DDRA, ORA_NH, ACR, PCR.
 ; Stack (top-first): PCR, ACR, ORA, DDRA
@@ -347,86 +419,146 @@ test_pa_latch_neg:
         lda VIA_BASE+VIA_PCR
         pha                     ; [stack: PCR, ACR, ORA, DDRA]
 
-        ; Set DDRA from parameter
+        ; Step 1: set DDRA and write original output pattern
         lda TPLA_DDRA
         sta VIA_BASE+VIA_DDRA
-
-        ; PCR: CA2 manual hi (bits 3:1=111), CA1 neg edge (bit 0=0)
-        lda VIA_BASE+VIA_PCR
-        and #$F0                ; clear bits 3:0 (CA2 mode + CA1 edge-select)
-        ora #PCR_CA2_HI         ; bits 3:0 = $0E
-        sta VIA_BASE+VIA_PCR
-
-        ; Write output pattern before enabling latch so PA pins are stable
         lda TPLA_OPAT
         sta VIA_BASE+VIA_ORA_NH
 
-        ; Enable PA input latch: ACR bit 0 = 1
+        ; Step 2: PCR bits 3:0 = $0E (CA2 manual hi, CA1 neg edge)
+        lda VIA_BASE+VIA_PCR
+        and #$F0                ; keep CB2/CB1 bits 7:4
+        ora #PCR_CA2_HI         ; bits 3:0 = $0E
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 3: enable PA input latch
         lda VIA_BASE+VIA_ACR
         ora #ACR_PA_LATCH
         sta VIA_BASE+VIA_ACR
 
-        ; Clear IFR.CA1 to start with a known state
+        ; Step 4: clear IFR.CA1 (IRA becomes transparent)
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR
 
-        ; Drive CA2 lo -> CA1 falls (active neg edge) ->
-        ; latch captures PA: loopback inputs follow outputs -> TPLA_IMSK
-        lda VIA_BASE+VIA_PCR
-        and #$FD                ; clear bit 1 -> CA2 lo ($0C)
-        sta VIA_BASE+VIA_PCR
-
-        ; IFR.CA1 must be set (active edge)
-        lda VIA_BASE+VIA_IFR
-        and #IFR_CA1
-        beq tpln_fail4
-        lda #IFR_CA1
-        sta VIA_BASE+VIA_IFR    ; clear IFR.CA1 for next check
-
-        ; Invert outputs: all designated outputs low
+        ; Step 5: ORA_NH & IMSK -> expect IMSK (transparent, outputs hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and TPLA_IMSK
+        cmp TPLA_IMSK
+        beq tn_c6               ; pass: skip fail dispatch
+        ldx #5
+        jmp tpln_fail
+tn_c6:
+        ; Step 6: invert outputs (all lo)
         lda #$00
         sta VIA_BASE+VIA_ORA_NH
 
-        ; Read latch & TPLA_IMSK -> expect TPLA_IMSK (original still held)
+        ; Step 7: ORA_NH & IMSK -> expect $00 (transparent, outputs lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and TPLA_IMSK
+        beq tn_c8               ; pass: skip fail dispatch
+        ldx #7
+        jmp tpln_fail
+tn_c8:
+        ; Step 8: CA2 lo -> CA1 falls (active neg edge); latch captures $00
+        lda VIA_BASE+VIA_PCR
+        and #$FD                ; clear bit 1 -> CA2 lo
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 9: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne tn_c10              ; pass: skip fail dispatch
+        ldx #9
+        jmp tpln_fail
+tn_c10:
+        ; Step 10: restore original output pattern
+        lda TPLA_OPAT
+        sta VIA_BASE+VIA_ORA_NH
+
+        ; Step 11: ORA read -> expect $00 (latch holds inverted); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and TPLA_IMSK
+        beq tn_c12              ; pass: skip fail dispatch
+        ldx #11
+        jmp tpln_fail
+tn_c12:
+        ; Step 12: IFR.CA1 must be clear (ORA read cleared it)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq tn_c13              ; pass: skip fail dispatch
+        ldx #12
+        jmp tpln_fail
+tn_c13:
+        ; Step 13: ORA_NH & IMSK -> expect IMSK (transparent, original outputs)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tpln_fail6
-
-        ; Drive CA2 hi -> CA1 rises (NOT active in neg mode)
+        beq tn_c14              ; pass: skip fail dispatch
+        ldx #13
+        jmp tpln_fail
+tn_c14:
+        ; Step 14: CA2 hi -> CA1 rises (NOT active in neg mode)
         lda VIA_BASE+VIA_PCR
-        ora #$02                ; set bit 1 -> CA2 hi ($0E)
+        ora #$02                ; set bit 1 -> CA2 hi
         sta VIA_BASE+VIA_PCR
 
-        ; IFR.CA1 must be clear (non-active edge)
+        ; Step 15: IFR.CA1 must be clear (non-active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tpln_fail8
+        beq tn_c16              ; pass: skip fail dispatch
+        ldx #15
+        jmp tpln_fail
+tn_c16:
+        ; Step 16: CA2 lo -> CA1 falls (active); latch captures TPLA_IMSK
+        lda VIA_BASE+VIA_PCR
+        and #$FD                ; clear bit 1 -> CA2 lo
+        sta VIA_BASE+VIA_PCR
 
-        ; Read latch -> TPLA_IMSK (latch unchanged on non-active edge)
-        lda VIA_BASE+VIA_ORA_NH
+        ; Step 17: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne tn_c18              ; pass: skip fail dispatch
+        ldx #17
+        jmp tpln_fail
+tn_c18:
+        ; Step 18: CA2 hi -> CA1 rises (inactive)
+        lda VIA_BASE+VIA_PCR
+        ora #$02
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 19: IFR.CA1 must still be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne tn_c20              ; pass: skip fail dispatch
+        ldx #19
+        jmp tpln_fail
+tn_c20:
+        ; Step 20: invert outputs
+        lda #$00
+        sta VIA_BASE+VIA_ORA_NH
+
+        ; Step 21: ORA read -> expect TPLA_IMSK (latch holds original); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tpln_fail9
-
-        ; Drive CA2 lo -> CA1 falls (active) ->
-        ; latch captures PA: loopback inputs now follow inverted outputs -> $00
-        lda VIA_BASE+VIA_PCR
-        and #$FD                ; clear bit 1 -> CA2 lo ($0C)
-        sta VIA_BASE+VIA_PCR
-
-        ; IFR.CA1 must be set (active edge)
+        beq tn_c22              ; pass: skip fail dispatch
+        ldx #21
+        jmp tpln_fail
+tn_c22:
+        ; Step 22: IFR.CA1 must be clear
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        beq tpln_fail11
-        lda #IFR_CA1
-        sta VIA_BASE+VIA_IFR    ; clear IFR.CA1
-
-        ; Read latch & TPLA_IMSK -> expect $00 (latch updated with inverted)
+        beq tn_c23              ; pass: skip fail dispatch
+        ldx #22
+        jmp tpln_fail
+tn_c23:
+        ; Step 23: ORA_NH & IMSK -> expect $00 (transparent, inverted outputs)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
-        bne tpln_fail12
-
+        beq tn_restore          ; pass: skip fail dispatch
+        ldx #23
+        jmp tpln_fail
+tn_restore:
         pla
         sta VIA_BASE+VIA_PCR    ; restore PCR
         pla
@@ -439,23 +571,6 @@ test_pa_latch_neg:
         lda #0
         rts
 
-tpln_fail4:
-        ldx #4
-        jmp tpln_fail
-tpln_fail6:
-        ldx #6
-        jmp tpln_fail
-tpln_fail8:
-        ldx #8
-        jmp tpln_fail
-tpln_fail9:
-        ldx #9
-        jmp tpln_fail
-tpln_fail11:
-        ldx #11
-        jmp tpln_fail
-tpln_fail12:
-        ldx #12
 tpln_fail:
         sta FAIL_VAL
         stx FAIL_STEP
@@ -504,30 +619,34 @@ test_pa_latch_pos_hi:
 ;
 ; Common core: PA input latch test with CA1 positive (rising)
 ; active edge.  Same ZP parameters as test_pa_latch_neg.
-;
-; The initial CA2/CA1 state is HIGH (CA2 manual hi in PCR).
-; A full CA1 low-then-high transition is needed to capture the
-; first latch value: the falling edge is NOT the active edge
-; in pos mode, only the rising edge triggers the latch.
+; Same 23-step sequence; CA2 hi is the active transition here.
 ;
 ; Sequence:
-;   1. Set DDRA = TPLA_DDRA.  Write TPLA_OPAT to ORA_NH (PA outputs stable
-;      before latch is enabled).  PCR bits 3:0 = $0F (CA2 hi, CA1 pos edge).
-;   2. Enable ACR PA input latch (bit 0=1).  Clear IFR.CA1.
-;   3. PCR bit 1 cleared (CA2 lo) -> CA1 falls (NOT active in pos mode).
-;      IFR & $02 -> expect $00 (CA1 flag clear on non-active edge).
-;   4. PCR bit 1 set (CA2 hi) -> CA1 rises (active pos edge) ->
-;      latch captures PA: input bits = TPLA_IMSK.
-;      IFR & $02 -> expect $02 (CA1 flag set on active edge).  Clear IFR.CA1.
-;   5. Write $00 to ORA_NH (invert outputs).
-;   6. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch held).
-;   7. PCR bit 1 cleared (CA2 lo) -> CA1 falls (NOT active in pos mode).
-;      IFR & $02 -> expect $00 (CA1 flag clear on non-active edge).
-;   8. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch unchanged).
-;   9. PCR bit 1 set (CA2 hi) -> CA1 rises (active pos edge) ->
-;      latch captures new PA: input bits = $00 (inverted outputs).
-;      IFR & $02 -> expect $02 (CA1 flag set on active edge).  Clear IFR.CA1.
-;  10. Read ORA_NH & TPLA_IMSK -> expect $00.
+;   1. Set DDRA = TPLA_DDRA.  Write TPLA_OPAT to ORA_NH.
+;   2. PCR bits 3:0 = $0D (CA2 manual lo, CA1 pos edge).
+;   3. Enable ACR PA input latch (bit 0=1).
+;   4. Clear IFR.CA1 (IRA now transparent).
+;   5. ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (transparent, outputs hi).
+;   6. Write $00 to ORA_NH (invert outputs).
+;   7. ORA_NH & TPLA_IMSK -> expect $00 (transparent, outputs lo).
+;   8. CA2 hi -> CA1 rises (active pos edge); IRA latches $00 for input bits.
+;   9. IFR & $02 -> expect $02 (CA1 set); do NOT clear IFR.CA1.
+;  10. Write TPLA_OPAT to ORA_NH (restore original outputs).
+;  11. ORA & TPLA_IMSK -> expect $00 (latch holds inverted);
+;      ORA read clears IFR.CA1, making IRA transparent.
+;  12. IFR & $02 -> expect $00 (IFR.CA1 cleared by ORA read).
+;  13. ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (transparent, original outputs).
+;  14. CA2 lo -> CA1 falls (NOT active in pos mode).
+;  15. IFR & $02 -> expect $00 (non-active edge; IFR.CA1 still clear).
+;  16. CA2 hi -> CA1 rises (active); IRA latches TPLA_IMSK (original outputs).
+;  17. IFR & $02 -> expect $02 (CA1 set); do NOT clear IFR.CA1.
+;  18. CA2 lo -> CA1 falls (inactive).
+;  19. IFR & $02 -> expect $02 (non-active edge does NOT clear IFR.CA1).
+;  20. Write $00 to ORA_NH (invert outputs).
+;  21. ORA & TPLA_IMSK -> expect TPLA_IMSK (latch holds original);
+;      ORA read clears IFR.CA1.
+;  22. IFR & $02 -> expect $00 (IFR.CA1 cleared).
+;  23. ORA_NH & TPLA_IMSK -> expect $00 (transparent, inverted outputs).
 ;
 ; Saves and restores DDRA, ORA_NH, ACR, PCR.
 ; Stack (top-first): PCR, ACR, ORA, DDRA
@@ -544,96 +663,146 @@ test_pa_latch_pos:
         lda VIA_BASE+VIA_PCR
         pha                     ; [stack: PCR, ACR, ORA, DDRA]
 
-        ; Set DDRA from parameter
+        ; Step 1: set DDRA and write original output pattern
         lda TPLA_DDRA
         sta VIA_BASE+VIA_DDRA
-
-        ; PCR: CA2 hi (bits 3:1=111), CA1 pos edge (bit 0=1) -> bits 3:0 = $0F
-        lda VIA_BASE+VIA_PCR
-        and #$F0                ; clear bits 3:0
-        ora #PCR_CA2_HI_POS     ; bits 3:0 = $0F
-        sta VIA_BASE+VIA_PCR
-
-        ; Write output pattern before enabling latch so PA pins are stable
         lda TPLA_OPAT
         sta VIA_BASE+VIA_ORA_NH
 
-        ; Enable PA input latch: ACR bit 0 = 1
+        ; Step 2: PCR bits 3:0 = $0D (CA2 manual lo, CA1 pos edge)
+        lda VIA_BASE+VIA_PCR
+        and #$F0                ; keep CB2/CB1 bits 7:4
+        ora #PCR_CA2_LO_POS     ; bits 3:0 = $0D
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 3: enable PA input latch
         lda VIA_BASE+VIA_ACR
         ora #ACR_PA_LATCH
         sta VIA_BASE+VIA_ACR
 
-        ; Clear IFR.CA1
+        ; Step 4: clear IFR.CA1 (IRA becomes transparent)
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR
 
-        ; Drive CA2 lo -> CA1 falls (NOT active in pos mode; no latch update)
-        lda VIA_BASE+VIA_PCR
-        and #$FD                ; clear bit 1 -> CA2 lo ($0D)
-        sta VIA_BASE+VIA_PCR
-
-        ; IFR.CA1 must be clear (non-active edge)
-        lda VIA_BASE+VIA_IFR
-        and #IFR_CA1
-        bne tplp_fail3
-
-        ; Drive CA2 hi -> CA1 rises (active pos edge) ->
-        ; latch captures PA: loopback inputs follow outputs -> TPLA_IMSK
-        lda VIA_BASE+VIA_PCR
-        ora #$02                ; set bit 1 -> CA2 hi ($0F)
-        sta VIA_BASE+VIA_PCR
-
-        ; IFR.CA1 must be set (active edge)
-        lda VIA_BASE+VIA_IFR
-        and #IFR_CA1
-        beq tplp_fail4
-        lda #IFR_CA1
-        sta VIA_BASE+VIA_IFR    ; clear IFR.CA1 for next check
-
-        ; Invert outputs: all designated outputs low
+        ; Step 5: ORA_NH & IMSK -> expect IMSK (transparent, outputs hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and TPLA_IMSK
+        cmp TPLA_IMSK
+        beq tp_c6               ; pass: skip fail dispatch
+        ldx #5
+        jmp tplp_fail
+tp_c6:
+        ; Step 6: invert outputs (all lo)
         lda #$00
         sta VIA_BASE+VIA_ORA_NH
 
-        ; Read latch & TPLA_IMSK -> expect TPLA_IMSK (original held)
+        ; Step 7: ORA_NH & IMSK -> expect $00 (transparent, outputs lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and TPLA_IMSK
+        beq tp_c8               ; pass: skip fail dispatch
+        ldx #7
+        jmp tplp_fail
+tp_c8:
+        ; Step 8: CA2 hi -> CA1 rises (active pos edge); latch captures $00
+        lda VIA_BASE+VIA_PCR
+        ora #$02                ; set bit 1 -> CA2 hi
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 9: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne tp_c10              ; pass: skip fail dispatch
+        ldx #9
+        jmp tplp_fail
+tp_c10:
+        ; Step 10: restore original output pattern
+        lda TPLA_OPAT
+        sta VIA_BASE+VIA_ORA_NH
+
+        ; Step 11: ORA read -> expect $00 (latch holds inverted); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and TPLA_IMSK
+        beq tp_c12              ; pass: skip fail dispatch
+        ldx #11
+        jmp tplp_fail
+tp_c12:
+        ; Step 12: IFR.CA1 must be clear (ORA read cleared it)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq tp_c13              ; pass: skip fail dispatch
+        ldx #12
+        jmp tplp_fail
+tp_c13:
+        ; Step 13: ORA_NH & IMSK -> expect IMSK (transparent, original outputs)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tplp_fail6
-
-        ; Drive CA2 lo -> CA1 falls (NOT active in pos mode)
+        beq tp_c14              ; pass: skip fail dispatch
+        ldx #13
+        jmp tplp_fail
+tp_c14:
+        ; Step 14: CA2 lo -> CA1 falls (NOT active in pos mode)
         lda VIA_BASE+VIA_PCR
-        and #$FD                ; clear bit 1 -> CA2 lo ($0D)
+        and #$FD                ; clear bit 1 -> CA2 lo
         sta VIA_BASE+VIA_PCR
 
-        ; IFR.CA1 must be clear (non-active edge)
+        ; Step 15: IFR.CA1 must be clear (non-active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tplp_fail7
+        beq tp_c16              ; pass: skip fail dispatch
+        ldx #15
+        jmp tplp_fail
+tp_c16:
+        ; Step 16: CA2 hi -> CA1 rises (active); latch captures TPLA_IMSK
+        lda VIA_BASE+VIA_PCR
+        ora #$02                ; set bit 1 -> CA2 hi
+        sta VIA_BASE+VIA_PCR
 
-        ; Read latch -> still TPLA_IMSK (latch unchanged on non-active edge)
-        lda VIA_BASE+VIA_ORA_NH
+        ; Step 17: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne tp_c18              ; pass: skip fail dispatch
+        ldx #17
+        jmp tplp_fail
+tp_c18:
+        ; Step 18: CA2 lo -> CA1 falls (inactive)
+        lda VIA_BASE+VIA_PCR
+        and #$FD
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 19: IFR.CA1 must still be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne tp_c20              ; pass: skip fail dispatch
+        ldx #19
+        jmp tplp_fail
+tp_c20:
+        ; Step 20: invert outputs
+        lda #$00
+        sta VIA_BASE+VIA_ORA_NH
+
+        ; Step 21: ORA read -> expect TPLA_IMSK (latch holds original); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tplp_fail8
-
-        ; Drive CA2 hi -> CA1 rises (active) ->
-        ; latch captures PA: loopback inputs follow inverted outputs -> $00
-        lda VIA_BASE+VIA_PCR
-        ora #$02                ; set bit 1 -> CA2 hi ($0F)
-        sta VIA_BASE+VIA_PCR
-
-        ; IFR.CA1 must be set (active edge)
+        beq tp_c22              ; pass: skip fail dispatch
+        ldx #21
+        jmp tplp_fail
+tp_c22:
+        ; Step 22: IFR.CA1 must be clear
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        beq tplp_fail9
-        lda #IFR_CA1
-        sta VIA_BASE+VIA_IFR    ; clear IFR.CA1
-
-        ; Read latch & TPLA_IMSK -> expect $00 (latch updated)
+        beq tp_c23              ; pass: skip fail dispatch
+        ldx #22
+        jmp tplp_fail
+tp_c23:
+        ; Step 23: ORA_NH & IMSK -> expect $00 (transparent, inverted outputs)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
-        bne tplp_fail10
-
+        beq tp_restore          ; pass: skip fail dispatch
+        ldx #23
+        jmp tplp_fail
+tp_restore:
         pla
         sta VIA_BASE+VIA_PCR    ; restore PCR
         pla
@@ -646,29 +815,824 @@ test_pa_latch_pos:
         lda #0
         rts
 
-tplp_fail3:
-        ldx #3
-        jmp tplp_fail
-tplp_fail4:
-        ldx #4
-        jmp tplp_fail
-tplp_fail6:
-        ldx #6
-        jmp tplp_fail
-tplp_fail7:
-        ldx #7
-        jmp tplp_fail
-tplp_fail8:
-        ldx #8
-        jmp tplp_fail
-tplp_fail9:
-        ldx #9
-        jmp tplp_fail
-tplp_fail10:
-        ldx #10
 tplp_fail:
         sta FAIL_VAL
         stx FAIL_STEP
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla
+        sta VIA_BASE+VIA_ACR
+        pla
+        sta VIA_BASE+VIA_ORA_NH
+        pla
+        sta VIA_BASE+VIA_DDRA
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_pa_latch_neg_pa7
+;
+; PA input latch test: PA7 driven by CB2 (cross-loopback Pin L/M),
+; CA1 negative (falling) active edge.
+;
+; CB2 manual output (PCR bits 7:5=111=hi, 110=lo) drives PA7.
+; CA2 manual output (PCR bits 3:0) still drives CA1 via Pin B/11.
+; PCR bits 7:5 and 3:0 are set independently throughout the test.
+; Same 23-step sequence as test_pa_latch_neg.
+;
+; Saves and restores DDRA, ORA_NH, ACR, PCR.
+; Stack (top-first): PCR, ACR, ORA, DDRA
+; Returns: A = 0 pass, A = 1 fail
+; ============================================================
+test_pa_latch_neg_pa7:
+        sei
+        lda VIA_BASE+VIA_DDRA
+        pha                     ; [stack: DDRA]
+        lda VIA_BASE+VIA_ORA_NH
+        pha                     ; [stack: ORA, DDRA]
+        lda VIA_BASE+VIA_ACR
+        pha                     ; [stack: ACR, ORA, DDRA]
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR, ACR, ORA, DDRA]
+
+        ; Step 1: PA7 = input; write $00 to ORA_NH
+        lda VIA_BASE+VIA_DDRA
+        and #VIA_PA7_NMASK      ; clear bit 7 -> PA7 input
+        sta VIA_BASE+VIA_DDRA
+        lda #$00
+        sta VIA_BASE+VIA_ORA_NH
+
+        ; Step 2: PCR: CB2 hi ($E0) + CA2 hi + CA1 neg ($0E) = $EE (preserve bit 4)
+        lda VIA_BASE+VIA_PCR
+        and #$10                ; preserve CB1 edge bit 4
+        ora #$EE                ; CB2 hi ($E0) + CA2 hi + CA1 neg ($0E)
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 3: enable PA input latch
+        lda VIA_BASE+VIA_ACR
+        ora #ACR_PA_LATCH
+        sta VIA_BASE+VIA_ACR
+
+        ; Step 4: clear IFR.CA1 (IRA becomes transparent)
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IFR
+
+        ; Step 5: ORA_NH & $80 -> expect $80 (transparent, CB2=hi -> PA7=hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and #VIA_PA7
+        cmp #VIA_PA7
+        beq t7n_ck6             ; pass: skip fail dispatch
+        ldx #5
+        jmp t7n_fail
+t7n_ck6:
+        ; Step 6: CB2 lo -> PA7 lo
+        lda VIA_BASE+VIA_PCR
+        and #$1F                ; clear bits 7:5
+        ora #PCR_CB2_MANUAL_LO  ; bits 7:5 = 110
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 7: ORA_NH & $80 -> expect $00 (transparent, CB2=lo -> PA7=lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and #VIA_PA7
+        beq t7n_ck8             ; pass: skip fail dispatch
+        ldx #7
+        jmp t7n_fail
+t7n_ck8:
+        ; Step 8: CA2 lo -> CA1 falls (active neg edge); latch captures PA7=0
+        lda VIA_BASE+VIA_PCR
+        and #$FD                ; clear bit 1 -> CA2 lo
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 9: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t7n_ck10            ; pass: skip fail dispatch
+        ldx #9
+        jmp t7n_fail
+t7n_ck10:
+        ; Step 10: CB2 hi -> PA7 hi (restore original)
+        lda VIA_BASE+VIA_PCR
+        and #$1F                ; clear bits 7:5
+        ora #PCR_CB2_MANUAL_HI  ; bits 7:5 = 111
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 11: ORA read -> expect $00 (latch holds PA7=lo); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and #VIA_PA7
+        beq t7n_ck12            ; pass: skip fail dispatch
+        ldx #11
+        jmp t7n_fail
+t7n_ck12:
+        ; Step 12: IFR.CA1 must be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t7n_ck13            ; pass: skip fail dispatch
+        ldx #12
+        jmp t7n_fail
+t7n_ck13:
+        ; Step 13: ORA_NH & $80 -> expect $80 (transparent, CB2=hi -> PA7=hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and #VIA_PA7
+        cmp #VIA_PA7
+        beq t7n_ck14            ; pass: skip fail dispatch
+        ldx #13
+        jmp t7n_fail
+t7n_ck14:
+        ; Step 14: CA2 hi -> CA1 rises (NOT active in neg mode)
+        lda VIA_BASE+VIA_PCR
+        ora #$02                ; set bit 1 -> CA2 hi
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 15: IFR.CA1 must be clear (non-active edge)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t7n_ck16            ; pass: skip fail dispatch
+        ldx #15
+        jmp t7n_fail
+t7n_ck16:
+        ; Step 16: CA2 lo -> CA1 falls (active); latch captures PA7=CB2=hi=$80
+        lda VIA_BASE+VIA_PCR
+        and #$FD                ; clear bit 1 -> CA2 lo
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 17: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t7n_ck18            ; pass: skip fail dispatch
+        ldx #17
+        jmp t7n_fail
+t7n_ck18:
+        ; Step 18: CA2 hi -> CA1 rises (inactive)
+        lda VIA_BASE+VIA_PCR
+        ora #$02
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 19: IFR.CA1 must still be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t7n_ck20            ; pass: skip fail dispatch
+        ldx #19
+        jmp t7n_fail
+t7n_ck20:
+        ; Step 20: CB2 lo -> PA7 lo (invert)
+        lda VIA_BASE+VIA_PCR
+        and #$1F                ; clear bits 7:5
+        ora #PCR_CB2_MANUAL_LO  ; bits 7:5 = 110
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 21: ORA read -> expect $80 (latch holds PA7=hi); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and #VIA_PA7
+        cmp #VIA_PA7
+        beq t7n_ck22            ; pass: skip fail dispatch
+        ldx #21
+        jmp t7n_fail
+t7n_ck22:
+        ; Step 22: IFR.CA1 must be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t7n_ck23            ; pass: skip fail dispatch
+        ldx #22
+        jmp t7n_fail
+t7n_ck23:
+        ; Step 23: ORA_NH & $80 -> expect $00 (transparent, CB2=lo -> PA7=lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and #VIA_PA7
+        beq t7n_restore         ; pass: skip fail dispatch
+        ldx #23
+        jmp t7n_fail
+t7n_restore:
+        pla
+        sta VIA_BASE+VIA_PCR    ; restore PCR
+        pla
+        sta VIA_BASE+VIA_ACR    ; restore ACR
+        pla
+        sta VIA_BASE+VIA_ORA_NH ; restore ORA output latch
+        pla
+        sta VIA_BASE+VIA_DDRA   ; restore DDRA
+        cli
+        lda #0
+        rts
+
+t7n_fail:
+        sta FAIL_VAL
+        stx FAIL_STEP
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla
+        sta VIA_BASE+VIA_ACR
+        pla
+        sta VIA_BASE+VIA_ORA_NH
+        pla
+        sta VIA_BASE+VIA_DDRA
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_pa_latch_pos_pa7
+;
+; PA input latch test: PA7 driven by CB2, CA1 positive (rising)
+; active edge.  Same as test_pa_latch_neg_pa7 with CA2 hi active.
+; Initial PCR: CB2 hi (bits 7:5=111=$E0), CA2 lo + CA1 pos (bits 3:0=$0D).
+;
+; Saves and restores DDRA, ORA_NH, ACR, PCR.
+; Stack (top-first): PCR, ACR, ORA, DDRA
+; Returns: A = 0 pass, A = 1 fail
+; ============================================================
+test_pa_latch_pos_pa7:
+        sei
+        lda VIA_BASE+VIA_DDRA
+        pha
+        lda VIA_BASE+VIA_ORA_NH
+        pha
+        lda VIA_BASE+VIA_ACR
+        pha
+        lda VIA_BASE+VIA_PCR
+        pha
+
+        ; Step 1: PA7 = input; write $00 to ORA_NH
+        lda VIA_BASE+VIA_DDRA
+        and #VIA_PA7_NMASK
+        sta VIA_BASE+VIA_DDRA
+        lda #$00
+        sta VIA_BASE+VIA_ORA_NH
+
+        ; Step 2: PCR: CB2 hi ($E0) + CA2 lo + CA1 pos ($0D) = $ED (preserve bit 4)
+        lda VIA_BASE+VIA_PCR
+        and #$10
+        ora #$ED                ; CB2 hi ($E0) + CA2 lo + CA1 pos ($0D)
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 3: enable PA input latch
+        lda VIA_BASE+VIA_ACR
+        ora #ACR_PA_LATCH
+        sta VIA_BASE+VIA_ACR
+
+        ; Step 4: clear IFR.CA1
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IFR
+
+        ; Step 5: ORA_NH & $80 -> expect $80 (transparent, CB2=hi -> PA7=hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and #VIA_PA7
+        cmp #VIA_PA7
+        beq t7p_ck6             ; pass: skip fail dispatch
+        ldx #5
+        jmp t7p_fail
+t7p_ck6:
+        ; Step 6: CB2 lo -> PA7 lo
+        lda VIA_BASE+VIA_PCR
+        and #$1F
+        ora #PCR_CB2_MANUAL_LO
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 7: ORA_NH & $80 -> expect $00 (transparent, CB2=lo -> PA7=lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and #VIA_PA7
+        beq t7p_ck8             ; pass: skip fail dispatch
+        ldx #7
+        jmp t7p_fail
+t7p_ck8:
+        ; Step 8: CA2 hi -> CA1 rises (active pos edge); latch captures PA7=0
+        lda VIA_BASE+VIA_PCR
+        ora #$02                ; set bit 1 -> CA2 hi
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 9: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t7p_ck10            ; pass: skip fail dispatch
+        ldx #9
+        jmp t7p_fail
+t7p_ck10:
+        ; Step 10: CB2 hi -> PA7 hi (restore original)
+        lda VIA_BASE+VIA_PCR
+        and #$1F
+        ora #PCR_CB2_MANUAL_HI
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 11: ORA read -> expect $00 (latch holds PA7=lo); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and #VIA_PA7
+        beq t7p_ck12            ; pass: skip fail dispatch
+        ldx #11
+        jmp t7p_fail
+t7p_ck12:
+        ; Step 12: IFR.CA1 must be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t7p_ck13            ; pass: skip fail dispatch
+        ldx #12
+        jmp t7p_fail
+t7p_ck13:
+        ; Step 13: ORA_NH & $80 -> expect $80 (transparent, CB2=hi -> PA7=hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and #VIA_PA7
+        cmp #VIA_PA7
+        beq t7p_ck14            ; pass: skip fail dispatch
+        ldx #13
+        jmp t7p_fail
+t7p_ck14:
+        ; Step 14: CA2 lo -> CA1 falls (NOT active in pos mode)
+        lda VIA_BASE+VIA_PCR
+        and #$FD                ; clear bit 1 -> CA2 lo
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 15: IFR.CA1 must be clear (non-active edge)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t7p_ck16            ; pass: skip fail dispatch
+        ldx #15
+        jmp t7p_fail
+t7p_ck16:
+        ; Step 16: CA2 hi -> CA1 rises (active); latch captures PA7=CB2=hi=$80
+        lda VIA_BASE+VIA_PCR
+        ora #$02
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 17: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t7p_ck18            ; pass: skip fail dispatch
+        ldx #17
+        jmp t7p_fail
+t7p_ck18:
+        ; Step 18: CA2 lo -> CA1 falls (inactive)
+        lda VIA_BASE+VIA_PCR
+        and #$FD
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 19: IFR.CA1 must still be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t7p_ck20            ; pass: skip fail dispatch
+        ldx #19
+        jmp t7p_fail
+t7p_ck20:
+        ; Step 20: CB2 lo -> PA7 lo (invert)
+        lda VIA_BASE+VIA_PCR
+        and #$1F
+        ora #PCR_CB2_MANUAL_LO
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 21: ORA read -> expect $80 (latch holds PA7=hi); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and #VIA_PA7
+        cmp #VIA_PA7
+        beq t7p_ck22            ; pass: skip fail dispatch
+        ldx #21
+        jmp t7p_fail
+t7p_ck22:
+        ; Step 22: IFR.CA1 must be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t7p_ck23            ; pass: skip fail dispatch
+        ldx #22
+        jmp t7p_fail
+t7p_ck23:
+        ; Step 23: ORA_NH & $80 -> expect $00 (transparent, CB2=lo -> PA7=lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and #VIA_PA7
+        beq t7p_restore         ; pass: skip fail dispatch
+        ldx #23
+        jmp t7p_fail
+t7p_restore:
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla
+        sta VIA_BASE+VIA_ACR
+        pla
+        sta VIA_BASE+VIA_ORA_NH
+        pla
+        sta VIA_BASE+VIA_DDRA
+        cli
+        lda #0
+        rts
+
+t7p_fail:
+        sta FAIL_VAL
+        stx FAIL_STEP
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla
+        sta VIA_BASE+VIA_ACR
+        pla
+        sta VIA_BASE+VIA_ORA_NH
+        pla
+        sta VIA_BASE+VIA_DDRA
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_pa_latch_neg_pa4
+;
+; PA input latch test: PA4 driven by PB3 (cross-loopback Pin H/7),
+; CA1 negative (falling) active edge.
+;
+; DDRB bit 3 is set as output; ORB bit 3 drives PA4 via loopback.
+; Same 23-step sequence as test_pa_latch_neg.
+;
+; Saves and restores DDRA, ORA_NH, ACR, PCR, DDRB, ORB.
+; Stack (top-first): ORB, DDRB, PCR, ACR, ORA, DDRA
+; Returns: A = 0 pass, A = 1 fail
+; ============================================================
+test_pa_latch_neg_pa4:
+        sei
+        lda VIA_BASE+VIA_DDRA
+        pha                     ; [stack: DDRA]
+        lda VIA_BASE+VIA_ORA_NH
+        pha                     ; [stack: ORA, DDRA]
+        lda VIA_BASE+VIA_ACR
+        pha                     ; [stack: ACR, ORA, DDRA]
+        lda VIA_BASE+VIA_PCR
+        pha                     ; [stack: PCR, ACR, ORA, DDRA]
+        lda VIA_BASE+VIA_DDRB
+        pha                     ; [stack: DDRB, PCR, ACR, ORA, DDRA]
+        lda VIA_BASE+VIA_ORB
+        pha                     ; [stack: ORB, DDRB, PCR, ACR, ORA, DDRA]
+
+        ; Step 1: PA4 = input; PB3 = output and driven hi
+        lda VIA_BASE+VIA_DDRA
+        and #$EF                ; clear bit 4 -> PA4 input ($EF = ~PA4_MASK)
+        sta VIA_BASE+VIA_DDRA
+        lda VIA_BASE+VIA_DDRB
+        ora #PB3_MASK           ; set bit 3 -> PB3 output
+        sta VIA_BASE+VIA_DDRB
+        lda VIA_BASE+VIA_ORB
+        ora #PB3_MASK           ; PB3 = hi -> PA4 = hi
+        sta VIA_BASE+VIA_ORB
+
+        ; Step 2: PCR bits 3:0 = $0E (CA2 manual hi, CA1 neg edge)
+        lda VIA_BASE+VIA_PCR
+        and #$F0
+        ora #PCR_CA2_HI
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 3: enable PA input latch
+        lda VIA_BASE+VIA_ACR
+        ora #ACR_PA_LATCH
+        sta VIA_BASE+VIA_ACR
+
+        ; Step 4: clear IFR.CA1
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IFR
+
+        ; Step 5: ORA_NH & PA4_MASK -> expect PA4_MASK (transparent, PB3=hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and #PA4_MASK
+        cmp #PA4_MASK
+        beq t4n_ck6             ; pass: skip fail dispatch
+        ldx #5
+        jmp t4n_fail
+t4n_ck6:
+        ; Step 6: PB3 lo -> PA4 lo
+        lda VIA_BASE+VIA_ORB
+        and #$F7                ; clear bit 3 ($F7 = ~PB3_MASK)
+        sta VIA_BASE+VIA_ORB
+
+        ; Step 7: ORA_NH & PA4_MASK -> expect $00 (transparent, PB3=lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and #PA4_MASK
+        beq t4n_ck8             ; pass: skip fail dispatch
+        ldx #7
+        jmp t4n_fail
+t4n_ck8:
+        ; Step 8: CA2 lo -> CA1 falls (active neg edge); latch captures PA4=0
+        lda VIA_BASE+VIA_PCR
+        and #$FD
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 9: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t4n_ck10            ; pass: skip fail dispatch
+        ldx #9
+        jmp t4n_fail
+t4n_ck10:
+        ; Step 10: PB3 hi -> PA4 hi (restore original)
+        lda VIA_BASE+VIA_ORB
+        ora #PB3_MASK
+        sta VIA_BASE+VIA_ORB
+
+        ; Step 11: ORA read -> expect $00 (latch holds PA4=lo); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and #PA4_MASK
+        beq t4n_ck12            ; pass: skip fail dispatch
+        ldx #11
+        jmp t4n_fail
+t4n_ck12:
+        ; Step 12: IFR.CA1 must be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t4n_ck13            ; pass: skip fail dispatch
+        ldx #12
+        jmp t4n_fail
+t4n_ck13:
+        ; Step 13: ORA_NH & PA4_MASK -> expect PA4_MASK (transparent, PB3=hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and #PA4_MASK
+        cmp #PA4_MASK
+        beq t4n_ck14            ; pass: skip fail dispatch
+        ldx #13
+        jmp t4n_fail
+t4n_ck14:
+        ; Step 14: CA2 hi -> CA1 rises (NOT active in neg mode)
+        lda VIA_BASE+VIA_PCR
+        ora #$02
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 15: IFR.CA1 must be clear (non-active edge)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t4n_ck16            ; pass: skip fail dispatch
+        ldx #15
+        jmp t4n_fail
+t4n_ck16:
+        ; Step 16: CA2 lo -> CA1 falls (active); latch captures PA4=PB3=hi
+        lda VIA_BASE+VIA_PCR
+        and #$FD
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 17: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t4n_ck18            ; pass: skip fail dispatch
+        ldx #17
+        jmp t4n_fail
+t4n_ck18:
+        ; Step 18: CA2 hi -> CA1 rises (inactive)
+        lda VIA_BASE+VIA_PCR
+        ora #$02
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 19: IFR.CA1 must still be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t4n_ck20            ; pass: skip fail dispatch
+        ldx #19
+        jmp t4n_fail
+t4n_ck20:
+        ; Step 20: PB3 lo -> PA4 lo (invert)
+        lda VIA_BASE+VIA_ORB
+        and #$F7
+        sta VIA_BASE+VIA_ORB
+
+        ; Step 21: ORA read -> expect PA4_MASK (latch holds PA4=hi); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and #PA4_MASK
+        cmp #PA4_MASK
+        beq t4n_ck22            ; pass: skip fail dispatch
+        ldx #21
+        jmp t4n_fail
+t4n_ck22:
+        ; Step 22: IFR.CA1 must be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t4n_ck23            ; pass: skip fail dispatch
+        ldx #22
+        jmp t4n_fail
+t4n_ck23:
+        ; Step 23: ORA_NH & PA4_MASK -> expect $00 (transparent, PB3=lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and #PA4_MASK
+        beq t4n_restore         ; pass: skip fail dispatch
+        ldx #23
+        jmp t4n_fail
+t4n_restore:
+        pla
+        sta VIA_BASE+VIA_ORB    ; restore ORB
+        pla
+        sta VIA_BASE+VIA_DDRB   ; restore DDRB
+        pla
+        sta VIA_BASE+VIA_PCR    ; restore PCR
+        pla
+        sta VIA_BASE+VIA_ACR    ; restore ACR
+        pla
+        sta VIA_BASE+VIA_ORA_NH ; restore ORA output latch
+        pla
+        sta VIA_BASE+VIA_DDRA   ; restore DDRA
+        cli
+        lda #0
+        rts
+
+t4n_fail:
+        sta FAIL_VAL
+        stx FAIL_STEP
+        pla
+        sta VIA_BASE+VIA_ORB
+        pla
+        sta VIA_BASE+VIA_DDRB
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla
+        sta VIA_BASE+VIA_ACR
+        pla
+        sta VIA_BASE+VIA_ORA_NH
+        pla
+        sta VIA_BASE+VIA_DDRA
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_pa_latch_pos_pa4
+;
+; PA input latch test: PA4 driven by PB3, CA1 positive (rising)
+; active edge.  Same as test_pa_latch_neg_pa4 with CA2 hi active.
+;
+; Saves and restores DDRA, ORA_NH, ACR, PCR, DDRB, ORB.
+; Stack (top-first): ORB, DDRB, PCR, ACR, ORA, DDRA
+; Returns: A = 0 pass, A = 1 fail
+; ============================================================
+test_pa_latch_pos_pa4:
+        sei
+        lda VIA_BASE+VIA_DDRA
+        pha
+        lda VIA_BASE+VIA_ORA_NH
+        pha
+        lda VIA_BASE+VIA_ACR
+        pha
+        lda VIA_BASE+VIA_PCR
+        pha
+        lda VIA_BASE+VIA_DDRB
+        pha
+        lda VIA_BASE+VIA_ORB
+        pha
+
+        ; Step 1: PA4 = input; PB3 = output and driven hi
+        lda VIA_BASE+VIA_DDRA
+        and #$EF
+        sta VIA_BASE+VIA_DDRA
+        lda VIA_BASE+VIA_DDRB
+        ora #PB3_MASK
+        sta VIA_BASE+VIA_DDRB
+        lda VIA_BASE+VIA_ORB
+        ora #PB3_MASK
+        sta VIA_BASE+VIA_ORB
+
+        ; Step 2: PCR bits 3:0 = $0D (CA2 manual lo, CA1 pos edge)
+        lda VIA_BASE+VIA_PCR
+        and #$F0
+        ora #PCR_CA2_LO_POS
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 3: enable PA input latch
+        lda VIA_BASE+VIA_ACR
+        ora #ACR_PA_LATCH
+        sta VIA_BASE+VIA_ACR
+
+        ; Step 4: clear IFR.CA1
+        lda #IFR_CA1
+        sta VIA_BASE+VIA_IFR
+
+        ; Step 5: ORA_NH & PA4_MASK -> expect PA4_MASK (transparent, PB3=hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and #PA4_MASK
+        cmp #PA4_MASK
+        beq t4p_ck6             ; pass: skip fail dispatch
+        ldx #5
+        jmp t4p_fail
+t4p_ck6:
+        ; Step 6: PB3 lo -> PA4 lo
+        lda VIA_BASE+VIA_ORB
+        and #$F7
+        sta VIA_BASE+VIA_ORB
+
+        ; Step 7: ORA_NH & PA4_MASK -> expect $00 (transparent, PB3=lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and #PA4_MASK
+        beq t4p_ck8             ; pass: skip fail dispatch
+        ldx #7
+        jmp t4p_fail
+t4p_ck8:
+        ; Step 8: CA2 hi -> CA1 rises (active pos edge); latch captures PA4=0
+        lda VIA_BASE+VIA_PCR
+        ora #$02
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 9: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t4p_ck10            ; pass: skip fail dispatch
+        ldx #9
+        jmp t4p_fail
+t4p_ck10:
+        ; Step 10: PB3 hi -> PA4 hi (restore original)
+        lda VIA_BASE+VIA_ORB
+        ora #PB3_MASK
+        sta VIA_BASE+VIA_ORB
+
+        ; Step 11: ORA read -> expect $00 (latch holds PA4=lo); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and #PA4_MASK
+        beq t4p_ck12            ; pass: skip fail dispatch
+        ldx #11
+        jmp t4p_fail
+t4p_ck12:
+        ; Step 12: IFR.CA1 must be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t4p_ck13            ; pass: skip fail dispatch
+        ldx #12
+        jmp t4p_fail
+t4p_ck13:
+        ; Step 13: ORA_NH & PA4_MASK -> expect PA4_MASK (transparent, PB3=hi)
+        lda VIA_BASE+VIA_ORA_NH
+        and #PA4_MASK
+        cmp #PA4_MASK
+        beq t4p_ck14            ; pass: skip fail dispatch
+        ldx #13
+        jmp t4p_fail
+t4p_ck14:
+        ; Step 14: CA2 lo -> CA1 falls (NOT active in pos mode)
+        lda VIA_BASE+VIA_PCR
+        and #$FD
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 15: IFR.CA1 must be clear (non-active edge)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t4p_ck16            ; pass: skip fail dispatch
+        ldx #15
+        jmp t4p_fail
+t4p_ck16:
+        ; Step 16: CA2 hi -> CA1 rises (active); latch captures PA4=PB3=hi
+        lda VIA_BASE+VIA_PCR
+        ora #$02
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 17: IFR.CA1 must be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t4p_ck18            ; pass: skip fail dispatch
+        ldx #17
+        jmp t4p_fail
+t4p_ck18:
+        ; Step 18: CA2 lo -> CA1 falls (inactive)
+        lda VIA_BASE+VIA_PCR
+        and #$FD
+        sta VIA_BASE+VIA_PCR
+
+        ; Step 19: IFR.CA1 must still be set; do NOT clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        bne t4p_ck20            ; pass: skip fail dispatch
+        ldx #19
+        jmp t4p_fail
+t4p_ck20:
+        ; Step 20: PB3 lo -> PA4 lo (invert)
+        lda VIA_BASE+VIA_ORB
+        and #$F7
+        sta VIA_BASE+VIA_ORB
+
+        ; Step 21: ORA read -> expect PA4_MASK (latch holds PA4=hi); clears IFR.CA1
+        lda VIA_BASE+VIA_ORA
+        and #PA4_MASK
+        cmp #PA4_MASK
+        beq t4p_ck22            ; pass: skip fail dispatch
+        ldx #21
+        jmp t4p_fail
+t4p_ck22:
+        ; Step 22: IFR.CA1 must be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_CA1
+        beq t4p_ck23            ; pass: skip fail dispatch
+        ldx #22
+        jmp t4p_fail
+t4p_ck23:
+        ; Step 23: ORA_NH & PA4_MASK -> expect $00 (transparent, PB3=lo)
+        lda VIA_BASE+VIA_ORA_NH
+        and #PA4_MASK
+        beq t4p_restore         ; pass: skip fail dispatch
+        ldx #23
+        jmp t4p_fail
+t4p_restore:
+        pla
+        sta VIA_BASE+VIA_ORB
+        pla
+        sta VIA_BASE+VIA_DDRB
+        pla
+        sta VIA_BASE+VIA_PCR
+        pla
+        sta VIA_BASE+VIA_ACR
+        pla
+        sta VIA_BASE+VIA_ORA_NH
+        pla
+        sta VIA_BASE+VIA_DDRA
+        cli
+        lda #0
+        rts
+
+t4p_fail:
+        sta FAIL_VAL
+        stx FAIL_STEP
+        pla
+        sta VIA_BASE+VIA_ORB
+        pla
+        sta VIA_BASE+VIA_DDRB
         pla
         sta VIA_BASE+VIA_PCR
         pla
@@ -1193,12 +2157,10 @@ pr_fail:
         ldx #>msg_fail
         jsr print_str           ; prints "FAIL S:"
         lda FAIL_STEP
-        clc
-        adc #$30                ; convert to ASCII digit
-        jsr CHROUT              ; print step digit
+        jsr print_byte_dec      ; print step number as decimal
         lda #<msg_val
         ldx #>msg_val
-        jsr print_str           ; prints " v:"
+        jsr print_str           ; prints " V:"
         lda FAIL_VAL
         jsr print_hex           ; print actual value as 2 hex digits
         lda #$0d
@@ -1250,6 +2212,32 @@ phx_digit:
         adc #$30                ; C=0; maps 0-9 -> '0'-'9', 17-22 -> 'A'-'F'
         jmp CHROUT
 
+; ============================================================
+; Subroutine: print_byte_dec
+;
+; Prints byte in A as a decimal number (1-2 digits, no leading
+; zero).  Used for step numbers 1-23.
+; Clobbers: A, X
+; ============================================================
+print_byte_dec:
+        cmp #10
+        bcc pbd_single          ; A < 10: single digit
+        ldx #'0'-1
+        sec
+pbd_loop:
+        inx
+        sbc #10
+        bcs pbd_loop            ; keep subtracting while A >= 10
+        adc #10                 ; restore remainder (C=0 going in)
+        pha
+        txa
+        jsr CHROUT              ; print tens digit
+        pla
+        clc
+pbd_single:
+        adc #$30                ; convert ones digit to ASCII
+        jmp CHROUT
+
 
 msg_banner:
         .byte "PET USERPORT TEST 2", $0d
@@ -1261,6 +2249,10 @@ msg_t1a: .byte "PA LATCH LO NEG:  ", 0
 msg_t1b: .byte "PA LATCH HI NEG:  ", 0
 msg_t1c: .byte "PA LATCH LO POS:  ", 0
 msg_t1d: .byte "PA LATCH HI POS:  ", 0
+msg_t1e: .byte "PA LATCH PA7 NEG: ", 0
+msg_t1f: .byte "PA LATCH PA7 POS: ", 0
+msg_t1g: .byte "PA LATCH PA4 NEG: ", 0
+msg_t1h: .byte "PA LATCH PA4 POS: ", 0
 msg_t2a: .byte "CB2 HS CB1 NEG:   ", 0
 msg_t2b: .byte "CB2 HS CB1 POS:   ", 0
 msg_t2c: .byte "PA WRITE HS:      ", 0
