@@ -379,10 +379,7 @@ test_pa_latch_neg:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tpln_ok4
-        ldx #4
-        jmp tpln_fail
-tpln_ok4:
+        beq tpln_fail4
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1 for next check
 
@@ -394,10 +391,7 @@ tpln_ok4:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        beq tpln_ok5
-        ldx #5
-        jmp tpln_fail
-tpln_ok5:
+        bne tpln_fail5
 
         ; Drive CA2 hi -> CA1 rises (NOT active in neg mode)
         lda VIA_BASE+VIA_PCR
@@ -407,19 +401,13 @@ tpln_ok5:
         ; IFR.CA1 must be clear (non-active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        beq tpln_ok7
-        ldx #7
-        jmp tpln_fail
-tpln_ok7:
+        bne tpln_fail7
 
         ; Read latch -> TPLA_IMSK (latch unchanged on non-active edge)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        beq tpln_ok6
-        ldx #6
-        jmp tpln_fail
-tpln_ok6:
+        bne tpln_fail6
 
         ; Drive CA2 lo -> CA1 falls (active) ->
         ; latch captures PA: loopback inputs now follow inverted outputs -> $00
@@ -430,10 +418,7 @@ tpln_ok6:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tpln_ok9
-        ldx #9
-        jmp tpln_fail
-tpln_ok9:
+        beq tpln_fail9
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1
 
@@ -441,10 +426,7 @@ tpln_ok9:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp #$00
-        beq tpln_ok8
-        ldx #8
-        jmp tpln_fail
-tpln_ok8:
+        bne tpln_fail8
 
         pla
         sta VIA_BASE+VIA_PCR    ; restore PCR
@@ -458,6 +440,23 @@ tpln_ok8:
         lda #0
         rts
 
+tpln_fail4:
+        ldx #4
+        jmp tpln_fail
+tpln_fail5:
+        ldx #5
+        jmp tpln_fail
+tpln_fail6:
+        ldx #6
+        jmp tpln_fail
+tpln_fail7:
+        ldx #7
+        jmp tpln_fail
+tpln_fail8:
+        ldx #8
+        jmp tpln_fail
+tpln_fail9:
+        ldx #9
 tpln_fail:
         sta FAIL_VAL
         stx FAIL_STEP
@@ -577,10 +576,7 @@ test_pa_latch_pos:
         ; IFR.CA1 must be clear (non-active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        beq tplp_ok4
-        ldx #4
-        jmp tplp_fail
-tplp_ok4:
+        bne tplp_fail4
 
         ; Drive CA2 hi -> CA1 rises (active pos edge) ->
         ; latch captures PA: loopback inputs follow outputs -> TPLA_IMSK
@@ -591,10 +587,7 @@ tplp_ok4:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tplp_ok5
-        ldx #5
-        jmp tplp_fail
-tplp_ok5:
+        beq tplp_fail5
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1 for next check
 
@@ -606,10 +599,7 @@ tplp_ok5:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        beq tplp_ok6
-        ldx #6
-        jmp tplp_fail
-tplp_ok6:
+        bne tplp_fail6
 
         ; Drive CA2 lo -> CA1 falls (NOT active in pos mode)
         lda VIA_BASE+VIA_PCR
@@ -619,19 +609,13 @@ tplp_ok6:
         ; IFR.CA1 must be clear (non-active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        beq tplp_ok8
-        ldx #8
-        jmp tplp_fail
-tplp_ok8:
+        bne tplp_fail8
 
         ; Read latch -> still TPLA_IMSK (latch unchanged on non-active edge)
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        beq tplp_ok7
-        ldx #7
-        jmp tplp_fail
-tplp_ok7:
+        bne tplp_fail7
 
         ; Drive CA2 hi -> CA1 rises (active) ->
         ; latch captures PA: loopback inputs follow inverted outputs -> $00
@@ -642,10 +626,7 @@ tplp_ok7:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tplp_ok10
-        ldx #10
-        jmp tplp_fail
-tplp_ok10:
+        beq tplp_fail10
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1
 
@@ -653,10 +634,7 @@ tplp_ok10:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp #$00
-        beq tplp_ok9
-        ldx #9
-        jmp tplp_fail
-tplp_ok9:
+        bne tplp_fail9
 
         pla
         sta VIA_BASE+VIA_PCR    ; restore PCR
@@ -670,6 +648,26 @@ tplp_ok9:
         lda #0
         rts
 
+tplp_fail4:
+        ldx #4
+        jmp tplp_fail
+tplp_fail5:
+        ldx #5
+        jmp tplp_fail
+tplp_fail6:
+        ldx #6
+        jmp tplp_fail
+tplp_fail7:
+        ldx #7
+        jmp tplp_fail
+tplp_fail8:
+        ldx #8
+        jmp tplp_fail
+tplp_fail9:
+        ldx #9
+        jmp tplp_fail
+tplp_fail10:
+        ldx #10
 tplp_fail:
         sta FAIL_VAL
         stx FAIL_STEP
@@ -1156,10 +1154,7 @@ test_pa_write_hs:
         ; Step 1: IFR CA1 flag must be set
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        bne tpwh_ok1
-        ldx #1
-        jmp tpwh_fail
-tpwh_ok1:
+        beq tpwh_fail1
 
         ; Pass: restore and return 0
         pla
@@ -1170,6 +1165,8 @@ tpwh_ok1:
         lda #0
         rts
 
+tpwh_fail1:
+        ldx #1
 tpwh_fail:
         sta FAIL_VAL
         stx FAIL_STEP
