@@ -319,13 +319,13 @@ test_pa_latch_neg_hi:
 ;   1. Set DDRA = TPLA_DDRA.  Write TPLA_OPAT to ORA_NH (PA outputs stable
 ;      before latch is enabled).  PCR bits 3:0 = $0E (CA2 manual hi, CA1 neg edge).
 ;   2. Enable ACR PA input latch (bit 0=1).  Clear IFR.CA1.
-;   3. PCR bits 3:0 = $0C (CA2 manual lo) -> CA1 falls (active) ->
+;   3. PCR bit 1 cleared (CA2 lo) -> CA1 falls (active) ->
 ;      latch captures PA: input bits = TPLA_IMSK.
 ;   4. Write $00 to ORA_NH (invert outputs; latch still holds old value).
 ;   5. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch held).
-;   6. PCR bits 3:0 = $0E (CA2 hi) -> CA1 rises (NOT active in neg mode);
+;   6. PCR bit 1 set (CA2 hi) -> CA1 rises (NOT active in neg mode);
 ;      read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch unchanged).
-;   7. PCR bits 3:0 = $0C (CA2 lo) -> CA1 falls (active) ->
+;   7. PCR bit 1 cleared (CA2 lo) -> CA1 falls (active) ->
 ;      latch captures new PA: input bits = $00 (inverted outputs).
 ;   8. Read ORA_NH & TPLA_IMSK -> expect $00 (latch updated).
 ;
@@ -370,8 +370,7 @@ test_pa_latch_neg:
         ; Drive CA2 lo -> CA1 falls (active neg edge) ->
         ; latch captures PA: loopback inputs follow outputs -> TPLA_IMSK
         lda VIA_BASE+VIA_PCR
-        and #$F0
-        ora #PCR_CA2_LO         ; bits 3:0 = $0C
+        and #$FD                ; clear bit 1 -> CA2 lo ($0C)
         sta VIA_BASE+VIA_PCR
 
         ; Invert outputs: all designated outputs low
@@ -386,8 +385,7 @@ test_pa_latch_neg:
 
         ; Drive CA2 hi -> CA1 rises (NOT active in neg mode)
         lda VIA_BASE+VIA_PCR
-        and #$F0
-        ora #PCR_CA2_HI         ; bits 3:0 = $0E
+        ora #$02                ; set bit 1 -> CA2 hi ($0E)
         sta VIA_BASE+VIA_PCR
 
         ; Read latch -> TPLA_IMSK (latch unchanged on non-active edge)
@@ -399,8 +397,7 @@ test_pa_latch_neg:
         ; Drive CA2 lo -> CA1 falls (active) ->
         ; latch captures PA: loopback inputs now follow inverted outputs -> $00
         lda VIA_BASE+VIA_PCR
-        and #$F0
-        ora #PCR_CA2_LO         ; bits 3:0 = $0C
+        and #$FD                ; clear bit 1 -> CA2 lo ($0C)
         sta VIA_BASE+VIA_PCR
 
         ; Read latch & TPLA_IMSK -> expect $00 (latch updated with inverted)
@@ -491,14 +488,14 @@ test_pa_latch_pos_hi:
 ;   1. Set DDRA = TPLA_DDRA.  Write TPLA_OPAT to ORA_NH (PA outputs stable
 ;      before latch is enabled).  PCR bits 3:0 = $0F (CA2 hi, CA1 pos edge).
 ;   2. Enable ACR PA input latch (bit 0=1).  Clear IFR.CA1.
-;   3. PCR bits 3:0 = $0D (CA2 lo) -> CA1 falls (NOT active in pos mode).
-;   4. PCR bits 3:0 = $0F (CA2 hi) -> CA1 rises (active) ->
+;   3. PCR bit 1 cleared (CA2 lo) -> CA1 falls (NOT active in pos mode).
+;   4. PCR bit 1 set (CA2 hi) -> CA1 rises (active) ->
 ;      latch captures PA: input bits = TPLA_IMSK.
 ;   5. Write $00 to ORA_NH (invert outputs).
 ;   6. Read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch held).
-;   7. PCR bits 3:0 = $0D (CA2 lo) -> CA1 falls (NOT active);
+;   7. PCR bit 1 cleared (CA2 lo) -> CA1 falls (NOT active);
 ;      read ORA_NH & TPLA_IMSK -> expect TPLA_IMSK (latch unchanged).
-;   8. PCR bits 3:0 = $0F (CA2 hi) -> CA1 rises (active) ->
+;   8. PCR bit 1 set (CA2 hi) -> CA1 rises (active) ->
 ;      latch captures new PA: input bits = $00 (inverted outputs).
 ;   9. Read ORA_NH & TPLA_IMSK -> expect $00.
 ;
@@ -542,15 +539,13 @@ test_pa_latch_pos:
 
         ; Drive CA2 lo -> CA1 falls (NOT active in pos mode; no latch update)
         lda VIA_BASE+VIA_PCR
-        and #$F0
-        ora #PCR_CA2_LO_POS     ; bits 3:0 = $0D (CA2 lo, CA1 pos)
+        and #$FD                ; clear bit 1 -> CA2 lo ($0D)
         sta VIA_BASE+VIA_PCR
 
         ; Drive CA2 hi -> CA1 rises (active pos edge) ->
         ; latch captures PA: loopback inputs follow outputs -> TPLA_IMSK
         lda VIA_BASE+VIA_PCR
-        and #$F0
-        ora #PCR_CA2_HI_POS     ; bits 3:0 = $0F
+        ora #$02                ; set bit 1 -> CA2 hi ($0F)
         sta VIA_BASE+VIA_PCR
 
         ; Invert outputs: all designated outputs low
@@ -565,8 +560,7 @@ test_pa_latch_pos:
 
         ; Drive CA2 lo -> CA1 falls (NOT active in pos mode)
         lda VIA_BASE+VIA_PCR
-        and #$F0
-        ora #PCR_CA2_LO_POS     ; bits 3:0 = $0D
+        and #$FD                ; clear bit 1 -> CA2 lo ($0D)
         sta VIA_BASE+VIA_PCR
 
         ; Read latch -> still TPLA_IMSK (latch unchanged on non-active edge)
@@ -578,8 +572,7 @@ test_pa_latch_pos:
         ; Drive CA2 hi -> CA1 rises (active) ->
         ; latch captures PA: loopback inputs follow inverted outputs -> $00
         lda VIA_BASE+VIA_PCR
-        and #$F0
-        ora #PCR_CA2_HI_POS     ; bits 3:0 = $0F
+        ora #$02                ; set bit 1 -> CA2 hi ($0F)
         sta VIA_BASE+VIA_PCR
 
         ; Read latch & TPLA_IMSK -> expect $00 (latch updated)
