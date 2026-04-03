@@ -15,6 +15,7 @@ PRG4    = $(BUILD)/pet_pia_test2
 PRG5    = $(BUILD)/via_test1_gen
 PRG6    = $(BUILD)/via_test1
 PRG7    = $(BUILD)/pet_userport_test1
+PRG8    = $(BUILD)/pet_userport_test2
 D64     = $(BUILD)/via_test.d64
 LST1    = $(LISTING)/pia_test1.lst
 LST2    = $(LISTING)/pet_pia_test1.lst
@@ -23,10 +24,11 @@ LST4    = $(LISTING)/pet_pia_test2.lst
 LST5    = $(LISTING)/via_test1_gen.lst
 LST6    = $(LISTING)/via_test1.lst
 LST7    = $(LISTING)/pet_userport_test1.lst
+LST8    = $(LISTING)/pet_userport_test2.lst
 
-.PHONY: all clean run1 run2 run3 run4 gen5 run5 run7
+.PHONY: all clean run1 run2 run3 run4 gen5 run5 run7 run8
 
-all: $(PRG1) $(PRG2) $(PRG3) $(PRG4) $(PRG5) $(PRG6) $(PRG7) $(D64)
+all: $(PRG1) $(PRG2) $(PRG3) $(PRG4) $(PRG5) $(PRG6) $(PRG7) $(PRG8) $(D64)
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -54,6 +56,9 @@ $(PRG6): via_test1.a65 via_meas.inc pet_kernal.inc | $(BUILD) $(LISTING)
 
 $(PRG7): pet_userport_test1.a65 | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST7) $<
+
+$(PRG8): pet_userport_test2.a65 | $(BUILD) $(LISTING)
+	$(XA) $(XAFLAGS) -o $@ -P $(LST8) $<
 
 $(D64): $(PRG5) $(PRG6) | $(BUILD)
 	c1541 -format "via tests,vt" d64 $@
@@ -87,6 +92,10 @@ run5: $(D64)
 # Run pet_userport_test1 in VICE (PET 4032)
 run7: $(PRG7)
 	bash vice/run_pet_userport_test1.sh
+
+# Run pet_userport_test2 in VICE (PET 4032)
+run8: $(PRG8)
+	bash vice/run_pet_userport_test2.sh
 
 clean:
 	rm -rf $(BUILD) $(LISTING)
