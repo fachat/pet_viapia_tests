@@ -893,8 +893,9 @@ cf_file_err:
 ; ============================================================
 ; Subroutine: wait_key
 ;
-; Prints a "PRESS ANY KEY" prompt and blocks until a key is
-; pressed (GETIN returns a non-zero value).
+; Prints a "PRESS ANY KEY" prompt, blocks until a key is
+; pressed (GETIN returns a non-zero value), then clears the
+; screen (CLR, $93) so the next section starts fresh at the top.
 ; Clobbers: A
 ; ============================================================
 wait_key:
@@ -903,6 +904,8 @@ wait_key:
         jsr print_str
 wk_lp:  jsr GETIN
         beq wk_lp
+        lda #$93
+        jsr CHROUT
         rts
 
 ; ============================================================
