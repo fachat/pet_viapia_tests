@@ -88,8 +88,12 @@ Run this **once** on a known-good machine or in VICE to produce the reference fi
 | `VIA.T2.1` | T2 one-shot, latch=$01 |
 | `VIA.T2.2` | T2 one-shot, latch=$02 |
 | `VIA.T2.FF` | T2 one-shot, latch=$FF |
-| `VIA.SR.T2` | Shift register shift-out under T2 clock, data=$AA |
-| `VIA.SR.STOP` | Shift register mid-operation rewrite |
+| `VIA.SR.IT2.A.H` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (high byte) samples |
+| `VIA.SR.IT2.A.L` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (low byte) samples |
+| `VIA.SR.IT2.B.H` | SR shift-in via T2, T2=$0210 direct, T2CH samples |
+| `VIA.SR.IT2.B.L` | SR shift-in via T2, T2=$0210 direct, T2CL samples |
+| `VIA.SR.IT2.C.H` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CH samples |
+| `VIA.SR.IT2.C.L` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CL samples |
 
 ---
 
@@ -124,7 +128,11 @@ Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Gr
 | 6B — T2 LATCH=01 | | Same test with latch=$01; compares against `VIA.T2.1`. |
 | 6C — T2 LATCH=02 | | Same test with latch=$02; compares against `VIA.T2.2`. |
 | 6D — T2 LATCH=FF | | Same test with latch=$FF; compares against `VIA.T2.FF`. |
-| **GRP7: SHIFT REGISTER** | bits 4–2 = `$14` (SR shift-out under T2 clock) | |
-| 7A — SR T2-CLK DATA=AA | | Shifts out $AA under T2 clock, captures 256 bytes and compares against `VIA.SR.T2`. |
-| 7B — SR STOP MID-OP | | Starts SR shift-out under T2, rewrites SR control mid-operation (bits 4–2 cleared to `$00`), captures the result and compares against `VIA.SR.STOP`. |
+| **GRP7: SR SHIFT-IN VIA T2** | bits 4–2 = `$04` (SR shift-in under T2 clock); bit 5 = `0` (T2 timer mode) | NOTE: CB1 must not be hard-wired as input — the VIA drives CB1 as output clock in this mode. |
+| 7A — SR-IN T2 SETUP HI | | Scenario A (T2 pre-set $04FF then $0210): captures 256 T2CH samples while SR shifts in under T2; compares against `VIA.SR.IT2.A.H`. |
+| 7B — SR-IN T2 SETUP LO | | Same scenario A setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.A.L`. |
+| 7C — SR-IN T2 DIRECT HI | | Scenario B (T2 set directly to $0210): captures 256 T2CH samples; compares against `VIA.SR.IT2.B.H`. |
+| 7D — SR-IN T2 DIRECT LO | | Same scenario B setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.B.L`. |
+| 7E — SR-IN T2 LATCH HI | | Scenario C (T2=$0210, 16-cycle wait, then T2CL latch overridden to $20): captures 256 T2CH samples; compares against `VIA.SR.IT2.C.H`. |
+| 7F — SR-IN T2 LATCH LO | | Same scenario C setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.C.L`. |
 
