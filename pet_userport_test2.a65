@@ -120,6 +120,7 @@ PIA1_DDRA_SAVE = $07        ; saved PIA1 DDRA (setup_pia1_pa7_out)
 TPLA_DDRA      = $08        ; PA latch test param: DDRA value to set
 TPLA_OPAT      = $09        ; PA latch test param: output pattern
 TPLA_IMSK      = $0A        ; PA latch test param: input bit mask
+FAIL_STEP      = $0B        ; step number where the current test last failed
 
 ; ============================================================
 ; .PRG file header - first two bytes are the CBM load address
@@ -147,6 +148,7 @@ main:
         lda #0
         sta PASS_CNT
         sta FAIL_CNT
+        sta FAIL_STEP
 
         ; Clear screen
         lda #$93
@@ -360,7 +362,7 @@ test_pa_latch_neg:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tpln_fail
+        bne tpln_fail5
 
         ; Drive CA2 hi -> CA1 rises (NOT active in neg mode)
         lda VIA_BASE+VIA_PCR
@@ -372,7 +374,7 @@ test_pa_latch_neg:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tpln_fail
+        bne tpln_fail6
 
         ; Drive CA2 lo -> CA1 falls (active) ->
         ; latch captures PA: loopback inputs now follow inverted outputs -> $00
@@ -385,7 +387,7 @@ test_pa_latch_neg:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp #$00
-        bne tpln_fail
+        bne tpln_fail8
 
         pla
         sta VIA_BASE+VIA_PCR    ; restore PCR
@@ -399,6 +401,17 @@ test_pa_latch_neg:
         lda #0
         rts
 
+tpln_fail5:
+        lda #5
+        sta FAIL_STEP
+        jmp tpln_fail
+tpln_fail6:
+        lda #6
+        sta FAIL_STEP
+        jmp tpln_fail
+tpln_fail8:
+        lda #8
+        sta FAIL_STEP
 tpln_fail:
         pla
         sta VIA_BASE+VIA_PCR
@@ -525,7 +538,7 @@ test_pa_latch_pos:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tplp_fail
+        bne tplp_fail6
 
         ; Drive CA2 lo -> CA1 falls (NOT active in pos mode)
         lda VIA_BASE+VIA_PCR
@@ -537,7 +550,7 @@ test_pa_latch_pos:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp TPLA_IMSK
-        bne tplp_fail
+        bne tplp_fail7
 
         ; Drive CA2 hi -> CA1 rises (active) ->
         ; latch captures PA: loopback inputs follow inverted outputs -> $00
@@ -550,7 +563,7 @@ test_pa_latch_pos:
         lda VIA_BASE+VIA_ORA_NH
         and TPLA_IMSK
         cmp #$00
-        bne tplp_fail
+        bne tplp_fail9
 
         pla
         sta VIA_BASE+VIA_PCR    ; restore PCR
@@ -564,6 +577,17 @@ test_pa_latch_pos:
         lda #0
         rts
 
+tplp_fail6:
+        lda #6
+        sta FAIL_STEP
+        jmp tplp_fail
+tplp_fail7:
+        lda #7
+        sta FAIL_STEP
+        jmp tplp_fail
+tplp_fail9:
+        lda #9
+        sta FAIL_STEP
 tplp_fail:
         pla
         sta VIA_BASE+VIA_PCR
@@ -692,7 +716,7 @@ test_cb2_hs_neg:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #$00
-        bne tcbn_fail
+        bne tcbn_fail1
 
         ; Drive PIA1 PA7 = 0 -> CB1 falls (neg active edge) -> CB2 goes HIGH
         lda PIA1_BASE+PIA_ORA
@@ -703,7 +727,7 @@ test_cb2_hs_neg:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #VIA_PA7
-        bne tcbn_fail
+        bne tcbn_fail2
 
         ; Drive PIA1 PA7 = 1 -> CB1 rises (NOT active in neg mode)
         lda PIA1_BASE+PIA_ORA
@@ -714,7 +738,7 @@ test_cb2_hs_neg:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #VIA_PA7
-        bne tcbn_fail
+        bne tcbn_fail3
 
         ; ==== Iteration 2 ====
 
@@ -726,7 +750,7 @@ test_cb2_hs_neg:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #$00
-        bne tcbn_fail
+        bne tcbn_fail4
 
         ; CB1 falls (neg active edge) -> CB2 goes HIGH
         lda PIA1_BASE+PIA_ORA
@@ -737,7 +761,7 @@ test_cb2_hs_neg:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #VIA_PA7
-        bne tcbn_fail
+        bne tcbn_fail5
 
         ; CB1 rises (not active) -> CB2 stays HIGH
         lda PIA1_BASE+PIA_ORA
@@ -748,7 +772,7 @@ test_cb2_hs_neg:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #VIA_PA7
-        bne tcbn_fail
+        bne tcbn_fail6
 
         ; Restore
         pla
@@ -764,6 +788,29 @@ test_cb2_hs_neg:
         lda #0
         rts
 
+tcbn_fail1:
+        lda #1
+        sta FAIL_STEP
+        jmp tcbn_fail
+tcbn_fail2:
+        lda #2
+        sta FAIL_STEP
+        jmp tcbn_fail
+tcbn_fail3:
+        lda #3
+        sta FAIL_STEP
+        jmp tcbn_fail
+tcbn_fail4:
+        lda #4
+        sta FAIL_STEP
+        jmp tcbn_fail
+tcbn_fail5:
+        lda #5
+        sta FAIL_STEP
+        jmp tcbn_fail
+tcbn_fail6:
+        lda #6
+        sta FAIL_STEP
 tcbn_fail:
         pla
         sta VIA_BASE+VIA_PCR
@@ -845,7 +892,7 @@ test_cb2_hs_pos:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #$00
-        bne tcbp_fail
+        bne tcbp_fail1
 
         ; Drive PIA1 PA7 = 1 -> CB1 rises (pos active edge) -> CB2 goes HIGH
         lda PIA1_BASE+PIA_ORA
@@ -856,7 +903,7 @@ test_cb2_hs_pos:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #VIA_PA7
-        bne tcbp_fail
+        bne tcbp_fail2
 
         ; Drive PIA1 PA7 = 0 -> CB1 falls (NOT active in pos mode)
         lda PIA1_BASE+PIA_ORA
@@ -867,7 +914,7 @@ test_cb2_hs_pos:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #VIA_PA7
-        bne tcbp_fail
+        bne tcbp_fail3
 
         ; ==== Iteration 2 ====
 
@@ -879,7 +926,7 @@ test_cb2_hs_pos:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #$00
-        bne tcbp_fail
+        bne tcbp_fail4
 
         ; CB1 rises (pos active edge) -> CB2 goes HIGH
         lda PIA1_BASE+PIA_ORA
@@ -890,7 +937,7 @@ test_cb2_hs_pos:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #VIA_PA7
-        bne tcbp_fail
+        bne tcbp_fail5
 
         ; CB1 falls (not active) -> CB2 stays HIGH
         lda PIA1_BASE+PIA_ORA
@@ -901,7 +948,7 @@ test_cb2_hs_pos:
         lda VIA_BASE+VIA_ORA_NH
         and #VIA_PA7
         cmp #VIA_PA7
-        bne tcbp_fail
+        bne tcbp_fail6
 
         ; Restore
         pla
@@ -917,6 +964,29 @@ test_cb2_hs_pos:
         lda #0
         rts
 
+tcbp_fail1:
+        lda #1
+        sta FAIL_STEP
+        jmp tcbp_fail
+tcbp_fail2:
+        lda #2
+        sta FAIL_STEP
+        jmp tcbp_fail
+tcbp_fail3:
+        lda #3
+        sta FAIL_STEP
+        jmp tcbp_fail
+tcbp_fail4:
+        lda #4
+        sta FAIL_STEP
+        jmp tcbp_fail
+tcbp_fail5:
+        lda #5
+        sta FAIL_STEP
+        jmp tcbp_fail
+tcbp_fail6:
+        lda #6
+        sta FAIL_STEP
 tcbp_fail:
         pla
         sta VIA_BASE+VIA_PCR
@@ -951,7 +1021,13 @@ pr_fail:
         inc FAIL_CNT
         lda #<msg_fail
         ldx #>msg_fail
-        jsr print_str
+        jsr print_str           ; prints "FAIL S:"
+        lda FAIL_STEP
+        clc
+        adc #$30                ; convert to ASCII digit
+        jsr CHROUT              ; print step digit
+        lda #$0d
+        jsr CHROUT              ; print CR
         rts
 
 ; ============================================================
@@ -992,7 +1068,7 @@ msg_t2a: .byte "CB2 HS CB1 NEG:   ", 0
 msg_t2b: .byte "CB2 HS CB1 POS:   ", 0
 
 msg_ok:        .byte "OK", $0d, 0
-msg_fail:      .byte "FAIL", $0d, 0
+msg_fail:      .byte "FAIL S:", 0
 
 msg_divider:   .byte "----------------------", $0d, 0
 msg_all_pass:  .byte "ALL TESTS PASSED", $0d, 0
