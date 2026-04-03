@@ -379,8 +379,7 @@ test_pa_latch_neg:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        cmp #IFR_CA1
-        bne tpln_fail4
+        beq tpln_fail4
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1 for next check
 
@@ -419,8 +418,7 @@ test_pa_latch_neg:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        cmp #IFR_CA1
-        bne tpln_fail9
+        beq tpln_fail9
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1
 
@@ -599,8 +597,7 @@ test_pa_latch_pos:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        cmp #IFR_CA1
-        bne tplp_fail5
+        beq tplp_fail5
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1 for next check
 
@@ -639,8 +636,7 @@ test_pa_latch_pos:
         ; IFR.CA1 must be set (active edge)
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        cmp #IFR_CA1
-        bne tplp_fail10
+        beq tplp_fail10
         lda #IFR_CA1
         sta VIA_BASE+VIA_IFR    ; clear IFR.CA1
 
@@ -1180,8 +1176,7 @@ test_pa_write_hs:
         ; Step 1: IFR CA1 flag must be set
         lda VIA_BASE+VIA_IFR
         and #IFR_CA1
-        cmp #IFR_CA1
-        bne tpwh_fail1
+        beq tpwh_fail1
 
         ; Pass: restore and return 0
         pla
