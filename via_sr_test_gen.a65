@@ -223,6 +223,55 @@ main:
         jsr write_file
 
         ; --------------------------------------------------------
+        ; SR mode 1 (no arm read), T2 initial value = $0110-$0440
+        ; In this variant the arm read is omitted; shifting begins
+        ; on the first T2 underflow after setting ACR to mode 1.
+        ; --------------------------------------------------------
+        lda #<msg_sr_m1n
+        ldx #>msg_sr_m1n
+        jsr print_str
+
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr meas_sr_mode1_noarm
+        lda #<fn_sr_m1na
+        ldx #>fn_sr_m1na
+        ldy #fn_sr_m1na_end - fn_sr_m1na
+        jsr write_file
+
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr meas_sr_mode1_noarm
+        lda #<fn_sr_m1nb
+        ldx #>fn_sr_m1nb
+        ldy #fn_sr_m1nb_end - fn_sr_m1nb
+        jsr write_file
+
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr meas_sr_mode1_noarm
+        lda #<fn_sr_m1nc
+        ldx #>fn_sr_m1nc
+        ldy #fn_sr_m1nc_end - fn_sr_m1nc
+        jsr write_file
+
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr meas_sr_mode1_noarm
+        lda #<fn_sr_m1nd
+        ldx #>fn_sr_m1nd
+        ldy #fn_sr_m1nd_end - fn_sr_m1nd
+        jsr write_file
+
+        ; --------------------------------------------------------
         ; SR mode 5 (shift out under T2 control)
         ; PIA1 PA7 and VIA PA7 are both inputs (already set above).
         ; meas_sr_mode5 sets VIA DDRA=$00 internally.
@@ -416,6 +465,7 @@ ps_done:
 msg_banner: .byte "VIA SR TEST DATA GENERATOR", $0d
             .byte "--------------------------", $0d, 0
 msg_sr_m1:  .byte "SR MODE1...", 0
+msg_sr_m1n: .byte "SR MODE1 NO ARM...", 0
 msg_sr_m5:  .byte "SR MODE5...", 0
 msg_done:   .byte $0d, "DONE.", $0d, 0
 msg_ok:     .byte ".", 0
@@ -432,6 +482,14 @@ fn_sr_m1c:    .byte "VIA.SR.M1.C"
 fn_sr_m1c_end:
 fn_sr_m1d:    .byte "VIA.SR.M1.D"
 fn_sr_m1d_end:
+fn_sr_m1na:   .byte "VIA.SR.M1N.A"
+fn_sr_m1na_end:
+fn_sr_m1nb:   .byte "VIA.SR.M1N.B"
+fn_sr_m1nb_end:
+fn_sr_m1nc:   .byte "VIA.SR.M1N.C"
+fn_sr_m1nc_end:
+fn_sr_m1nd:   .byte "VIA.SR.M1N.D"
+fn_sr_m1nd_end:
 fn_sr_m5a:    .byte "VIA.SR.M5.A"
 fn_sr_m5a_end:
 fn_sr_m5b:    .byte "VIA.SR.M5.B"

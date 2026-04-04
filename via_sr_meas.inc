@@ -20,7 +20,7 @@
 ;   SR_T2_HI  (zero-page: T2 initial value, high byte)
 ;
 ; Note on hardware connections:
-;   meas_sr_mode1:
+;   meas_sr_mode1 / meas_sr_mode1_noarm:
 ;     Pin L (VIA PA7) <-> Pin M (CB2): loopback; PA7 output drives CB2 high.
 ;     Pin 5 (PIA1 PA7) -> Pin 6 (CB1): VIA drives CB1 as output clock;
 ;       PIA1 PA7 MUST be an input to avoid a bus conflict on CB1.
@@ -98,6 +98,63 @@ meas_sr_m1_lp:
         sta MEAS_BUF,x          ; 5 cycles
         inx                     ; 2 cycles
         bne meas_sr_m1_lp       ; 3 cycles (2 on last iteration)
+        ; Disable SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        rts
+
+; ============================================================
+; Subroutine: meas_sr_mode1_noarm
+;
+; Identical to meas_sr_mode1 except the "arm" read of SR
+; (lda VIA_BASE+VIA_SR immediately after setting ACR to mode 1)
+; is omitted.  In this variant the first shift clock does not
+; occur until the first T2 underflow, so the timing of the
+; first edge relative to mode-enable is different.
+;
+; See meas_sr_mode1 for full documentation.  The setup and
+; sample loop are identical; only the arm read is absent.
+;
+; Result: MEAS_BUF[0..255] = 256 SR readings
+; Clobbers: A, X
+; ============================================================
+meas_sr_mode1_noarm:
+        sei
+        ; Disable SR (mode 0) and clear SR register
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK       ; SR mode = 000 (disabled)
+        sta VIA_BASE+VIA_ACR
+        lda #0
+        sta VIA_BASE+VIA_SR     ; write 0 to SR
+        ; Set CB2 as input (PCR bits 7:5 = 000)
+        lda VIA_BASE+VIA_PCR
+        and #$1F                ; clear CB2 mode bits 7:5
+        sta VIA_BASE+VIA_PCR
+        ; Set PA7 as output and drive it high (CB2 = high via loopback)
+        lda #$80
+        sta VIA_BASE+VIA_DDRA   ; PA7 = output, rest = input
+        sta VIA_BASE+VIA_ORA_NH ; PA7 = 1 -> CB2 = high via loopback
+        ; Load T2 with SR_T2_HI:SR_T2_LO and start counting
+        lda SR_T2_LO
+        sta VIA_BASE+VIA_T2CL
+        lda SR_T2_HI
+        sta VIA_BASE+VIA_T2CH   ; load counter, start T2
+        ; Set SR to mode 1: shift in under T2 control
+        ; NOTE: no arm read here - first shift occurs on first T2 underflow
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_IT2
+        sta VIA_BASE+VIA_ACR
+        ; Sample SR 256 times in a tight loop
+        ldx #0
+meas_sr_m1n_lp:
+        lda VIA_BASE+VIA_SR     ; 4 cycles - read SR
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        bne meas_sr_m1n_lp      ; 3 cycles (2 on last iteration)
         ; Disable SR
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
