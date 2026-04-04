@@ -20,6 +20,10 @@
 ;   VIA.SR.M1.B   SR mode 1, T2 initial value = $0220
 ;   VIA.SR.M1.C   SR mode 1, T2 initial value = $0330
 ;   VIA.SR.M1.D   SR mode 1, T2 initial value = $0440
+;   VIA.SR.M5.A   SR mode 5, T2 initial value = $0110
+;   VIA.SR.M5.B   SR mode 5, T2 initial value = $0220
+;   VIA.SR.M5.C   SR mode 5, T2 initial value = $0330
+;   VIA.SR.M5.D   SR mode 5, T2 initial value = $0440
 ;
 ; Files are written using PET_SAVE (JMP $f6e3), bypassing the
 ; $FFD8 KERNAL entry which includes BASIC parsing.
@@ -58,6 +62,7 @@ ACR_SR_MASK  = $1C          ; mask for SR mode bits
 ACR_SR_NMASK = $E3          ; inverse mask: clears SR mode bits 4:2
 ACR_SR_OFF   = $00          ; 000 -> SR disabled
 ACR_SR_IT2   = $04          ; 001 -> shift in under T2 control
+ACR_SR_OT2   = $14          ; 101 -> shift out under T2 control
 
 ; IFR / IER bit masks
 IFR_T1 = $40                ; bit 6 = T1 timeout
@@ -218,6 +223,67 @@ main:
         jsr write_file
 
         ; --------------------------------------------------------
+        ; SR mode 5 (shift out under T2 control)
+        ; PIA1 PA7 and VIA PA7 are both inputs (already set above).
+        ; meas_sr_mode5 sets VIA DDRA=$00 internally.
+        ; --------------------------------------------------------
+        lda #<msg_sr_m5
+        ldx #>msg_sr_m5
+        jsr print_str
+
+        ; --------------------------------------------------------
+        ; SR mode 5, T2 initial value = $0110
+        ; --------------------------------------------------------
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr meas_sr_mode5
+        lda #<fn_sr_m5a
+        ldx #>fn_sr_m5a
+        ldy #fn_sr_m5a_end - fn_sr_m5a
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; SR mode 5, T2 initial value = $0220
+        ; --------------------------------------------------------
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr meas_sr_mode5
+        lda #<fn_sr_m5b
+        ldx #>fn_sr_m5b
+        ldy #fn_sr_m5b_end - fn_sr_m5b
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; SR mode 5, T2 initial value = $0330
+        ; --------------------------------------------------------
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr meas_sr_mode5
+        lda #<fn_sr_m5c
+        ldx #>fn_sr_m5c
+        ldy #fn_sr_m5c_end - fn_sr_m5c
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; SR mode 5, T2 initial value = $0440
+        ; --------------------------------------------------------
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr meas_sr_mode5
+        lda #<fn_sr_m5d
+        ldx #>fn_sr_m5d
+        ldy #fn_sr_m5d_end - fn_sr_m5d
+        jsr write_file
+
+        ; --------------------------------------------------------
         ; Restore VIA state
         ; --------------------------------------------------------
         sei
@@ -350,6 +416,7 @@ ps_done:
 msg_banner: .byte "VIA SR TEST DATA GENERATOR", $0d
             .byte "--------------------------", $0d, 0
 msg_sr_m1:  .byte "SR MODE1...", 0
+msg_sr_m5:  .byte "SR MODE5...", 0
 msg_done:   .byte $0d, "DONE.", $0d, 0
 msg_ok:     .byte ".", 0
 msg_err:    .byte "E", 0
@@ -365,3 +432,11 @@ fn_sr_m1c:    .byte "VIA.SR.M1.C"
 fn_sr_m1c_end:
 fn_sr_m1d:    .byte "VIA.SR.M1.D"
 fn_sr_m1d_end:
+fn_sr_m5a:    .byte "VIA.SR.M5.A"
+fn_sr_m5a_end:
+fn_sr_m5b:    .byte "VIA.SR.M5.B"
+fn_sr_m5b_end:
+fn_sr_m5c:    .byte "VIA.SR.M5.C"
+fn_sr_m5c_end:
+fn_sr_m5d:    .byte "VIA.SR.M5.D"
+fn_sr_m5d_end:

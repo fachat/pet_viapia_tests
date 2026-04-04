@@ -1,11 +1,11 @@
 ; ============================================================
 ; via_sr_meas.inc
-; SR mode 1 measurement subroutine - shared between
+; SR measurement subroutines - shared between
 ; via_sr_test_gen.a65 and via_sr_test.a65.
 ;
 ; Both files include this file at the same fixed address ($0410,
 ; immediately after the 3-byte JMP at $040D).  Because the
-; subroutine assembles to identical bytes at the identical address
+; subroutines assemble to identical bytes at the identical address
 ; in both programs, branch targets always cross (or stay within)
 ; the same page boundaries, guaranteeing cycle-accurate timing
 ; reproducibility between the generator and test runs.
@@ -13,16 +13,21 @@
 ; Required symbols (defined in the including .a65 file):
 ;   VIA_BASE, VIA_SR, VIA_DDRA, VIA_ACR, VIA_PCR
 ;   VIA_T2CL, VIA_T2CH, VIA_ORA_NH
-;   ACR_SR_NMASK, ACR_SR_IT2, ACR_SR_OFF
+;   PIA1_BASE, PIA_ORA
+;   ACR_SR_NMASK, ACR_SR_IT2, ACR_SR_OT2, ACR_SR_OFF
 ;   MEAS_BUF
 ;   SR_T2_LO  (zero-page: T2 initial value, low byte)
 ;   SR_T2_HI  (zero-page: T2 initial value, high byte)
 ;
-; Note on hardware connections (required while this subroutine runs):
-;   Pin L (VIA PA7) <-> Pin M (CB2): loopback; PA7 output drives CB2 high.
-;   Pin 5 (PIA1 PA7) -> Pin 6 (CB1): in SR mode 1 the VIA drives CB1 as
-;     an output clock.  PIA1 PA7 MUST be configured as an input before
-;     calling this subroutine to avoid a bus conflict on the CB1 line.
+; Note on hardware connections:
+;   meas_sr_mode1:
+;     Pin L (VIA PA7) <-> Pin M (CB2): loopback; PA7 output drives CB2 high.
+;     Pin 5 (PIA1 PA7) -> Pin 6 (CB1): VIA drives CB1 as output clock;
+;       PIA1 PA7 MUST be an input to avoid a bus conflict on CB1.
+;   meas_sr_mode5:
+;     Pin M (CB2) -> Pin L (VIA PA7): loopback; VIA PA7 = input reads CB2 data.
+;     Pin 6 (CB1) -> Pin 5 (PIA1 PA7): loopback; PIA1 PA7 = input reads CB1 clock.
+;       Both PIA1 PA7 and VIA PA7 MUST be inputs (PIA1 DDRA PA7=0, VIA DDRA=$00).
 ; ============================================================
 
 ; ============================================================
@@ -93,6 +98,101 @@ meas_sr_m1_lp:
         sta MEAS_BUF,x          ; 5 cycles
         inx                     ; 2 cycles
         bne meas_sr_m1_lp       ; 3 cycles (2 on last iteration)
+        ; Disable SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        rts
+
+; ============================================================
+; Subroutine: meas_sr_mode5
+;
+; Measures SR mode 5 (shift out under T2 control) behavior.
+; The VIA drives CB1 as the output shift clock and shifts the
+; SR data out on CB2.  Both lines are read back via loopback:
+;   CB1 -> Pin 6 -> Pin 5 -> PIA1 PA7 (input)
+;   CB2 -> Pin M -> Pin L -> VIA PA7  (input, DDRA=$00)
+;
+; The caller sets SR_T2_LO and SR_T2_HI (zero-page) to the
+; desired 16-bit initial T2 value before calling.
+; PIA1 PA7 MUST already be configured as an input before calling
+; (VIA drives CB1 as an output clock; a PIA1 PA7 output would
+;  conflict on CB1).
+;
+; Setup sequence:
+;   1. Disable SR (ACR SR = 000); write 0 to SR.
+;   2. Set CB2 as input (PCR bits 7:5 = 000).
+;   3. Set DDRA = $00 (all PA = input; reads CB2 via PA7 loopback).
+;   4. Load T2 with SR_T2_HI:SR_T2_LO and start counting.
+;   5. Set SR to mode 5 (ACR SR = 101 = shift out via T2).
+;   6. Sample CB1 and CB2 256 times in a tight loop.
+;   7. Disable SR (ACR SR = 000).
+;
+; Sampling combines CB1 (clock) and CB2 (data) into one byte:
+;   lda PIA1_BASE+PIA_ORA   ; read PIA1 PA7 (CB1 clock via loopback)
+;   lsr                     ; CB1 bit 7 -> carry flag
+;   lda VIA_BASE+VIA_ORA_NH ; read VIA  PA7 (CB2 data via loopback)
+;   and #$80                ; keep only bit 7
+;   ror                     ; carry -> bit 7; CB2 -> bit 6
+;   Result: bit 7 = CB2 data (SR out), bit 6 = CB1 clock
+;
+; Timing of the tight loop (all iterations identical):
+;   LDA abs       4 cycles   read PIA1 ORA (CB1)
+;   LSR           2 cycles   CB1 bit7 -> carry
+;   LDA abs       4 cycles   read VIA ORA_NH (CB2)
+;   AND imm       2 cycles
+;   ROR           2 cycles
+;   STA abs,X     5 cycles   store to MEAS_BUF,X
+;   INX           2 cycles
+;   BNE rel       3 cycles   (2 on last iteration)
+;   = 24 cycles per iteration (23 for the last one)
+;
+; NOTE: This subroutine modifies VIA DDRA (sets $00) and VIA PCR
+;       (clears CB2 mode bits 7:5 to 000).  It does not restore
+;       them; the calling program is responsible for overall state
+;       save/restore around the test run.
+;
+; Result: MEAS_BUF[0..255] = 256 combined CB1/CB2 samples
+; Clobbers: A, X
+; ============================================================
+meas_sr_mode5:
+        sei
+        ; Disable SR (mode 0) and clear SR register
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK       ; SR mode = 000 (disabled)
+        sta VIA_BASE+VIA_ACR
+        lda #0
+        sta VIA_BASE+VIA_SR     ; write 0 to SR
+        ; Set CB2 as input (PCR bits 7:5 = 000)
+        lda VIA_BASE+VIA_PCR
+        and #$1F                ; clear CB2 mode bits 7:5
+        sta VIA_BASE+VIA_PCR
+        ; Set all VIA PA as inputs (DDRA = $00)
+        lda #0
+        sta VIA_BASE+VIA_DDRA
+        ; Load T2 with SR_T2_HI:SR_T2_LO and start counting
+        lda SR_T2_LO
+        sta VIA_BASE+VIA_T2CL
+        lda SR_T2_HI
+        sta VIA_BASE+VIA_T2CH   ; load counter, start T2
+        ; Set SR to mode 5: shift out under T2 control
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OT2
+        sta VIA_BASE+VIA_ACR
+        ; Sample 256 combined CB1/CB2 readings in a tight loop
+        ldx #0
+meas_sr_m5_lp:
+        lda PIA1_BASE+PIA_ORA   ; 4 cycles - read CB1 via PIA1 PA7 loopback
+        lsr                     ; 2 cycles - CB1 (bit 7) -> carry
+        lda VIA_BASE+VIA_ORA_NH ; 4 cycles - read CB2 via VIA PA7 loopback
+        and #$80                ; 2 cycles - keep only bit 7 (PA7 = CB2)
+        ror                     ; 2 cycles - carry->bit7 (CB1); CB2->bit6
+        sta MEAS_BUF,x          ; 5 cycles
+        inx                     ; 2 cycles
+        bne meas_sr_m5_lp       ; 3 cycles (2 on last iteration)
         ; Disable SR
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
