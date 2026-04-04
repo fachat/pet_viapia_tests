@@ -192,7 +192,7 @@ meas_sr_m1n_lp:
 ;
 ; Sampling combines CB1 (clock) and CB2 (data) into one byte:
 ;   lda PIA1_BASE+PIA_ORA   ; read PIA1 PA7 (CB1 clock via loopback)
-;   lsr                     ; CB1 bit 7 -> carry flag
+;   asl                     ; CB1 bit 7 -> carry flag
 ;   lda VIA_BASE+VIA_ORA_NH ; read VIA  PA7 (CB2 data via loopback)
 ;   and #$80                ; keep only bit 7
 ;   ror                     ; carry -> bit 7; CB2 -> bit 6
@@ -200,7 +200,7 @@ meas_sr_m1n_lp:
 ;
 ; Timing of the tight loop (all iterations identical):
 ;   LDA abs       4 cycles   read PIA1 ORA (CB1)
-;   LSR           2 cycles   CB1 bit7 -> carry
+;   ASL           2 cycles   CB1 bit7 -> carry
 ;   LDA abs       4 cycles   read VIA ORA_NH (CB2)
 ;   AND imm       2 cycles
 ;   ROR           2 cycles
@@ -249,7 +249,7 @@ meas_sr_mode5:
         ldx #0
 meas_sr_m5_lp:
         lda PIA1_BASE+PIA_ORA   ; 4 cycles - read CB1 via PIA1 PA7 loopback
-        lsr                     ; 2 cycles - CB1 (bit 7) -> carry
+        asl                     ; 2 cycles - CB1 (bit 7) -> carry
         lda VIA_BASE+VIA_ORA_NH ; 4 cycles - read CB2 via VIA PA7 loopback
         and #$80                ; 2 cycles - keep only bit 7 (PA7 = CB2)
         ror                     ; 2 cycles - carry->bit7 (CB1); CB2->bit6
