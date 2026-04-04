@@ -18,6 +18,8 @@
 ;   MEAS_BUF
 ;   SR_T2_LO  (zero-page: T2 initial value, low byte)
 ;   SR_T2_HI  (zero-page: T2 initial value, high byte)
+;   SR_INIT   (zero-page: initial value written to SR in meas_sr_mode5 after
+;              setting ACR to mode 5, arming the shift-out sequence)
 ;
 ; Note on hardware connections:
 ;   meas_sr_mode1 / meas_sr_mode1_noarm:
@@ -184,6 +186,7 @@ meas_sr_m1n_lp:
 ;   3. Set DDRA = $00 (all PA = input; reads CB2 via PA7 loopback).
 ;   4. Load T2 with SR_T2_HI:SR_T2_LO and start counting.
 ;   5. Set SR to mode 5 (ACR SR = 101 = shift out via T2).
+;   5a. Write SR_INIT to SR to arm the shift-out sequence.
 ;   6. Sample CB1 and CB2 256 times in a tight loop.
 ;   7. Disable SR (ACR SR = 000).
 ;
@@ -239,6 +242,9 @@ meas_sr_mode5:
         and #ACR_SR_NMASK
         ora #ACR_SR_OT2
         sta VIA_BASE+VIA_ACR
+        ; Write SR_INIT to SR to arm the shift-out sequence
+        lda SR_INIT
+        sta VIA_BASE+VIA_SR
         ; Sample 256 combined CB1/CB2 readings in a tight loop
         ldx #0
 meas_sr_m5_lp:

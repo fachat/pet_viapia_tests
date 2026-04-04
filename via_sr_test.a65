@@ -36,16 +36,17 @@
 ;     2C: SR mode 1, T2 initial value = $0330  (file: VIA.SR.M1.C)
 ;     2D: SR mode 1, T2 initial value = $0440  (file: VIA.SR.M1.D)
 ;
-;   Group 3 - SR mode 5: shift out under T2 control
+;   Group 3 - SR mode 5: shift out under T2 control, SR init = $55
 ;     In mode 5 (ACR SR = 101) T2 underflows clock the SR.
 ;     CB1 is the VIA output clock; CB2 is the VIA data output.
 ;     Both are read back via loopback: CB1->PIA1 PA7, CB2->VIA PA7.
+;     SR is armed by writing $55 to SR after setting ACR to mode 5.
 ;     256 combined CB1/CB2 samples are compared against reference files.
 ;
-;     3A: SR mode 5, T2 initial value = $0110  (file: VIA.SR.M5.A)
-;     3B: SR mode 5, T2 initial value = $0220  (file: VIA.SR.M5.B)
-;     3C: SR mode 5, T2 initial value = $0330  (file: VIA.SR.M5.C)
-;     3D: SR mode 5, T2 initial value = $0440  (file: VIA.SR.M5.D)
+;     3A: SR mode 5 SR=$55, T2 initial value = $0110  (file: VIA.SR.M5.55.A)
+;     3B: SR mode 5 SR=$55, T2 initial value = $0220  (file: VIA.SR.M5.55.B)
+;     3C: SR mode 5 SR=$55, T2 initial value = $0330  (file: VIA.SR.M5.55.C)
+;     3D: SR mode 5 SR=$55, T2 initial value = $0440  (file: VIA.SR.M5.55.D)
 ;
 ;   Group 4 - SR mode 1 (no arm read): shift in under T2 control
 ;     Identical to Group 2 but the SR read that arms shifting is
@@ -56,6 +57,14 @@
 ;     4B: SR mode 1 no-arm, T2 initial value = $0220  (file: VIA.SR.M1N.B)
 ;     4C: SR mode 1 no-arm, T2 initial value = $0330  (file: VIA.SR.M1N.C)
 ;     4D: SR mode 1 no-arm, T2 initial value = $0440  (file: VIA.SR.M1N.D)
+;
+;   Group 5 - SR mode 5: shift out under T2 control, SR init = $AA
+;     Identical to Group 3 but SR is armed by writing $AA to SR.
+;
+;     5A: SR mode 5 SR=$AA, T2 initial value = $0110  (file: VIA.SR.M5.AA.A)
+;     5B: SR mode 5 SR=$AA, T2 initial value = $0220  (file: VIA.SR.M5.AA.B)
+;     5C: SR mode 5 SR=$AA, T2 initial value = $0330  (file: VIA.SR.M5.AA.C)
+;     5D: SR mode 5 SR=$AA, T2 initial value = $0440  (file: VIA.SR.M5.AA.D)
 ;
 ; The measurement subroutine (meas_sr_mode1) is byte-for-byte
 ; identical to the one in via_sr_test_gen.a65, ensuring that the
@@ -131,6 +140,7 @@ FAIL_STEP      = $10        ; step number where mode 0 test last failed
 PCR_SAVE       = $11        ; saved VIA PCR (mode 0 test save/restore)
 PIA1_DDRA_SAVE = $12        ; saved PIA1 DDRA (mode 0 test save/restore)
 PIA1_ORA_SAVE  = $13        ; saved PIA1 ORA data (mode 0 test save/restore)
+SR_INIT        = $14        ; initial value written to SR in meas_sr_mode5 before sampling
 
 ; ============================================================
 ; Memory buffers
@@ -293,7 +303,7 @@ main:
         jsr wait_key
 
         ; --------------------------------------------------------
-        ; Group 3 - SR mode 5 (shift out under T2 control)
+        ; Group 3 - SR mode 5 (shift out under T2 control), SR init = $55
         ;
         ; PIA1 PA7 remains an input (VIA drives CB1 as output clock).
         ; meas_sr_mode5 sets VIA DDRA=$00 internally so VIA PA7 is
@@ -306,6 +316,8 @@ main:
         lda #<msg_t3a
         ldx #>msg_t3a
         jsr print_str
+        lda #$55
+        sta SR_INIT
         lda #$10
         sta SR_T2_LO
         lda #$01
@@ -320,6 +332,8 @@ main:
         lda #<msg_t3b
         ldx #>msg_t3b
         jsr print_str
+        lda #$55
+        sta SR_INIT
         lda #$20
         sta SR_T2_LO
         lda #$02
@@ -334,6 +348,8 @@ main:
         lda #<msg_t3c
         ldx #>msg_t3c
         jsr print_str
+        lda #$55
+        sta SR_INIT
         lda #$30
         sta SR_T2_LO
         lda #$03
@@ -348,6 +364,8 @@ main:
         lda #<msg_t3d
         ldx #>msg_t3d
         jsr print_str
+        lda #$55
+        sta SR_INIT
         lda #$40
         sta SR_T2_LO
         lda #$04
@@ -356,6 +374,79 @@ main:
         lda #<fn_sr_m5d
         ldx #>fn_sr_m5d
         ldy #fn_sr_m5d_end - fn_sr_m5d
+        jsr compare_file
+        jsr print_result
+
+        jsr wait_key
+
+        ; --------------------------------------------------------
+        ; Group 5 - SR mode 5 (shift out under T2 control), SR init = $AA
+        ; --------------------------------------------------------
+        lda #<msg_grp5
+        ldx #>msg_grp5
+        jsr print_str
+
+        lda #<msg_t5a
+        ldx #>msg_t5a
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr meas_sr_mode5
+        lda #<fn_sr_m5aaa
+        ldx #>fn_sr_m5aaa
+        ldy #fn_sr_m5aaa_end - fn_sr_m5aaa
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t5b
+        ldx #>msg_t5b
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr meas_sr_mode5
+        lda #<fn_sr_m5aab
+        ldx #>fn_sr_m5aab
+        ldy #fn_sr_m5aab_end - fn_sr_m5aab
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t5c
+        ldx #>msg_t5c
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr meas_sr_mode5
+        lda #<fn_sr_m5aac
+        ldx #>fn_sr_m5aac
+        ldy #fn_sr_m5aac_end - fn_sr_m5aac
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t5d
+        ldx #>msg_t5d
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr meas_sr_mode5
+        lda #<fn_sr_m5aad
+        ldx #>fn_sr_m5aad
+        ldy #fn_sr_m5aad_end - fn_sr_m5aad
         jsr compare_file
         jsr print_result
 
@@ -858,17 +949,23 @@ msg_t2b:       .byte "  2B SR MODE1 T2=$0220: ", 0
 msg_t2c:       .byte "  2C SR MODE1 T2=$0330: ", 0
 msg_t2d:       .byte "  2D SR MODE1 T2=$0440: ", 0
 
-msg_grp3:      .byte "GRP3: SR MODE 5 (SHIFT OUT VIA T2)", $0d, 0
-msg_t3a:       .byte "  3A SR MODE5 T2=$0110: ", 0
-msg_t3b:       .byte "  3B SR MODE5 T2=$0220: ", 0
-msg_t3c:       .byte "  3C SR MODE5 T2=$0330: ", 0
-msg_t3d:       .byte "  3D SR MODE5 T2=$0440: ", 0
+msg_grp3:      .byte "GRP3: SR MODE 5 (SHIFT OUT VIA T2) SR=$55", $0d, 0
+msg_t3a:       .byte "  3A SR MODE5 SR=$55 T2=$0110: ", 0
+msg_t3b:       .byte "  3B SR MODE5 SR=$55 T2=$0220: ", 0
+msg_t3c:       .byte "  3C SR MODE5 SR=$55 T2=$0330: ", 0
+msg_t3d:       .byte "  3D SR MODE5 SR=$55 T2=$0440: ", 0
 
 msg_grp4:      .byte "GRP4: SR MODE 1 NO ARM (SHIFT IN VIA T2)", $0d, 0
 msg_t4a:       .byte "  4A SR M1NOARM T2=$0110: ", 0
 msg_t4b:       .byte "  4B SR M1NOARM T2=$0220: ", 0
 msg_t4c:       .byte "  4C SR M1NOARM T2=$0330: ", 0
 msg_t4d:       .byte "  4D SR M1NOARM T2=$0440: ", 0
+
+msg_grp5:      .byte "GRP5: SR MODE 5 (SHIFT OUT VIA T2) SR=$AA", $0d, 0
+msg_t5a:       .byte "  5A SR MODE5 SR=$AA T2=$0110: ", 0
+msg_t5b:       .byte "  5B SR MODE5 SR=$AA T2=$0220: ", 0
+msg_t5c:       .byte "  5C SR MODE5 SR=$AA T2=$0330: ", 0
+msg_t5d:       .byte "  5D SR MODE5 SR=$AA T2=$0440: ", 0
 
 msg_ok:        .byte "OK", $0d, 0
 msg_fail:      .byte "FAIL @", 0
@@ -896,11 +993,19 @@ fn_sr_m1nc:   .byte "VIA.SR.M1N.C"
 fn_sr_m1nc_end:
 fn_sr_m1nd:   .byte "VIA.SR.M1N.D"
 fn_sr_m1nd_end:
-fn_sr_m5a:    .byte "VIA.SR.M5.A"
+fn_sr_m5a:    .byte "VIA.SR.M5.55.A"
 fn_sr_m5a_end:
-fn_sr_m5b:    .byte "VIA.SR.M5.B"
+fn_sr_m5b:    .byte "VIA.SR.M5.55.B"
 fn_sr_m5b_end:
-fn_sr_m5c:    .byte "VIA.SR.M5.C"
+fn_sr_m5c:    .byte "VIA.SR.M5.55.C"
 fn_sr_m5c_end:
-fn_sr_m5d:    .byte "VIA.SR.M5.D"
+fn_sr_m5d:    .byte "VIA.SR.M5.55.D"
 fn_sr_m5d_end:
+fn_sr_m5aaa:  .byte "VIA.SR.M5.AA.A"
+fn_sr_m5aaa_end:
+fn_sr_m5aab:  .byte "VIA.SR.M5.AA.B"
+fn_sr_m5aab_end:
+fn_sr_m5aac:  .byte "VIA.SR.M5.AA.C"
+fn_sr_m5aac_end:
+fn_sr_m5aad:  .byte "VIA.SR.M5.AA.D"
+fn_sr_m5aad_end:
