@@ -101,6 +101,29 @@
 ;     8C: SR mode 1 no-arm IFR poll, T2 = $0330
 ;     8D: SR mode 1 no-arm IFR poll, T2 = $0440
 ;
+;   Group 9 - SR mode 5 CB1 poll, SR init = $55
+;     Identical setup to Group 3 (mode 5, SR=$55, T2 driven) but
+;     instead of sampling CB1/CB2 into a buffer, reconstructs the
+;     shifted-out byte bit by bit by polling CB1 and sampling CB2.
+;     For each of 8 bits: verifies IFR.SR is still clear; polls
+;     CB1 low (up to 256 iterations); polls CB1 high (up to 256
+;     iterations); samples CB2 via VIA PA7 (ASL -> carry; ROL into
+;     result).  After 8 bits: verifies IFR.SR is set and result == SR_INIT.
+;     On timeout FAIL_IDX = (bit_num << 4) | step (1=lo, 2=hi).
+;
+;     9A: SR mode 5 CB1 poll SR=$55 T2=$0110
+;     9B: SR mode 5 CB1 poll SR=$55 T2=$0220
+;     9C: SR mode 5 CB1 poll SR=$55 T2=$0330
+;     9D: SR mode 5 CB1 poll SR=$55 T2=$0440
+;
+;   Group 10 - SR mode 5 CB1 poll, SR init = $AA
+;     Identical to Group 9 but SR is armed with $AA.
+;
+;     10A: SR mode 5 CB1 poll SR=$AA T2=$0110
+;     10B: SR mode 5 CB1 poll SR=$AA T2=$0220
+;     10C: SR mode 5 CB1 poll SR=$AA T2=$0330
+;     10D: SR mode 5 CB1 poll SR=$AA T2=$0440
+;
 ; For Groups 2 and 4 the SR_IFR_PRE (expected: 0) and SR_IFR_POST
 ; (expected: IFR_SR) values filled by the measurement subroutines
 ; are verified after each run; a mismatch is reported as a FAIL
@@ -187,6 +210,8 @@ SR_IFR_POST    = $16        ; IFR & IFR_SR sampled after sample loop (expected: 
 SR_M3_DATA     = $17        ; original data byte passed to test_sr_mode3
 SR_M3_SHIFT    = $18        ; working copy of data, shifted left each iteration
 SR_IFR_COUNT   = $19        ; iteration count from test_sr_mode1_ifr / _noarm_ifr
+SR_M5_RESULT   = $1A        ; reconstructed byte in test_sr_mode5_cb1
+SR_M5_BITNO    = $1B        ; current bit number (1..8) in test_sr_mode5_cb1
 
 ; ============================================================
 ; Memory buffers
@@ -737,6 +762,127 @@ t4d_done:
         sta SR_T2_HI
         jsr test_sr_mode1_noarm_ifr
         jsr print_result_cnt
+
+        jsr wait_key
+
+        ; --------------------------------------------------------
+        ; Group 9 - SR mode 5 CB1 poll (shift out under T2 control), SR init = $55
+        ;
+        ; Same setup as Group 3 (mode 5, SR=$55) but instead of sampling
+        ; CB1/CB2 into MEAS_BUF, reconstructs the shifted-out byte by
+        ; polling CB1 low/high for each of 8 bits and sampling CB2.
+        ; PIA1 PA7 must be an input (already set; VIA drives CB1).
+        ; --------------------------------------------------------
+        lda #<msg_grp9
+        ldx #>msg_grp9
+        jsr print_str
+
+        lda #<msg_t9a
+        ldx #>msg_t9a
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr test_sr_mode5_cb1
+        jsr print_result
+
+        lda #<msg_t9b
+        ldx #>msg_t9b
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr test_sr_mode5_cb1
+        jsr print_result
+
+        lda #<msg_t9c
+        ldx #>msg_t9c
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr test_sr_mode5_cb1
+        jsr print_result
+
+        lda #<msg_t9d
+        ldx #>msg_t9d
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr test_sr_mode5_cb1
+        jsr print_result
+
+        jsr wait_key
+
+        ; --------------------------------------------------------
+        ; Group 10 - SR mode 5 CB1 poll (shift out under T2 control), SR init = $AA
+        ;
+        ; Identical to Group 9 but SR is armed with $AA.
+        ; --------------------------------------------------------
+        lda #<msg_grp10
+        ldx #>msg_grp10
+        jsr print_str
+
+        lda #<msg_t10a
+        ldx #>msg_t10a
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr test_sr_mode5_cb1
+        jsr print_result
+
+        lda #<msg_t10b
+        ldx #>msg_t10b
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr test_sr_mode5_cb1
+        jsr print_result
+
+        lda #<msg_t10c
+        ldx #>msg_t10c
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr test_sr_mode5_cb1
+        jsr print_result
+
+        lda #<msg_t10d
+        ldx #>msg_t10d
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr test_sr_mode5_cb1
+        jsr print_result
 
         ; --------------------------------------------------------
         ; Restore VIA state and print summary
@@ -1332,8 +1478,161 @@ tsm1ni_pass:
         rts
 
 ; ============================================================
-; Subroutine: compare_file
+; Subroutine: test_sr_mode5_cb1
 ;
+; Tests SR mode 5 (shift out under T2 control) by bit-banging:
+; for each of 8 output bits, polls CB1 low then CB1 high, samples
+; CB2 at the rising CB1 edge, and accumulates the result byte.
+; Verifies IFR.SR remains clear during shifting and is set after
+; all 8 bits.  Verifies the reconstructed byte == SR_INIT.
+;
+; Hardware connections required:
+;   CB1 -> Pin 6 -> Pin 5 -> PIA1 PA7 (input): reads VIA output clock
+;   CB2 -> Pin M -> Pin L -> VIA PA7  (input, DDRA=$00): reads data
+;   PIA1 PA7 must be an input before calling (VIA drives CB1 output).
+;
+; Caller sets SR_INIT, SR_T2_LO, SR_T2_HI before calling.
+;
+; CB2 is sampled at the rising CB1 edge (CB1 high after being low).
+; The VIA shifts MSB first: bit 7 of SR_INIT appears on the first
+; rising edge, bit 0 on the eighth.  ROL accumulates these MSB-first
+; so after 8 iterations SR_M5_RESULT == SR_INIT.
+;
+; FAIL_IDX encoding on failure:
+;   (bit_num << 4) | $0 : IFR.SR set early at this bit
+;   (bit_num << 4) | $1 : CB1 did not go low within 256 polls
+;   (bit_num << 4) | $2 : CB1 did not go high within 256 polls
+;   $09               : IFR.SR not set after 8 bits
+;   $0A               : reconstructed byte != SR_INIT
+;
+; Returns: A = 0 (pass), A = 1 (fail)
+; Clobbers: A, X
+; ============================================================
+test_sr_mode5_cb1:
+        sei
+        ; Disable SR and clear SR register
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        sta VIA_BASE+VIA_ACR
+        lda #0
+        sta VIA_BASE+VIA_SR
+        ; Set CB2 as input (PCR bits 7:5 = 000)
+        lda VIA_BASE+VIA_PCR
+        and #$1F
+        sta VIA_BASE+VIA_PCR
+        ; Set all VIA PA as inputs (DDRA = $00); PA7 reads CB2 via loopback
+        lda #0
+        sta VIA_BASE+VIA_DDRA
+        ; Load T2 and start counting
+        lda SR_T2_LO
+        sta VIA_BASE+VIA_T2CL
+        lda SR_T2_HI
+        sta VIA_BASE+VIA_T2CH
+        ; Set SR to mode 5: shift out under T2 control
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OT2
+        sta VIA_BASE+VIA_ACR
+        ; Write SR_INIT to SR to arm the shift-out sequence
+        lda SR_INIT
+        sta VIA_BASE+VIA_SR
+        ; Initialise result accumulator and bit counter
+        lda #0
+        sta SR_M5_RESULT
+        lda #1
+        sta SR_M5_BITNO
+tsm5_bit_loop:
+        ; -- Check IFR.SR is still clear --
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        beq tsm5_ifr_ok
+        ; IFR.SR already set: FAIL_IDX = (bit_num << 4) | 0
+        lda SR_M5_BITNO
+        asl
+        asl
+        asl
+        asl
+        sta FAIL_IDX
+        jmp tsm5_fail
+tsm5_ifr_ok:
+        ; -- Poll CB1 low (up to 256 iterations) --
+        ldx #0
+tsm5_wait_lo:
+        lda PIA1_BASE+PIA_ORA
+        and #$80
+        beq tsm5_cb1_low        ; bit 7 = 0 -> CB1 low
+        inx
+        bne tsm5_wait_lo
+        ; Timeout: FAIL_IDX = (bit_num << 4) | 1
+        lda SR_M5_BITNO
+        asl
+        asl
+        asl
+        asl
+        ora #$01
+        sta FAIL_IDX
+        jmp tsm5_fail
+tsm5_cb1_low:
+        ; -- Poll CB1 high (up to 256 iterations) --
+        ldx #0
+tsm5_wait_hi:
+        lda PIA1_BASE+PIA_ORA
+        and #$80
+        bne tsm5_cb1_high       ; bit 7 = 1 -> CB1 high
+        inx
+        bne tsm5_wait_hi
+        ; Timeout: FAIL_IDX = (bit_num << 4) | 2
+        lda SR_M5_BITNO
+        asl
+        asl
+        asl
+        asl
+        ora #$02
+        sta FAIL_IDX
+        jmp tsm5_fail
+tsm5_cb1_high:
+        ; -- Sample CB2 and shift into result --
+        lda VIA_BASE+VIA_ORA_NH ; read VIA PA7 (CB2 via loopback)
+        asl                     ; CB2 bit 7 -> carry
+        rol SR_M5_RESULT        ; carry -> bit 0, previous bits shift left
+        ; Advance bit counter; loop until 8 bits processed
+        inc SR_M5_BITNO
+        lda SR_M5_BITNO
+        cmp #9
+        bne tsm5_bit_loop
+        ; -- Verify IFR.SR is set after 8 bits --
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        bne tsm5_check_val
+        lda #$09
+        sta FAIL_IDX
+        jmp tsm5_fail
+tsm5_check_val:
+        ; -- Verify reconstructed byte == SR_INIT --
+        lda SR_M5_RESULT
+        cmp SR_INIT
+        beq tsm5_pass
+        lda #$0A
+        sta FAIL_IDX
+        ; fall through to tsm5_fail
+tsm5_fail:
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        lda #1
+        rts
+tsm5_pass:
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        lda #0
+        rts
+
+
 ; Loads 256 bytes from a CBM PRG file on device 8 into REF_BUF,
 ; then compares REF_BUF byte-by-byte against MEAS_BUF.
 ;
@@ -1590,6 +1889,18 @@ msg_t8a:       .byte "  8A SR M1NIFR T2=$0110: ", 0
 msg_t8b:       .byte "  8B SR M1NIFR T2=$0220: ", 0
 msg_t8c:       .byte "  8C SR M1NIFR T2=$0330: ", 0
 msg_t8d:       .byte "  8D SR M1NIFR T2=$0440: ", 0
+
+msg_grp9:      .byte "GRP9: SR MODE 5 CB1 POLL SR=$55 (VIA T2)", $0d, 0
+msg_t9a:       .byte "  9A SR M5CB1 SR=$55 T2=$0110: ", 0
+msg_t9b:       .byte "  9B SR M5CB1 SR=$55 T2=$0220: ", 0
+msg_t9c:       .byte "  9C SR M5CB1 SR=$55 T2=$0330: ", 0
+msg_t9d:       .byte "  9D SR M5CB1 SR=$55 T2=$0440: ", 0
+
+msg_grp10:     .byte "GRP10: SR MODE 5 CB1 POLL SR=$AA (VIA T2)", $0d, 0
+msg_t10a:      .byte "  10A SR M5CB1 SR=$AA T2=$0110: ", 0
+msg_t10b:      .byte "  10B SR M5CB1 SR=$AA T2=$0220: ", 0
+msg_t10c:      .byte "  10C SR M5CB1 SR=$AA T2=$0330: ", 0
+msg_t10d:      .byte "  10D SR M5CB1 SR=$AA T2=$0440: ", 0
 
 msg_ok:        .byte "OK", $0d, 0
 msg_ok_cnt:    .byte "OK @", 0
