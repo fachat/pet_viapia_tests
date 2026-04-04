@@ -66,6 +66,20 @@
 ;     5C: SR mode 5 SR=$AA, T2 initial value = $0330  (file: VIA.SR.M5.AA.C)
 ;     5D: SR mode 5 SR=$AA, T2 initial value = $0440  (file: VIA.SR.M5.AA.D)
 ;
+;   Group 6 - SR mode 3: shift in under external CB1 control
+;     In mode 3 (ACR SR = 011) CB1 rising edges shift data from CB2
+;     into the SR, MSB first.  After 8 edges IFR.SR is set.
+;     PA7 output drives CB2 via loopback; PIA1 PA7 output drives CB1
+;     via loopback.  The data byte is bit-banged in MSB-first order.
+;     Each pre-shift IFR.SR=0 check and the post-shift IFR.SR=1 check
+;     verify correct flag behaviour.  SR is read back and compared to
+;     the original data byte; IFR.SR is verified clear after the read.
+;
+;     6A: SR mode 3, data = $55
+;     6B: SR mode 3, data = $AA
+;     6C: SR mode 3, data = $A5
+;     6D: SR mode 3, data = $5A
+;
 ; The measurement subroutine (meas_sr_mode1) is byte-for-byte
 ; identical to the one in via_sr_test_gen.a65, ensuring that the
 ; measured values match the pre-recorded reference data.
@@ -104,6 +118,7 @@ ACR_SR_MASK  = $1C          ; mask for SR mode bits
 ACR_SR_NMASK = $E3          ; inverse mask: clears SR mode bits 4:2
 ACR_SR_OFF   = $00          ; 000 -> SR disabled
 ACR_SR_IT2   = $04          ; 001 -> shift in under T2 control
+ACR_SR_IE1   = $0C          ; 011 -> shift in under external CB1 control
 ACR_SR_OT2   = $14          ; 101 -> shift out under T2 control
 
 ; IFR / IER bit masks
@@ -143,6 +158,8 @@ PIA1_ORA_SAVE  = $13        ; saved PIA1 ORA data (mode 0 test save/restore)
 SR_INIT        = $14        ; initial value written to SR in meas_sr_mode5 before sampling
 SR_IFR_PRE     = $15        ; IFR & IFR_SR sampled before arming SR (expected: 0)
 SR_IFR_POST    = $16        ; IFR & IFR_SR sampled after sample loop (expected: IFR_SR)
+SR_M3_DATA     = $17        ; original data byte passed to test_sr_mode3
+SR_M3_SHIFT    = $18        ; working copy of data, shifted left each iteration
 
 ; ============================================================
 ; Memory buffers
@@ -522,6 +539,48 @@ main:
         jsr compare_file
         jsr print_result
 
+        jsr wait_key
+
+        ; --------------------------------------------------------
+        ; Group 6 - SR mode 3 (shift in under external CB1 control)
+        ;
+        ; CB1 is the external clock input (driven via PIA1 PA7 loopback).
+        ; CB2 is the data input (driven via VIA PA7 loopback).
+        ; PA7 = output (DDRA=$80); PIA1 PA7 = output, drives CB1 clock.
+        ; Data bytes $55, $AA, $A5, $5A are shifted in MSB-first.
+        ; --------------------------------------------------------
+        lda #<msg_grp6
+        ldx #>msg_grp6
+        jsr print_str
+
+        lda #<msg_t6a
+        ldx #>msg_t6a
+        jsr print_str
+        lda #$55
+        jsr test_sr_mode3
+        jsr print_result
+
+        lda #<msg_t6b
+        ldx #>msg_t6b
+        jsr print_str
+        lda #$aa
+        jsr test_sr_mode3
+        jsr print_result
+
+        lda #<msg_t6c
+        ldx #>msg_t6c
+        jsr print_str
+        lda #$a5
+        jsr test_sr_mode3
+        jsr print_result
+
+        lda #<msg_t6d
+        ldx #>msg_t6d
+        jsr print_str
+        lda #$5a
+        jsr test_sr_mode3
+        jsr print_result
+
         ; --------------------------------------------------------
         ; Restore VIA state and print summary
         ; --------------------------------------------------------
@@ -759,6 +818,199 @@ sm0_restore:
         rts
 
 ; ============================================================
+; Subroutine: test_sr_mode3
+;
+; Tests SR mode 3 (shift in under external CB1 control).
+; CB1 is the external clock input, driven via PIA1 PA7 loopback.
+; CB2 is the data input, driven via VIA PA7 (DDRA=$80) loopback.
+; The 8 data bits are shifted in MSB-first by bit-banging CB1/CB2.
+;
+; Hardware connections required:
+;   PIA1 PA7 output -> CB1 (Pin 5 -> Pin 6, loopback)
+;   VIA PA7  output -> CB2 (Pin L -> Pin M, loopback)
+;
+; Sequence:
+;   Setup: PCR CB2=input, DDRA=$80 (PA7=out), PA7=1 (CB2=hi),
+;          PIA1 PA7=output CB1=hi, SR disabled, SR=0, IFR.SR cleared,
+;          ACR SR=mode 3.
+;   For each of 8 bits (MSB first):
+;     verify IFR.SR is clear
+;     CB1 low
+;     CB2 = bit 7 of data (via PA7 loopback)
+;     ASL data
+;     CB1 high (rising edge shifts CB2 into SR)
+;     CB2 high (restore idle)
+;   After 8 bits:
+;     verify IFR.SR is set
+;     read SR and compare to original data
+;     verify IFR.SR is now clear (cleared by SR read)
+;
+; Entry: A = data byte to shift in
+; Returns: A = 0 (pass), A = 1 (fail)
+; FAIL_STEP / FAIL_IDX on failure:
+;   1 = IFR.SR unexpectedly set inside shift loop
+;   2 = IFR.SR not set after 8 bits
+;   3 = SR value mismatch
+;   4 = IFR.SR not cleared by SR read
+; Clobbers: A, X
+; ============================================================
+test_sr_mode3:
+        sei
+
+        ; Save original data and working copy
+        sta SR_M3_DATA
+        sta SR_M3_SHIFT
+
+        ; Save PCR
+        lda VIA_BASE+VIA_PCR
+        sta PCR_SAVE
+
+        ; Configure PIA1 PA7 as output; save original DDRA and ORA; CB1 high
+        lda PIA1_BASE+PIA_CRA
+        pha                         ; save CRA on stack
+        and #$FB                    ; select DDRA (CRA bit 2 = 0)
+        sta PIA1_BASE+PIA_CRA
+        lda PIA1_BASE+PIA_ORA       ; read DDRA
+        sta PIA1_DDRA_SAVE          ; save DDRA
+        ora #$80                    ; set PA7 = output
+        sta PIA1_BASE+PIA_ORA
+        pla                         ; restore CRA
+        sta PIA1_BASE+PIA_CRA       ; re-select data register
+        lda PIA1_BASE+PIA_ORA       ; read ORA data
+        sta PIA1_ORA_SAVE           ; save ORA data
+        ora #$80                    ; PA7 = 1 -> CB1 high
+        sta PIA1_BASE+PIA_ORA
+
+        ; Set VIA PA7 as output, drive CB2 high via loopback
+        lda #$80
+        sta VIA_BASE+VIA_DDRA       ; PA7 = output
+        sta VIA_BASE+VIA_ORA_NH     ; PA7 = 1 -> CB2 = high
+
+        ; Set CB2 as input (PCR bits 7:5 = 000, overridden by SR mode anyway)
+        lda VIA_BASE+VIA_PCR
+        and #$1F                    ; clear CB2 mode bits 7:5
+        sta VIA_BASE+VIA_PCR
+
+        ; Disable SR (mode 0) and write 0 to SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        sta VIA_BASE+VIA_ACR
+        lda #0
+        sta VIA_BASE+VIA_SR
+
+        ; Clear IFR.SR explicitly before setting mode 3
+        lda #IFR_SR
+        sta VIA_BASE+VIA_IFR
+
+        ; Set SR to mode 3: shift in under external CB1 control
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_IE1
+        sta VIA_BASE+VIA_ACR
+
+        ; Shift 8 bits in, MSB first
+        ldx #8
+sm3_loop:
+        ; Verify IFR.SR is clear before this bit shift
+        lda #1
+        sta FAIL_STEP
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        bne sm3_jmp_fail
+
+        ; CB1 low
+        lda PIA1_BASE+PIA_ORA
+        and #$7F                    ; PA7 = 0 -> CB1 low
+        sta PIA1_BASE+PIA_ORA
+
+        ; CB2 = bit 7 of SR_M3_SHIFT (0 -> PA7=0, 1 -> PA7=$80)
+        lda SR_M3_SHIFT
+        and #$80
+        sta VIA_BASE+VIA_ORA_NH     ; drive PA7 = data bit 7 -> CB2 via loopback
+
+        ; Shift working copy left (next bit becomes bit 7)
+        asl SR_M3_SHIFT
+
+        ; CB1 high (rising edge -> VIA shifts CB2 into SR)
+        lda PIA1_BASE+PIA_ORA
+        ora #$80                    ; PA7 = 1 -> CB1 high
+        sta PIA1_BASE+PIA_ORA
+
+        ; CB2 high (restore to idle)
+        lda #$80
+        sta VIA_BASE+VIA_ORA_NH
+
+        dex
+        bne sm3_loop
+
+        ; ---- Verify IFR.SR is set after 8 bits ----
+        lda #2
+        sta FAIL_STEP
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        beq sm3_fail
+
+        ; ---- Read SR and compare to original data ----
+        lda #3
+        sta FAIL_STEP
+        lda VIA_BASE+VIA_SR         ; read SR (also clears IFR.SR)
+        cmp SR_M3_DATA
+        bne sm3_fail
+
+        ; ---- Verify IFR.SR is now clear (cleared by SR read) ----
+        lda #4
+        sta FAIL_STEP
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        bne sm3_fail
+
+        ; PASS
+        jsr sm3_restore
+        cli
+        lda #0
+        rts
+
+sm3_jmp_fail:
+        jmp sm3_fail
+
+sm3_fail:
+        lda FAIL_STEP
+        sta FAIL_IDX
+        jsr sm3_restore
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: sm3_restore
+;
+; Restores PCR, PIA1 ORA data, PIA1 DDRA, and VIA DDRA after
+; test_sr_mode3.
+; ============================================================
+sm3_restore:
+        ; Disable SR
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        ; Restore VIA PCR
+        lda PCR_SAVE
+        sta VIA_BASE+VIA_PCR
+        ; Restore PIA1 ORA data
+        lda PIA1_ORA_SAVE
+        sta PIA1_BASE+PIA_ORA
+        ; Restore PIA1 DDRA
+        lda PIA1_BASE+PIA_CRA
+        pha
+        and #$FB                    ; select DDRA
+        sta PIA1_BASE+PIA_CRA
+        lda PIA1_DDRA_SAVE
+        sta PIA1_BASE+PIA_ORA       ; write DDRA
+        pla
+        sta PIA1_BASE+PIA_CRA       ; restore CRA
+        rts
+
+; ============================================================
 ; Subroutine: compare_file
 ;
 ; Loads 256 bytes from a CBM PRG file on device 8 into REF_BUF,
@@ -968,6 +1220,12 @@ msg_t5a:       .byte "  5A SR MODE5 SR=$AA T2=$0110: ", 0
 msg_t5b:       .byte "  5B SR MODE5 SR=$AA T2=$0220: ", 0
 msg_t5c:       .byte "  5C SR MODE5 SR=$AA T2=$0330: ", 0
 msg_t5d:       .byte "  5D SR MODE5 SR=$AA T2=$0440: ", 0
+
+msg_grp6:      .byte "GRP6: SR MODE 3 (SHIFT IN EXT CB1)", $0d, 0
+msg_t6a:       .byte "  6A SR MODE3 DATA=$55: ", 0
+msg_t6b:       .byte "  6B SR MODE3 DATA=$AA: ", 0
+msg_t6c:       .byte "  6C SR MODE3 DATA=$A5: ", 0
+msg_t6d:       .byte "  6D SR MODE3 DATA=$5A: ", 0
 
 msg_ok:        .byte "OK", $0d, 0
 msg_fail:      .byte "FAIL @", 0
