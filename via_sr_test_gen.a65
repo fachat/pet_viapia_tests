@@ -516,10 +516,10 @@ ps_done:
 ; ============================================================
 msg_banner: .byte "VIA SR TEST DATA GENERATOR", $0d
             .byte "--------------------------", $0d, 0
-msg_sr_m1:  .byte "SR MODE1...", 0
-msg_sr_m1n: .byte "SR MODE1 NO ARM...", 0
-msg_sr_m55: .byte "SR MODE5 SR=$55...", 0
-msg_sr_m5aa:.byte "SR MODE5 SR=$AA...", 0
+msg_sr_m1:  .byte "SR MODE1...", $0d, 0
+msg_sr_m1n: .byte "SR MODE1 NO ARM...", $0d, 0
+msg_sr_m55: .byte "SR MODE5 SR=$55...", $0d, 0
+msg_sr_m5aa:.byte "SR MODE5 SR=$AA...", $0d, 0
 msg_done:   .byte $0d, "DONE.", $0d, 0
 msg_ok:     .byte ".", 0
 msg_err:    .byte "E", 0
