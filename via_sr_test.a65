@@ -33,6 +33,8 @@
 ;
 ;     2A: SR mode 1, T2 initial value = $0110  (file: VIA.SR.M1.A)
 ;     2B: SR mode 1, T2 initial value = $0220  (file: VIA.SR.M1.B)
+;     2C: SR mode 1, T2 initial value = $0330  (file: VIA.SR.M1.C)
+;     2D: SR mode 1, T2 initial value = $0440  (file: VIA.SR.M1.D)
 ;
 ; The measurement subroutine (meas_sr_mode1) is byte-for-byte
 ; identical to the one in via_sr_test_gen.a65, ensuring that the
@@ -235,6 +237,34 @@ main:
         lda #<fn_sr_m1b
         ldx #>fn_sr_m1b
         ldy #fn_sr_m1b_end - fn_sr_m1b
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t2c
+        ldx #>msg_t2c
+        jsr print_str
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr meas_sr_mode1
+        lda #<fn_sr_m1c
+        ldx #>fn_sr_m1c
+        ldy #fn_sr_m1c_end - fn_sr_m1c
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t2d
+        ldx #>msg_t2d
+        jsr print_str
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr meas_sr_mode1
+        lda #<fn_sr_m1d
+        ldx #>fn_sr_m1d
+        ldy #fn_sr_m1d_end - fn_sr_m1d
         jsr compare_file
         jsr print_result
 
@@ -664,6 +694,8 @@ msg_t1:        .byte "  1  SR MODE0 CB1/CB2 SEQ: ", 0
 msg_grp2:      .byte "GRP2: SR MODE 1 (SHIFT IN VIA T2)", $0d, 0
 msg_t2a:       .byte "  2A SR MODE1 T2=$0110: ", 0
 msg_t2b:       .byte "  2B SR MODE1 T2=$0220: ", 0
+msg_t2c:       .byte "  2C SR MODE1 T2=$0330: ", 0
+msg_t2d:       .byte "  2D SR MODE1 T2=$0440: ", 0
 
 msg_ok:        .byte "OK", $0d, 0
 msg_fail:      .byte "FAIL @", 0
@@ -679,3 +711,7 @@ fn_sr_m1a:    .byte "VIA.SR.M1.A"
 fn_sr_m1a_end:
 fn_sr_m1b:    .byte "VIA.SR.M1.B"
 fn_sr_m1b_end:
+fn_sr_m1c:    .byte "VIA.SR.M1.C"
+fn_sr_m1c_end:
+fn_sr_m1d:    .byte "VIA.SR.M1.D"
+fn_sr_m1d_end:

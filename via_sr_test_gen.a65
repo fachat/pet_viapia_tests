@@ -18,6 +18,8 @@
 ; Files written (CBM PRG, 256 bytes + 2-byte load address header):
 ;   VIA.SR.M1.A   SR mode 1, T2 initial value = $0110
 ;   VIA.SR.M1.B   SR mode 1, T2 initial value = $0220
+;   VIA.SR.M1.C   SR mode 1, T2 initial value = $0330
+;   VIA.SR.M1.D   SR mode 1, T2 initial value = $0440
 ;
 ; Files are written using PET_SAVE (JMP $f6e3), bypassing the
 ; $FFD8 KERNAL entry which includes BASIC parsing.
@@ -190,6 +192,32 @@ main:
         jsr write_file
 
         ; --------------------------------------------------------
+        ; SR mode 1, T2 initial value = $0330
+        ; --------------------------------------------------------
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr meas_sr_mode1
+        lda #<fn_sr_m1c
+        ldx #>fn_sr_m1c
+        ldy #fn_sr_m1c_end - fn_sr_m1c
+        jsr write_file
+
+        ; --------------------------------------------------------
+        ; SR mode 1, T2 initial value = $0440
+        ; --------------------------------------------------------
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr meas_sr_mode1
+        lda #<fn_sr_m1d
+        ldx #>fn_sr_m1d
+        ldy #fn_sr_m1d_end - fn_sr_m1d
+        jsr write_file
+
+        ; --------------------------------------------------------
         ; Restore VIA state
         ; --------------------------------------------------------
         sei
@@ -333,3 +361,7 @@ fn_sr_m1a:    .byte "VIA.SR.M1.A"
 fn_sr_m1a_end:
 fn_sr_m1b:    .byte "VIA.SR.M1.B"
 fn_sr_m1b_end:
+fn_sr_m1c:    .byte "VIA.SR.M1.C"
+fn_sr_m1c_end:
+fn_sr_m1d:    .byte "VIA.SR.M1.D"
+fn_sr_m1d_end:
