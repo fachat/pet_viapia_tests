@@ -1,0 +1,678 @@
+; ============================================================
+; via_sr_test.a65
+; VIA Shift Register Tests
+;
+; Tests the 6522 VIA shift register at $E840 on the PET 4032.
+; Reference timing data (produced by via_sr_test_gen.prg) must
+; be present on device 8 (IEEE-488 disk drive) before running
+; the mode 1 tests.
+;
+; Requires the userport test fixture:
+;   Pin 5 (PIA1 PA7)  ->  Pin 6  (CB1) : PIA1 PA7 drives CB1 clock
+;   Pin L  (VIA PA7)  <-> Pin M  (CB2) : PA7 / CB2 loopback (data)
+;
+; Test groups:
+;
+;   Group 1 - SR mode 0 (disabled): external CB1 clock
+;     In mode 0 (ACR SR = 000) CB1 rising edges still shift data
+;     from CB2 into SR (left-shift; new bit at bit 0).  The VIA
+;     does not count bits and IFR.SR is never set.
+;
+;     1: Complete mode 0 sequence:
+;        Setup: DDRA=$00, ACR SR=0, CB1 hi via PIA1 PA7,
+;               CB2 hi output via PCR, SR=$00.
+;        Steps: CB1 lo/hi cycles verify SR=$01, $03, $06;
+;               8-iteration loop with alternating CB2 verifies
+;               SR=$AA and IFR.SR=0 throughout.
+;
+;   Group 2 - SR mode 1: shift in under T2 control
+;     In mode 1 (ACR SR = 001) T2 underflows clock the SR.
+;     CB2 is the data input (held high via PA7 loopback).
+;     After 8 bits the IFR.SR bit is set.
+;     256 SR samples are compared against reference files.
+;
+;     2A: SR mode 1, T2 initial value = $0110  (file: VIA.SR.M1.A)
+;     2B: SR mode 1, T2 initial value = $0220  (file: VIA.SR.M1.B)
+;
+; The measurement subroutine (meas_sr_mode1) is byte-for-byte
+; identical to the one in via_sr_test_gen.a65, ensuring that the
+; measured values match the pre-recorded reference data.
+;
+; Target   : Commodore PET 4032
+; Assembler: xa65  (command: xa -W -XMASM)
+; Load     : LOAD then RUN  -- or autostart in VICE
+; ============================================================
+
+; ============================================================
+; Hardware addresses
+; ============================================================
+VIA_BASE = $E840            ; VIA (6522) base address
+
+; VIA register offsets from VIA_BASE
+VIA_T1CL = $04              ; T1 counter low  (read: clears IFR6)
+VIA_T1LL = $06              ; T1 latch low    (read/write: latch only)
+VIA_T1LH = $07              ; T1 latch high   (write: clears IFR6; read: latch)
+VIA_T2CL = $08              ; T2 counter low  (write: latch; read: counter, clears IFR5)
+VIA_T2CH = $09              ; T2 counter high (write: loads T2CL from latch, starts)
+VIA_SR   = $0A              ; Shift register
+VIA_ACR  = $0B              ; Auxiliary control register
+VIA_PCR  = $0C              ; Peripheral control register
+VIA_IFR  = $0D              ; Interrupt flag register
+VIA_IER  = $0E              ; Interrupt enable register
+VIA_DDRA = $03              ; Port A data direction register (1=output)
+VIA_ORA_NH = $0F            ; Port A data, no handshake (no IFR side-effect)
+
+; PIA1
+PIA1_BASE = $E810           ; PIA1 base address
+PIA_ORA   = 0               ; Port A / DDRA (selected by CRA bit 2)
+PIA_CRA   = 1               ; Control register A (bit 2: 0=DDRA, 1=data)
+
+; ACR SR mode (bits 4:2)
+ACR_SR_MASK  = $1C          ; mask for SR mode bits
+ACR_SR_NMASK = $E3          ; inverse mask: clears SR mode bits 4:2
+ACR_SR_OFF   = $00          ; 000 -> SR disabled
+ACR_SR_IT2   = $04          ; 001 -> shift in under T2 control
+
+; IFR / IER bit masks
+IFR_T1 = $40                ; bit 6 = T1 timeout
+IFR_T2 = $20                ; bit 5 = T2 timeout
+IFR_SR = $04                ; bit 2 = SR complete
+
+; VIA PCR CB2 mode constants (bits 7:5):
+;   111 = manual output high; 110 = manual output low
+PCR_CB2_HI    = $E0         ; CB2 manual output high (bits 7:5 = 111)
+PCR_CB2_LO    = $C0         ; CB2 manual output low  (bits 7:5 = 110)
+PCR_CB2_NMASK = $1F         ; inverse mask: clears CB2 mode bits 7:5
+
+; CBM KERNAL
+CHROUT = $FFD2
+GETIN  = $FFE4
+
+; ============================================================
+; Zero-page ($02-$13 - safe for standalone ML on PET)
+; ============================================================
+STRPTR         = $02        ; 2-byte string pointer for print_str
+PASS_CNT       = $04        ; running pass counter
+FAIL_CNT       = $05        ; running fail counter
+FNPTR          = $06        ; 2-byte pointer to current filename ($06-$07)
+FNLEN          = $08        ; length of current filename
+ACR_SAVE       = $09        ; saved VIA ACR value
+IER_SAVE       = $0A        ; saved VIA IER value
+TMP            = $0B        ; scratch byte
+MEAS_ACR       = $0C        ; measurement ACR, saved/restored around KERNAL calls
+FAIL_IDX       = $0D        ; index of first mismatch byte from compare_file
+SR_T2_LO       = $0E        ; T2 initial value low byte (for meas_sr_mode1)
+SR_T2_HI       = $0F        ; T2 initial value high byte (for meas_sr_mode1)
+FAIL_STEP      = $10        ; step number where mode 0 test last failed
+PCR_SAVE       = $11        ; saved VIA PCR (mode 0 test save/restore)
+PIA1_DDRA_SAVE = $12        ; saved PIA1 DDRA (mode 0 test save/restore)
+PIA1_ORA_SAVE  = $13        ; saved PIA1 ORA data (mode 0 test save/restore)
+
+; ============================================================
+; Memory buffers
+; ============================================================
+MEAS_BUF = $7E00            ; measurement result buffer (256 bytes, $7E00-$7EFF)
+; NOTE: REF_BUF must equal MEAS_BUF in via_sr_test_gen.a65 ($7F00) so that
+; the PRG file saved by via_sr_test_gen loads at REF_BUF without address override.
+REF_BUF  = $7F00            ; reference data buffer    (256 bytes, $7F00-$7FFF)
+
+; ============================================================
+; .PRG file header
+; ============================================================
+* = $0401 - 2
+        .word $0401
+
+* = $0401
+        .word basic_end
+        .word 10
+        .byte $9e
+        .byte "1037"
+        .byte 0
+basic_end:
+        .word 0
+
+; ============================================================
+; Machine code entry point  ($040D = 1037 decimal)
+;
+; SYS 1037 executes the 3-byte JMP at $040D, which jumps over
+; the included measurement subroutines to main.  Placing the
+; measurement code at $0410 (immediately after the JMP, and at
+; the same address in via_sr_test_gen.prg) guarantees identical
+; branch-target page alignment and thus cycle-accurate timing
+; reproducibility between the generator and test runs.
+; ============================================================
+* = $040D
+        jmp main            ; skip measurement code; land at main below
+
+.include "via_sr_meas.inc"  ; meas_sr_mode1 subroutine assembled at $0410
+
+; ============================================================
+; Main entry point
+; ============================================================
+main:
+        lda #0
+        sta PASS_CNT
+        sta FAIL_CNT
+        sta FAIL_STEP
+
+        lda #$93
+        jsr CHROUT
+
+        lda #<msg_banner
+        ldx #>msg_banner
+        jsr print_str
+
+        ; save VIA state and disable T1/T2/SR interrupts
+        sei
+        lda VIA_BASE+VIA_ACR
+        sta ACR_SAVE
+        lda VIA_BASE+VIA_IER
+        sta IER_SAVE
+        lda #IFR_T1|IFR_T2|IFR_SR
+        sta VIA_BASE+VIA_IER
+        cli
+
+        ; --------------------------------------------------------
+        ; Group 1 - SR mode 0 (external CB1 clock)
+        ; --------------------------------------------------------
+        lda #<msg_grp1
+        ldx #>msg_grp1
+        jsr print_str
+
+        lda #<msg_t1
+        ldx #>msg_t1
+        jsr print_str
+        jsr test_sr_mode0
+        jsr print_result
+
+        jsr wait_key
+
+        ; --------------------------------------------------------
+        ; Group 2 - SR mode 1 (shift in under T2 control)
+        ;
+        ; Ensure PIA1 PA7 is an INPUT before mode 1 measurements.
+        ; In SR mode 1 the VIA drives CB1 as an output clock; if
+        ; PIA1 PA7 were still an output it would conflict on CB1.
+        ; --------------------------------------------------------
+        lda #<msg_grp2
+        ldx #>msg_grp2
+        jsr print_str
+
+        sei
+        lda PIA1_BASE+PIA_CRA
+        pha                         ; save CRA
+        and #$FB                    ; select DDRA (bit 2 = 0)
+        sta PIA1_BASE+PIA_CRA
+        lda PIA1_BASE+PIA_ORA       ; read DDRA
+        and #$7F                    ; clear PA7 -> PA7 = input
+        sta PIA1_BASE+PIA_ORA
+        pla
+        sta PIA1_BASE+PIA_CRA       ; restore CRA
+        cli
+
+        lda #<msg_t2a
+        ldx #>msg_t2a
+        jsr print_str
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr meas_sr_mode1
+        lda #<fn_sr_m1a
+        ldx #>fn_sr_m1a
+        ldy #fn_sr_m1a_end - fn_sr_m1a
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t2b
+        ldx #>msg_t2b
+        jsr print_str
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr meas_sr_mode1
+        lda #<fn_sr_m1b
+        ldx #>fn_sr_m1b
+        ldy #fn_sr_m1b_end - fn_sr_m1b
+        jsr compare_file
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Restore VIA state and print summary
+        ; --------------------------------------------------------
+        sei
+        lda ACR_SAVE
+        sta VIA_BASE+VIA_ACR
+        lda IER_SAVE
+        ora #$80
+        sta VIA_BASE+VIA_IER
+        cli
+
+        lda #<msg_divider
+        ldx #>msg_divider
+        jsr print_str
+
+        lda FAIL_CNT
+        bne main_fail
+        lda #<msg_all_pass
+        ldx #>msg_all_pass
+        jsr print_str
+        jmp main_done
+main_fail:
+        lda #<msg_some_fail
+        ldx #>msg_some_fail
+        jsr print_str
+main_done:
+        rts
+
+; ============================================================
+; Subroutine: test_sr_mode0
+;
+; Tests SR mode 0 (ACR SR = 000, disabled) behavior:
+; CB1 rising edges shift data from CB2 into SR (left-shift;
+; new data bit enters at bit 0).  The VIA does not count bits
+; and IFR.SR is never set.
+;
+; Hardware connections required:
+;   PIA1 PA7 output -> CB1 (Pin 5 -> Pin 6, loopback)
+;   VIA PA7 input   <-> CB2 (Pin L <-> Pin M, loopback)
+;   (DDRA=$00 keeps all VIA PA as inputs to avoid CB2 conflict)
+;
+; Sequence:
+;   Setup: DDRA=0, ACR SR=0, CB1=hi, CB2=hi output (PCR), SR=0
+;   Step 1: CB1 lo       -> read SR, expect $00
+;   Step 2: CB1 hi       -> read SR, expect $01
+;   Step 3: CB1 lo       -> read SR, expect $01
+;   Step 4: CB1 hi       -> read SR, expect $03
+;   Step 5: CB2=lo, CB1 lo -> read SR, expect $03
+;   Step 6: CB1 hi       -> read SR, expect $06
+;   Loop (8x): CB1 lo, invert CB2, CB1 hi -> IFR.SR must be 0
+;   Final: read SR, expect $AA
+;
+; Returns: A = 0 (pass), A = 1 (fail)
+; FAIL_STEP = step number on failure (1-8; 7 = IFR.SR set in loop)
+; Clobbers: A, X
+; ============================================================
+test_sr_mode0:
+        sei
+
+        ; Save PCR (restored at cleanup)
+        lda VIA_BASE+VIA_PCR
+        sta PCR_SAVE
+
+        ; Configure PIA1 PA7 as output; save original state; drive CB1 high
+        lda PIA1_BASE+PIA_CRA
+        pha                         ; save CRA on stack
+        and #$FB                    ; select DDRA (CRA bit 2 = 0)
+        sta PIA1_BASE+PIA_CRA
+        lda PIA1_BASE+PIA_ORA       ; read DDRA
+        sta PIA1_DDRA_SAVE          ; save DDRA
+        ora #$80                    ; set PA7 = output
+        sta PIA1_BASE+PIA_ORA
+        pla                         ; restore CRA
+        sta PIA1_BASE+PIA_CRA       ; re-select data register
+        lda PIA1_BASE+PIA_ORA       ; read ORA data
+        sta PIA1_ORA_SAVE           ; save ORA data
+        ora #$80                    ; PA7 = 1 -> CB1 high
+        sta PIA1_BASE+PIA_ORA
+
+        ; VIA DDRA = $00: all PA = input (avoids CB2 bus conflict)
+        lda #0
+        sta VIA_BASE+VIA_DDRA
+
+        ; ACR SR = mode 0 (disabled)
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        sta VIA_BASE+VIA_ACR
+
+        ; PCR CB2 = manual high output (bits 7:5 = 111)
+        lda VIA_BASE+VIA_PCR
+        and #PCR_CB2_NMASK
+        ora #PCR_CB2_HI
+        sta VIA_BASE+VIA_PCR
+
+        ; Write 0 to SR
+        lda #0
+        sta VIA_BASE+VIA_SR
+
+        ; ---- Step 1: CB1 lo -> SR = $00 ----
+        lda #1
+        sta FAIL_STEP
+        lda PIA1_BASE+PIA_ORA
+        and #$7F                    ; PA7 = 0 -> CB1 low (no shift)
+        sta PIA1_BASE+PIA_ORA
+        lda VIA_BASE+VIA_SR
+        bne sm0_jmp_fail            ; expect $00
+
+        ; ---- Step 2: CB1 hi -> SR = $01 ----
+        lda #2
+        sta FAIL_STEP
+        lda PIA1_BASE+PIA_ORA
+        ora #$80                    ; PA7 = 1 -> CB1 high (rising edge -> shift)
+        sta PIA1_BASE+PIA_ORA
+        lda VIA_BASE+VIA_SR
+        cmp #$01
+        bne sm0_jmp_fail
+
+        ; ---- Step 3: CB1 lo -> SR still $01 ----
+        lda #3
+        sta FAIL_STEP
+        lda PIA1_BASE+PIA_ORA
+        and #$7F
+        sta PIA1_BASE+PIA_ORA
+        lda VIA_BASE+VIA_SR
+        cmp #$01
+        bne sm0_jmp_fail
+
+        ; ---- Step 4: CB1 hi -> SR = $03 ----
+        lda #4
+        sta FAIL_STEP
+        lda PIA1_BASE+PIA_ORA
+        ora #$80
+        sta PIA1_BASE+PIA_ORA
+        lda VIA_BASE+VIA_SR
+        cmp #$03
+        bne sm0_jmp_fail
+
+        ; ---- Set CB2 low; Step 5: CB1 lo -> SR still $03 ----
+        ; sm0_jmp_fail: trampoline used by early steps 1-2 whose branches
+        ; cannot reach sm0_fail directly (> 127 bytes away).
+sm0_jmp_fail:
+        jmp sm0_fail
+        lda VIA_BASE+VIA_PCR
+        and #PCR_CB2_NMASK
+        ora #PCR_CB2_LO             ; CB2 manual low (bits 7:5 = 110)
+        sta VIA_BASE+VIA_PCR
+        lda #5
+        sta FAIL_STEP
+        lda PIA1_BASE+PIA_ORA
+        and #$7F
+        sta PIA1_BASE+PIA_ORA
+        lda VIA_BASE+VIA_SR
+        cmp #$03
+        bne sm0_fail
+
+        ; ---- Step 6: CB1 hi -> SR = $06 ----
+        lda #6
+        sta FAIL_STEP
+        lda PIA1_BASE+PIA_ORA
+        ora #$80
+        sta PIA1_BASE+PIA_ORA
+        lda VIA_BASE+VIA_SR
+        cmp #$06
+        bne sm0_fail
+
+        ; ---- Loop 8 times: CB1 lo, invert CB2, CB1 hi, IFR.SR=0 ----
+        ; CB2 is currently low (PCR bits 7:5 = 110).
+        ; Each iteration: invert bit 5 -> toggles between 110 (low) and 111 (high).
+        ldx #8
+sm0_loop:
+        ; CB1 low
+        lda PIA1_BASE+PIA_ORA
+        and #$7F
+        sta PIA1_BASE+PIA_ORA
+        ; Invert CB2 output (toggle PCR bit 5: 110 <-> 111)
+        lda VIA_BASE+VIA_PCR
+        eor #$20
+        sta VIA_BASE+VIA_PCR
+        ; CB1 high (rising edge -> shift)
+        lda PIA1_BASE+PIA_ORA
+        ora #$80
+        sta PIA1_BASE+PIA_ORA
+        ; Verify IFR.SR is clear (mode 0 must not count bits)
+        lda #7
+        sta FAIL_STEP
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        bne sm0_fail
+        dex
+        bne sm0_loop
+
+        ; ---- Verify SR = $AA ----
+        lda #8
+        sta FAIL_STEP
+        lda VIA_BASE+VIA_SR         ; read SR (also clears IFR.SR if set)
+        cmp #$AA
+        bne sm0_fail
+
+        ; PASS
+        jsr sm0_restore
+        cli
+        lda #0
+        rts
+
+sm0_fail:
+        jsr sm0_restore
+        cli
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: sm0_restore
+;
+; Restores PCR, PIA1 ORA data, and PIA1 DDRA after test_sr_mode0.
+; ============================================================
+sm0_restore:
+        ; Restore VIA PCR
+        lda PCR_SAVE
+        sta VIA_BASE+VIA_PCR
+        ; Restore PIA1 ORA data (CRA bit 2 = 1 -> data register)
+        lda PIA1_ORA_SAVE
+        sta PIA1_BASE+PIA_ORA
+        ; Restore PIA1 DDRA
+        lda PIA1_BASE+PIA_CRA
+        pha
+        and #$FB                    ; select DDRA
+        sta PIA1_BASE+PIA_CRA
+        lda PIA1_DDRA_SAVE
+        sta PIA1_BASE+PIA_ORA       ; write DDRA
+        pla
+        sta PIA1_BASE+PIA_CRA       ; restore CRA
+        rts
+
+; ============================================================
+; Subroutine: compare_file
+;
+; Loads 256 bytes from a CBM PRG file on device 8 into REF_BUF,
+; then compares REF_BUF byte-by-byte against MEAS_BUF.
+;
+; Entry: A = low byte of filename address
+;        X = high byte of filename address
+;        Y = filename length
+; Returns: A = 0 (pass), A = 1 (fail: mismatch or file error)
+; Clobbers: A, X, Y, FNPTR, FNLEN
+; ============================================================
+compare_file:
+        sta FNPTR
+        stx FNPTR+1
+        sty FNLEN
+
+        ; Save measurement ACR; restore VIA to KERNAL-safe state.
+        sei
+        lda VIA_BASE+VIA_ACR
+        sta MEAS_ACR
+        lda ACR_SAVE
+        sta VIA_BASE+VIA_ACR
+        lda #$ff
+        sta VIA_BASE+VIA_T1LL
+        sta VIA_BASE+VIA_T1LH   ; write latch high (clears IFR6; does not start timer)
+        lda IER_SAVE
+        ora #$80
+        sta VIA_BASE+VIA_IER
+        cli
+
+        lda FNLEN
+        ldx FNPTR
+        ldy FNPTR+1
+        jsr SETNAM
+
+        ; LFN=1, device=8, SA=0 -> LOAD uses address embedded in PRG header ($7F00)
+        lda #1
+        ldx #8
+        ldy #0
+        jsr SETLFS
+
+        ; load PRG file: A=0 (load); load address from PRG header -> REF_BUF
+        lda #0
+        jsr PET_LOAD
+        bcs cf_file_err
+
+        jsr cf_via_restore
+
+        ; compare MEAS_BUF against REF_BUF
+        ldx #0
+cf_cmp_lp:
+        lda MEAS_BUF,x
+        cmp REF_BUF,x
+        bne cf_mismatch
+        inx
+        bne cf_cmp_lp
+
+        lda #0              ; pass
+        rts
+
+cf_mismatch:
+        stx FAIL_IDX        ; save index of first mismatching byte
+        lda #1              ; fail - mismatch
+        rts
+
+cf_file_err:
+        jsr cf_via_restore
+        lda #$ff
+        sta FAIL_IDX        ; flag as file error (no valid byte index)
+        lda #1              ; fail - file not found / load error
+        rts
+
+; ============================================================
+; Subroutine: cf_via_restore
+;
+; Restores the VIA ACR to measurement state after PET_LOAD.
+; ============================================================
+cf_via_restore:
+        sei
+        lda MEAS_ACR
+        sta VIA_BASE+VIA_ACR
+        lda #IFR_T1|IFR_T2|IFR_SR  ; bit7=0: disable these IRQ sources
+        sta VIA_BASE+VIA_IER
+        cli
+        rts
+
+; ============================================================
+; Subroutine: wait_key
+;
+; Prints "PRESS ANY KEY", blocks until a key is pressed, then
+; clears the screen so the next section starts at the top.
+; ============================================================
+wait_key:
+        lda #<msg_press_key
+        ldx #>msg_press_key
+        jsr print_str
+wk_lp:  jsr GETIN
+        beq wk_lp
+        lda #$93
+        jsr CHROUT
+        rts
+
+; ============================================================
+; Subroutine: print_result
+;
+; Prints "OK" or "FAIL" and updates PASS_CNT / FAIL_CNT.
+; Input: A = 0 -> pass, A != 0 -> fail
+; ============================================================
+print_result:
+        cmp #0
+        bne pr_fail
+        inc PASS_CNT
+        lda #<msg_ok
+        ldx #>msg_ok
+        jsr print_str
+        rts
+pr_fail:
+        inc FAIL_CNT
+        lda #<msg_fail
+        ldx #>msg_fail
+        jsr print_str
+        lda FAIL_IDX        ; byte index from compare_file (or FAIL_STEP for mode 0)
+        jsr print_hex
+        lda #$0d
+        jsr CHROUT
+        rts
+
+; ============================================================
+; Subroutine: print_hex
+;
+; Prints a byte as two uppercase hex digits via CHROUT.
+; Entry: A = byte to print
+; ============================================================
+print_hex:
+        pha
+        lsr
+        lsr
+        lsr
+        lsr
+        jsr print_nybble
+        pla
+        and #$0f
+        jsr print_nybble
+        rts
+
+print_nybble:
+        cmp #10
+        bcc ph_digit
+        adc #6                      ; carry set: 'A'-'9'-1=7 -> 'A'..'F'
+ph_digit:
+        adc #'0'
+        jsr CHROUT
+        rts
+
+; ============================================================
+; Subroutine: print_str
+;
+; Prints a null-terminated string via CHROUT.
+; Entry: A = low byte of address, X = high byte
+; ============================================================
+print_str:
+        sta STRPTR
+        stx STRPTR+1
+ps_lp:
+        ldy #0
+        lda (STRPTR),y
+        beq ps_done
+        jsr CHROUT
+        inc STRPTR
+        bne ps_lp
+        inc STRPTR+1
+        jmp ps_lp
+ps_done:
+        rts
+
+.include "pet_kernal.inc"   ; SETNAM, SETLFS, PET_SAVE, PET_LOAD, KERNAL ZP defs
+
+; ============================================================
+; Message strings (null-terminated, CBM uppercase charset)
+; ============================================================
+msg_banner:    .byte "VIA SR TEST MODULE", $0d
+               .byte "------------------", $0d, 0
+
+msg_grp1:      .byte "GRP1: SR MODE 0 (EXT CB1 CLOCK)", $0d, 0
+msg_t1:        .byte "  1  SR MODE0 CB1/CB2 SEQ: ", 0
+
+msg_grp2:      .byte "GRP2: SR MODE 1 (SHIFT IN VIA T2)", $0d, 0
+msg_t2a:       .byte "  2A SR MODE1 T2=$0110: ", 0
+msg_t2b:       .byte "  2B SR MODE1 T2=$0220: ", 0
+
+msg_ok:        .byte "OK", $0d, 0
+msg_fail:      .byte "FAIL @", 0
+msg_press_key: .byte "PRESS ANY KEY...", $0d, 0
+msg_divider:   .byte "------------------", $0d, 0
+msg_all_pass:  .byte "ALL TESTS PASSED", $0d, 0
+msg_some_fail: .byte "SOME TESTS FAILED", $0d, 0
+
+; ============================================================
+; Read-side filename strings
+; ============================================================
+fn_sr_m1a:    .byte "VIA.SR.M1.A"
+fn_sr_m1a_end:
+fn_sr_m1b:    .byte "VIA.SR.M1.B"
+fn_sr_m1b_end:
