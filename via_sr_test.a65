@@ -374,12 +374,15 @@ test_sr_mode0:
         lda VIA_BASE+VIA_SR
         cmp #$03
         bne sm0_jmp_fail
+        jmp sm0_step5_start     ; step 4 passed: skip over the trampoline
 
-        ; ---- Set CB2 low; Step 5: CB1 lo -> SR still $03 ----
-        ; sm0_jmp_fail: trampoline used by early steps 1-2 whose branches
+        ; sm0_jmp_fail: trampoline used by early steps 1-4 whose branches
         ; cannot reach sm0_fail directly (> 127 bytes away).
 sm0_jmp_fail:
         jmp sm0_fail
+
+        ; ---- Set CB2 low; Step 5: CB1 lo -> SR still $03 ----
+sm0_step5_start:
         lda VIA_BASE+VIA_PCR
         and #PCR_CB2_NMASK
         ora #PCR_CB2_LO             ; CB2 manual low (bits 7:5 = 110)
