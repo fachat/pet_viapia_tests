@@ -87,6 +87,8 @@ SAVE_START = $0C            ; 2-byte ZP buffer ($0C-$0D) for start address passe
 SR_T2_LO  = $0E             ; T2 initial value low byte (written before calling meas_sr_mode1)
 SR_T2_HI  = $0F             ; T2 initial value high byte
 SR_INIT   = $10             ; initial value written to SR in meas_sr_mode5 before sampling
+SR_IFR_PRE  = $11           ; IFR & IFR_SR sampled before arming SR (expected: 0)
+SR_IFR_POST = $12           ; IFR & IFR_SR sampled after sample loop (expected: IFR_SR)
 
 ; ============================================================
 ; Memory buffers

@@ -20,6 +20,8 @@
 ;   SR_T2_HI  (zero-page: T2 initial value, high byte)
 ;   SR_INIT   (zero-page: initial value written to SR in meas_sr_mode5 after
 ;              setting ACR to mode 5, arming the shift-out sequence)
+;   SR_IFR_PRE  (zero-page: receives IFR & IFR_SR before arming; expected 0)
+;   SR_IFR_POST (zero-page: receives IFR & IFR_SR after sample loop; expected IFR_SR)
 ;
 ; Note on hardware connections:
 ;   meas_sr_mode1 / meas_sr_mode1_noarm:
@@ -91,6 +93,10 @@ meas_sr_mode1:
         and #ACR_SR_NMASK
         ora #ACR_SR_IT2
         sta VIA_BASE+VIA_ACR
+        ; Verify IFR.SR is clear before arming
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        sta SR_IFR_PRE
         ; Read SR to arm shifting; VIA drives CB1 as output clock
         lda VIA_BASE+VIA_SR
         ; Sample SR 256 times in a tight loop
@@ -100,6 +106,10 @@ meas_sr_m1_lp:
         sta MEAS_BUF,x          ; 5 cycles
         inx                     ; 2 cycles
         bne meas_sr_m1_lp       ; 3 cycles (2 on last iteration)
+        ; Verify IFR.SR is set after sampling
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        sta SR_IFR_POST
         ; Disable SR
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
@@ -146,6 +156,10 @@ meas_sr_mode1_noarm:
         sta VIA_BASE+VIA_T2CH   ; load counter, start T2
         ; Set SR to mode 1: shift in under T2 control
         ; NOTE: no arm read here - first shift occurs on first T2 underflow
+        ; Verify IFR.SR is clear before triggering
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        sta SR_IFR_PRE
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
         ora #ACR_SR_IT2
@@ -157,6 +171,10 @@ meas_sr_m1n_lp:
         sta MEAS_BUF,x          ; 5 cycles
         inx                     ; 2 cycles
         bne meas_sr_m1n_lp      ; 3 cycles (2 on last iteration)
+        ; Verify IFR.SR is set after sampling
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        sta SR_IFR_POST
         ; Disable SR
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
@@ -242,6 +260,10 @@ meas_sr_mode5:
         and #ACR_SR_NMASK
         ora #ACR_SR_OT2
         sta VIA_BASE+VIA_ACR
+        ; Verify IFR.SR is clear before arming the shift-out
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        sta SR_IFR_PRE
         ; Write SR_INIT to SR to arm the shift-out sequence
         lda SR_INIT
         sta VIA_BASE+VIA_SR
@@ -256,6 +278,10 @@ meas_sr_m5_lp:
         sta MEAS_BUF,x          ; 5 cycles
         inx                     ; 2 cycles
         bne meas_sr_m5_lp       ; 3 cycles (2 on last iteration)
+        ; Verify IFR.SR is set after sampling
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        sta SR_IFR_POST
         ; Disable SR
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK

@@ -141,6 +141,8 @@ PCR_SAVE       = $11        ; saved VIA PCR (mode 0 test save/restore)
 PIA1_DDRA_SAVE = $12        ; saved PIA1 DDRA (mode 0 test save/restore)
 PIA1_ORA_SAVE  = $13        ; saved PIA1 ORA data (mode 0 test save/restore)
 SR_INIT        = $14        ; initial value written to SR in meas_sr_mode5 before sampling
+SR_IFR_PRE     = $15        ; IFR & IFR_SR sampled before arming SR (expected: 0)
+SR_IFR_POST    = $16        ; IFR & IFR_SR sampled after sample loop (expected: IFR_SR)
 
 ; ============================================================
 ; Memory buffers
