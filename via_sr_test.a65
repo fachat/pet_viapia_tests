@@ -1206,14 +1206,15 @@ test_sr_mode3:
         lda #IFR_SR
         sta VIA_BASE+VIA_IFR
 
-        ; Read SR to reset the VIA internal bit counter
-        lda VIA_BASE+VIA_SR
-
         ; Set SR to mode 3: shift in under external CB1 control
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
         ora #ACR_SR_IE1
         sta VIA_BASE+VIA_ACR
+
+	; reset the SR bit counter to 8, so bits are shifted in
+	; note: needs to be done after setting the mode
+	lda VIA_BASE+VIA_SR
 
         ; Shift 8 bits in, MSB first
         ldx #8
