@@ -1,5 +1,5 @@
 ; ============================================================
-; pet_kernal.inc
+; kernal.inc
 ; PET-compatible KERNAL file I/O helpers
 ;
 ; Provides local implementations of SETNAM, SETLFS, PET_SAVE,

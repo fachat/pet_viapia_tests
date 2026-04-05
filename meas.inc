@@ -1,7 +1,7 @@
 ; ============================================================
-; via_meas.inc
-; VIA measurement subroutines - shared between via_test1_gen.a65
-; and via_test1.a65.
+; meas.inc
+; VIA measurement subroutines - shared between 05_via_test1_gen.a65
+; and 05_via_test1.a65.
 ;
 ; Both files include this file at the same fixed address ($0410,
 ; immediately after the 3-byte JMP at $040D).  Because the
