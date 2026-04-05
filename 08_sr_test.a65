@@ -1685,7 +1685,7 @@ tsm5_err_hi:
 ;   VIA PA7  input  <- CB2 (Pin L <- Pin M, loopback)
 ;
 ; Sequence:
-;   Setup: SR mode 0, PIA1 PA7=output CB1=hi, DDRA=$00 (PA7=in),
+;   Setup: SR mode 0, PIA1 PA7=output CB1=high, DDRA=$00 (PA7=in),
 ;          IFR.SR cleared, ACR SR=mode 7, write payload byte to SR.
 ;   For each of 8 bits (MSB first):
 ;     CB1 high
