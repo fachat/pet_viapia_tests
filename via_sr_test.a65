@@ -1855,25 +1855,25 @@ msg_t6b:       .byte "  6B SR MODE3 DATA=$AA: ", 0
 msg_t6c:       .byte "  6C SR MODE3 DATA=$A5: ", 0
 msg_t6d:       .byte "  6D SR MODE3 DATA=$5A: ", 0
 
-msg_grp7:      .byte "GRP7: SR MODE 5 (SHIFT OUT VIA T2) SR=$55", $0d, 0
+msg_grp7:      .byte "GRP7: SR MODE 5 (OUT VIA T2) SR=$55", $0d, 0
 msg_t7a:       .byte "  7A SR MODE5 SR=$55 T2=$0110: ", 0
 msg_t7b:       .byte "  7B SR MODE5 SR=$55 T2=$0220: ", 0
 msg_t7c:       .byte "  7C SR MODE5 SR=$55 T2=$0330: ", 0
 msg_t7d:       .byte "  7D SR MODE5 SR=$55 T2=$0440: ", 0
 
-msg_grp8:      .byte "GRP8: SR MODE 5 (SHIFT OUT VIA T2) SR=$AA", $0d, 0
+msg_grp8:      .byte "GRP8: SR MODE 5 (OUT VIA T2) SR=$AA", $0d, 0
 msg_t8a:       .byte "  8A SR MODE5 SR=$AA T2=$0110: ", 0
 msg_t8b:       .byte "  8B SR MODE5 SR=$AA T2=$0220: ", 0
 msg_t8c:       .byte "  8C SR MODE5 SR=$AA T2=$0330: ", 0
 msg_t8d:       .byte "  8D SR MODE5 SR=$AA T2=$0440: ", 0
 
-msg_grp9:      .byte "GRP9: SR MODE 5 CB1 POLL SR=$55 (VIA T2)", $0d, 0
+msg_grp9:      .byte "GRP9: SR MODE 5 CB1 POLL SR=$55", $0d, 0
 msg_t9a:       .byte "  9A SR M5CB1 SR=$55 T2=$011C: ", 0
 msg_t9b:       .byte "  9B SR M5CB1 SR=$55 T2=$0220: ", 0
 msg_t9c:       .byte "  9C SR M5CB1 SR=$55 T2=$0330: ", 0
 msg_t9d:       .byte "  9D SR M5CB1 SR=$55 T2=$0440: ", 0
 
-msg_grp10:     .byte "GRP10: SR MODE 5 CB1 POLL SR=$AA (VIA T2)", $0d, 0
+msg_grp10:     .byte "GRP10: SR MODE 5 CB1 POLL SR=$AA", $0d, 0
 msg_t10a:      .byte "  10A SR M5CB1 SR=$AA T2=$011C: ", 0
 msg_t10b:      .byte "  10B SR M5CB1 SR=$AA T2=$0220: ", 0
 msg_t10c:      .byte "  10C SR M5CB1 SR=$AA T2=$0330: ", 0
