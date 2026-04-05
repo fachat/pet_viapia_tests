@@ -258,4 +258,9 @@ Requires the userport test fixture:
 | 9A–9D | T2=$011C, $0220, $0330, $0440. |
 | **GRP10: SR MODE 5 CB1 POLL SR=$AA** | Identical to Group 9 but SR armed with $AA; result verified == $AA. |
 | 10A–10D | T2=$011C, $0220, $0330, $0440. |
+| **GRP11: SR MODE 7 — shift out under external CB1 control** | ACR SR = 111. CB1 is an external clock input driven via PIA1 PA7 loopback. Each falling edge of CB1 causes the VIA to present the next output bit (MSB first) on CB2. CB2 is read back via VIA PA7 (DDRA=$00). After 8 edges IFR.SR is set. The reconstructed byte is compared to the original payload. |
+| 11A — M7 DATA=$55 | Shifts $55 out; verifies IFR.SR=0 before each falling CB1 edge; verifies IFR.SR=1 after 8 bits; result == $55. |
+| 11B — M7 DATA=$AA | Same for $AA. |
+| 11C — M7 DATA=$5A | Same for $5A. |
+| 11D — M7 DATA=$A5 | Same for $A5. |
 
