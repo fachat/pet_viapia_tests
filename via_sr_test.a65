@@ -732,7 +732,7 @@ t4d_done:
         lda #$01
         sta SR_T2_HI
         jsr test_sr_mode1_noarm_ifr
-        jsr print_result_cnt
+        jsr print_result
 
         lda #<msg_t8b
         ldx #>msg_t8b
@@ -742,7 +742,7 @@ t4d_done:
         lda #$02
         sta SR_T2_HI
         jsr test_sr_mode1_noarm_ifr
-        jsr print_result_cnt
+        jsr print_result
 
         lda #<msg_t8c
         ldx #>msg_t8c
@@ -752,7 +752,7 @@ t4d_done:
         lda #$03
         sta SR_T2_HI
         jsr test_sr_mode1_noarm_ifr
-        jsr print_result_cnt
+        jsr print_result
 
         lda #<msg_t8d
         ldx #>msg_t8d
@@ -762,7 +762,7 @@ t4d_done:
         lda #$04
         sta SR_T2_HI
         jsr test_sr_mode1_noarm_ifr
-        jsr print_result_cnt
+        jsr print_result
 
         jsr wait_key
 
@@ -1414,12 +1414,13 @@ tsm1i_pass:
 ; ============================================================
 ; Subroutine: test_sr_mode1_noarm_ifr
 ;
-; Identical to test_sr_mode1_ifr except the SR arm read is
-; omitted.  First shift clock occurs on first T2 underflow
-; (matching meas_sr_mode1_noarm / Group 4 behavior).
+; Tests that SR mode 1 without the arm read does NOT raise IFR.SR.
+; The expected outcome is timeout (IFR.SR never set after 256 polls).
+; If IFR.SR is detected on any iteration that is a failure; FAIL_IDX
+; holds the iteration number (0..255) at which IFR.SR was detected.
 ;
-; On pass:   A = 0, SR_IFR_COUNT = poll iteration count (0..255).
-; On fail:   A = 1, FAIL_IDX = $FF.
+; On pass:   A = 0 (timeout reached, IFR.SR never set).
+; On fail:   A = 1, FAIL_IDX = iteration number when IFR.SR was detected.
 ; Clobbers: A, X
 ; ============================================================
 test_sr_mode1_noarm_ifr:
@@ -1448,32 +1449,30 @@ test_sr_mode1_noarm_ifr:
         and #ACR_SR_NMASK
         ora #ACR_SR_IT2
         sta VIA_BASE+VIA_ACR
-        ; Poll IFR.SR up to 256 iterations (no arm read)
+        ; Poll IFR.SR up to 256 iterations; IFR.SR set = unexpected fail
         ldx #0
 tsm1ni_loop:
         lda VIA_BASE+VIA_IFR
         and #IFR_SR
-        bne tsm1ni_pass         ; IFR.SR set -> pass
+        bne tsm1ni_fail         ; IFR.SR set -> unexpected, fail
         inx
         bne tsm1ni_loop         ; not wrapped yet -> continue
-        ; Timeout
-        lda #$FF
-        sta FAIL_IDX
-        lda VIA_BASE+VIA_ACR
-        and #ACR_SR_NMASK
-        ora #ACR_SR_OFF
-        sta VIA_BASE+VIA_ACR
-        cli
-        lda #1
-        rts
-tsm1ni_pass:
-        stx SR_IFR_COUNT
+        ; Timeout: expected outcome - IFR.SR was never set
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
         ora #ACR_SR_OFF
         sta VIA_BASE+VIA_ACR
         cli
         lda #0
+        rts
+tsm1ni_fail:
+        stx FAIL_IDX            ; save iteration number when IFR.SR was detected
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        lda #1
         rts
 
 ; ============================================================
@@ -1762,7 +1761,7 @@ pr_fail:
 ;
 ; Like print_result but on pass prints "OK @XX" where XX is the
 ; SR_IFR_COUNT value (iteration count) as two hex digits, then
-; a newline.  Used by test_sr_mode1_ifr / _noarm_ifr.
+; a newline.  Used by test_sr_mode1_ifr.
 ; Input: A = 0 -> pass, A != 0 -> fail
 ; ============================================================
 print_result_cnt:
