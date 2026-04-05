@@ -111,7 +111,7 @@
 ;     result).  After 8 bits: verifies IFR.SR is set and result == SR_INIT.
 ;     On timeout FAIL_IDX = (bit_num << 4) | step (1=lo, 2=hi).
 ;
-;     9A: SR mode 5 CB1 poll SR=$55 T2=$0110
+;     9A: SR mode 5 CB1 poll SR=$55 T2=$011c
 ;     9B: SR mode 5 CB1 poll SR=$55 T2=$0220
 ;     9C: SR mode 5 CB1 poll SR=$55 T2=$0330
 ;     9D: SR mode 5 CB1 poll SR=$55 T2=$0440
@@ -119,7 +119,7 @@
 ;   Group 10 - SR mode 5 CB1 poll, SR init = $AA
 ;     Identical to Group 9 but SR is armed with $AA.
 ;
-;     10A: SR mode 5 CB1 poll SR=$AA T2=$0110
+;     10A: SR mode 5 CB1 poll SR=$AA T2=$011c
 ;     10B: SR mode 5 CB1 poll SR=$AA T2=$0220
 ;     10C: SR mode 5 CB1 poll SR=$AA T2=$0330
 ;     10D: SR mode 5 CB1 poll SR=$AA T2=$0440
@@ -783,7 +783,7 @@ t4d_done:
         jsr print_str
         lda #$55
         sta SR_INIT
-        lda #$10
+        lda #$1c
         sta SR_T2_LO
         lda #$01
         sta SR_T2_HI
@@ -842,7 +842,7 @@ t4d_done:
         jsr print_str
         lda #$aa
         sta SR_INIT
-        lda #$10
+        lda #$1c
         sta SR_T2_LO
         lda #$01
         sta SR_T2_HI
@@ -1882,13 +1882,13 @@ msg_t8c:       .byte "  8C SR M1NIFR T2=$0330: ", 0
 msg_t8d:       .byte "  8D SR M1NIFR T2=$0440: ", 0
 
 msg_grp9:      .byte "GRP9: SR MODE 5 CB1 POLL SR=$55 (VIA T2)", $0d, 0
-msg_t9a:       .byte "  9A SR M5CB1 SR=$55 T2=$0110: ", 0
+msg_t9a:       .byte "  9A SR M5CB1 SR=$55 T2=$011c: ", 0
 msg_t9b:       .byte "  9B SR M5CB1 SR=$55 T2=$0220: ", 0
 msg_t9c:       .byte "  9C SR M5CB1 SR=$55 T2=$0330: ", 0
 msg_t9d:       .byte "  9D SR M5CB1 SR=$55 T2=$0440: ", 0
 
 msg_grp10:     .byte "GRP10: SR MODE 5 CB1 POLL SR=$AA (VIA T2)", $0d, 0
-msg_t10a:      .byte "  10A SR M5CB1 SR=$AA T2=$0110: ", 0
+msg_t10a:      .byte "  10A SR M5CB1 SR=$AA T2=$011c: ", 0
 msg_t10b:      .byte "  10B SR M5CB1 SR=$AA T2=$0220: ", 0
 msg_t10c:      .byte "  10C SR M5CB1 SR=$AA T2=$0330: ", 0
 msg_t10d:      .byte "  10D SR M5CB1 SR=$AA T2=$0440: ", 0
