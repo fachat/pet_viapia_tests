@@ -1880,13 +1880,13 @@ msg_t8c:       .byte "  8C SR M1NIFR T2=$0330: ", 0
 msg_t8d:       .byte "  8D SR M1NIFR T2=$0440: ", 0
 
 msg_grp9:      .byte "GRP9: SR MODE 5 CB1 POLL SR=$55 (VIA T2)", $0d, 0
-msg_t9a:       .byte "  9A SR M5CB1 SR=$55 T2=$011c: ", 0
+msg_t9a:       .byte "  9A SR M5CB1 SR=$55 T2=$011C: ", 0
 msg_t9b:       .byte "  9B SR M5CB1 SR=$55 T2=$0220: ", 0
 msg_t9c:       .byte "  9C SR M5CB1 SR=$55 T2=$0330: ", 0
 msg_t9d:       .byte "  9D SR M5CB1 SR=$55 T2=$0440: ", 0
 
 msg_grp10:     .byte "GRP10: SR MODE 5 CB1 POLL SR=$AA (VIA T2)", $0d, 0
-msg_t10a:      .byte "  10A SR M5CB1 SR=$AA T2=$011c: ", 0
+msg_t10a:      .byte "  10A SR M5CB1 SR=$AA T2=$011C: ", 0
 msg_t10b:      .byte "  10B SR M5CB1 SR=$AA T2=$0220: ", 0
 msg_t10c:      .byte "  10C SR M5CB1 SR=$AA T2=$0330: ", 0
 msg_t10d:      .byte "  10D SR M5CB1 SR=$AA T2=$0440: ", 0
