@@ -2,7 +2,7 @@
 # Run PET Userport Test 1 in VICE xpet (PET 4032 model)
 #
 # Requires: VICE xpet binary in PATH
-# Usage: bash vice/run_06_userport_test1.sh [extra VICE options]
+# Usage: bash vice/run_06_userport_t1.sh [extra VICE options]
 #
 # The userport must have the following connections wired:
 #   Pin C  (PA0)     - Pin D  (PA1)  : PA0/PA1 loopback
@@ -17,7 +17,7 @@
 # PET screen.  Close the VICE window to exit.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PRG="${SCRIPT_DIR}/../build/06_userport_test1"
+PRG="${SCRIPT_DIR}/../build/06_userport_t1"
 
 if [ ! -f "$PRG" ]; then
     echo "ERROR: $PRG not found. Run 'make' first." >&2

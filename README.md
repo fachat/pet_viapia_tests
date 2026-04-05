@@ -141,7 +141,7 @@ Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Gr
 
 ---
 
-### `06_userport_test1.a65` — PET Userport Test Module 1: VIA Userport Connection Tests (Test 6)
+### `06_userport_t1.a65` — PET Userport Test Module 1: VIA Userport Connection Tests (Test 6)
 
 Tests the VIA and PIA1 using specific connections wired at the PET userport.
 Only output-by-default pins drive input-by-default pins to avoid bus contention.
@@ -177,7 +177,7 @@ Required connections:
 
 ---
 
-### `07_userport_test2.a65` — PET Userport Test Module 2: VIA PA Latching and Write Handshake (Test 7)
+### `07_userport_t2.a65` — PET Userport Test Module 2: VIA PA Latching and Write Handshake (Test 7)
 
 Tests VIA PA input latching and CB2/CA2 write handshake using the same test fixture as Module 1 (see above for required connections).
 
