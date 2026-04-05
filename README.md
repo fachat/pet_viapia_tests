@@ -71,10 +71,10 @@ Tests PIA1 CB1 input (vertical blank / frame-sync signal), which also appears on
 
 ---
 
-### `05_test1_gen.a65` — VIA Test 1: Reference Data Generator (GEN 5)
+### `05_via_test1_gen.a65` — VIA Test 1: Reference Data Generator (GEN 5)
 
-Runs the same timing measurement loops used by `05_test1.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
-Run this **once** on a known-good machine or in VICE (`make gen5`) to produce the reference files that `05_test1.a65` compares against.
+Runs the same timing measurement loops used by `05_via_test1.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
+Run this **once** on a known-good machine or in VICE (`make gen5`) to produce the reference files that `05_via_test1.a65` compares against.
 
 | Reference file written | Description |
 |------------------------|-------------|
@@ -100,7 +100,7 @@ Run this **once** on a known-good machine or in VICE (`make gen5`) to produce th
 
 ---
 
-### `05_test1.a65` — VIA Test Module 1: Generic 6522 VIA Tests (Test 5)
+### `05_via_test1.a65` — VIA Test Module 1: Generic 6522 VIA Tests (Test 5)
 
 Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Groups 3–7 compare a live 256-byte timing capture against the reference files produced by `via_test1_gen.prg`.  On a mismatch the output shows `FAIL @xx` where `xx` is the hex index of the first differing byte.
 

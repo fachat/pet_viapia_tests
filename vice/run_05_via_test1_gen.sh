@@ -11,10 +11,10 @@
 # temporary disk copy, which would discard all generated output files
 # on exit and prevent KERNAL write access during the run.
 #
-# After running this script, run run_05_test1.sh (or 'make run5') to
+# After running this script, run run_05_via_test1.sh (or 'make run5') to
 # execute the test against the generated data.
 #
-# Usage: bash vice/run_05_test1_gen.sh <d64_image> [extra VICE options]
+# Usage: bash vice/run_05_via_test1_gen.sh <d64_image> [extra VICE options]
 # Requires: VICE xpet binary in PATH
 
 D64="${1:?Usage: $0 <d64_image> [extra VICE options]}"
@@ -32,5 +32,5 @@ fi
 
 exec xpet -model 4032 \
      -8 "$D64" \
-     -keybuf $'load"05_test1_gen",8,1\nrun\n' \
+     -keybuf $'load"05_via_test1_gen",8,1\nrun\n' \
      "$@"

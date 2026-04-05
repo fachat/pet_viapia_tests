@@ -13,8 +13,8 @@ PRG1    = $(BUILD)/01_pia_test1
 PRG2    = $(BUILD)/02_pia_test1
 PRG3    = $(BUILD)/03_ieee_test1
 PRG4    = $(BUILD)/04_pia_test2
-GEN5    = $(BUILD)/05_test1_gen
-PRG5    = $(BUILD)/05_test1
+GEN5    = $(BUILD)/05_via_test1_gen
+PRG5    = $(BUILD)/05_via_test1
 PRG6    = $(BUILD)/06_userport_t1
 PRG7    = $(BUILD)/07_userport_t2
 GEN8    = $(BUILD)/08_sr_test_gen
@@ -25,8 +25,8 @@ LST1    = $(LISTING)/01_pia_test1.lst
 LST2    = $(LISTING)/02_pia_test1.lst
 LST3    = $(LISTING)/03_ieee_test1.lst
 LST4    = $(LISTING)/04_pia_test2.lst
-LSTGEN5 = $(LISTING)/05_test1_gen.lst
-LST5    = $(LISTING)/05_test1.lst
+LSTGEN5 = $(LISTING)/05_via_test1_gen.lst
+LST5    = $(LISTING)/05_via_test1.lst
 LST6    = $(LISTING)/06_userport_t1.lst
 LST7    = $(LISTING)/07_userport_t2.lst
 LSTGEN8 = $(LISTING)/08_sr_test_gen.lst
@@ -54,10 +54,10 @@ $(PRG3): 03_ieee_test1.a65 | $(BUILD) $(LISTING)
 $(PRG4): 04_pia_test2.a65 | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST4) $<
 
-$(GEN5): 05_test1_gen.a65 meas.inc kernal.inc | $(BUILD) $(LISTING)
+$(GEN5): 05_via_test1_gen.a65 meas.inc kernal.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LSTGEN5) $<
 
-$(PRG5): 05_test1.a65 meas.inc kernal.inc | $(BUILD) $(LISTING)
+$(PRG5): 05_via_test1.a65 meas.inc kernal.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST5) $<
 
 $(PRG6): 06_userport_t1.a65 | $(BUILD) $(LISTING)
@@ -74,8 +74,8 @@ $(PRG8): 08_sr_test.a65 sr_meas.inc kernal.inc | $(BUILD) $(LISTING)
 
 $(D64): $(GEN5) $(PRG5) | $(BUILD)
 	c1541 -format "via tests,vt" d64 $@
-	c1541 $@ -write $(GEN5) 05_test1_gen
-	c1541 $@ -write $(PRG5) 05_test1
+	c1541 $@ -write $(GEN5) 05_via_test1_gen
+	c1541 $@ -write $(PRG5) 05_via_test1
 
 $(D64_SR): $(GEN8) $(PRG8) | $(BUILD)
 	c1541 -format "sr tests,sr" d64 $@
@@ -100,11 +100,11 @@ run4: $(PRG4)
 
 # Run via_test1_gen in VICE to produce reference data files
 gen5: $(D64)
-	bash vice/run_05_test1_gen.sh $(D64)
+	bash vice/run_05_via_test1_gen.sh $(D64)
 
 # Run via_test1 in VICE using the reference data files
 run5: $(D64)
-	bash vice/run_05_test1.sh $(D64)
+	bash vice/run_05_via_test1.sh $(D64)
 
 # Run pet_userport_t1 in VICE (PET 4032)
 run6: $(PRG6)

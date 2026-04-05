@@ -1,5 +1,5 @@
 ; ============================================================
-; 05_test1.a65
+; 05_via_test1.a65
 ; VIA Test 1 - Generic 6522 VIA Tests
 ;
 ; Tests the 6522 VIA at $E840 on the Commodore PET 4032.
@@ -50,7 +50,7 @@
 ;
 ; The timing measurement subroutines (meas_t1, meas_t1_rst,
 ; meas_t2, meas_sr_it2_ah/al/bh/bl/ch/cl) are byte-for-byte
-; identical to those in 05_test1_gen.a65, ensuring that the
+; identical to those in 05_via_test1_gen.a65, ensuring that the
 ; measured values match the pre-recorded reference data.
 ;
 ; Target   : Commodore PET 4032
@@ -122,7 +122,7 @@ FAIL_IDX = $0D              ; index of first mismatch byte from compare_file ($F
 ; Memory buffers
 ; ============================================================
 MEAS_BUF = $7E00            ; measurement result buffer (256 bytes, $7E00-$7EFF, top of RAM)
-; NOTE: REF_BUF must equal MEAS_BUF in 05_test1_gen.a65 ($7F00) so that the
+; NOTE: REF_BUF must equal MEAS_BUF in 05_via_test1_gen.a65 ($7F00) so that the
 ; PRG file saved by via_test1_gen loads at REF_BUF without address override.
 REF_BUF  = $7F00            ; reference data buffer    (256 bytes, $7F00-$7FFF, top of RAM)
 
