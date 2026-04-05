@@ -81,8 +81,6 @@ CHROUT = $FFD2              ; output char in A to current channel
 STRPTR    = $02             ; 2-byte string pointer for print_str
 PASS_CNT  = $04             ; running pass counter
 FAIL_CNT  = $05             ; running fail counter
-FNPTR     = $06             ; 2-byte pointer to current filename ($06-$07)
-FNLEN     = $08             ; length of current filename
 ACR_SAVE  = $09             ; saved VIA ACR value
 IER_SAVE  = $0A             ; saved VIA IER value
 MEAS_ACR  = $0B             ; current measurement ACR, saved/restored around KERNAL calls
@@ -184,9 +182,9 @@ main:
         lda #$01
         sta SR_T2_HI
         jsr meas_sr_mode1
-        lda #<fn_sr_m1a
-        ldx #>fn_sr_m1a
-        ldy #fn_sr_m1a_end - fn_sr_m1a
+        lda #fn_sr_m1a_end - fn_sr_m1a
+        ldx #<fn_sr_m1a
+        ldy #>fn_sr_m1a
         jsr write_file
 
         ; --------------------------------------------------------
@@ -197,9 +195,9 @@ main:
         lda #$02
         sta SR_T2_HI
         jsr meas_sr_mode1
-        lda #<fn_sr_m1b
-        ldx #>fn_sr_m1b
-        ldy #fn_sr_m1b_end - fn_sr_m1b
+        lda #fn_sr_m1b_end - fn_sr_m1b
+        ldx #<fn_sr_m1b
+        ldy #>fn_sr_m1b
         jsr write_file
 
         ; --------------------------------------------------------
@@ -210,9 +208,9 @@ main:
         lda #$03
         sta SR_T2_HI
         jsr meas_sr_mode1
-        lda #<fn_sr_m1c
-        ldx #>fn_sr_m1c
-        ldy #fn_sr_m1c_end - fn_sr_m1c
+        lda #fn_sr_m1c_end - fn_sr_m1c
+        ldx #<fn_sr_m1c
+        ldy #>fn_sr_m1c
         jsr write_file
 
         ; --------------------------------------------------------
@@ -223,9 +221,9 @@ main:
         lda #$04
         sta SR_T2_HI
         jsr meas_sr_mode1
-        lda #<fn_sr_m1d
-        ldx #>fn_sr_m1d
-        ldy #fn_sr_m1d_end - fn_sr_m1d
+        lda #fn_sr_m1d_end - fn_sr_m1d
+        ldx #<fn_sr_m1d
+        ldy #>fn_sr_m1d
         jsr write_file
         lda #<msg_nl
         ldx #>msg_nl
@@ -245,9 +243,9 @@ main:
         lda #$01
         sta SR_T2_HI
         jsr meas_sr_mode1_noarm
-        lda #<fn_sr_m1na
-        ldx #>fn_sr_m1na
-        ldy #fn_sr_m1na_end - fn_sr_m1na
+        lda #fn_sr_m1na_end - fn_sr_m1na
+        ldx #<fn_sr_m1na
+        ldy #>fn_sr_m1na
         jsr write_file
 
         lda #$20
@@ -255,9 +253,9 @@ main:
         lda #$02
         sta SR_T2_HI
         jsr meas_sr_mode1_noarm
-        lda #<fn_sr_m1nb
-        ldx #>fn_sr_m1nb
-        ldy #fn_sr_m1nb_end - fn_sr_m1nb
+        lda #fn_sr_m1nb_end - fn_sr_m1nb
+        ldx #<fn_sr_m1nb
+        ldy #>fn_sr_m1nb
         jsr write_file
 
         lda #$30
@@ -265,9 +263,9 @@ main:
         lda #$03
         sta SR_T2_HI
         jsr meas_sr_mode1_noarm
-        lda #<fn_sr_m1nc
-        ldx #>fn_sr_m1nc
-        ldy #fn_sr_m1nc_end - fn_sr_m1nc
+        lda #fn_sr_m1nc_end - fn_sr_m1nc
+        ldx #<fn_sr_m1nc
+        ldy #>fn_sr_m1nc
         jsr write_file
 
         lda #$40
@@ -275,9 +273,9 @@ main:
         lda #$04
         sta SR_T2_HI
         jsr meas_sr_mode1_noarm
-        lda #<fn_sr_m1nd
-        ldx #>fn_sr_m1nd
-        ldy #fn_sr_m1nd_end - fn_sr_m1nd
+        lda #fn_sr_m1nd_end - fn_sr_m1nd
+        ldx #<fn_sr_m1nd
+        ldy #>fn_sr_m1nd
         jsr write_file
         lda #<msg_nl
         ldx #>msg_nl
@@ -299,9 +297,9 @@ main:
         lda #$01
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5a
-        ldx #>fn_sr_m5a
-        ldy #fn_sr_m5a_end - fn_sr_m5a
+        lda #fn_sr_m5a_end - fn_sr_m5a
+        ldx #<fn_sr_m5a
+        ldy #>fn_sr_m5a
         jsr write_file
 
         lda #$55
@@ -311,9 +309,9 @@ main:
         lda #$02
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5b
-        ldx #>fn_sr_m5b
-        ldy #fn_sr_m5b_end - fn_sr_m5b
+        lda #fn_sr_m5b_end - fn_sr_m5b
+        ldx #<fn_sr_m5b
+        ldy #>fn_sr_m5b
         jsr write_file
 
         lda #$55
@@ -323,9 +321,9 @@ main:
         lda #$03
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5c
-        ldx #>fn_sr_m5c
-        ldy #fn_sr_m5c_end - fn_sr_m5c
+        lda #fn_sr_m5c_end - fn_sr_m5c
+        ldx #<fn_sr_m5c
+        ldy #>fn_sr_m5c
         jsr write_file
 
         lda #$55
@@ -335,9 +333,9 @@ main:
         lda #$04
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5d
-        ldx #>fn_sr_m5d
-        ldy #fn_sr_m5d_end - fn_sr_m5d
+        lda #fn_sr_m5d_end - fn_sr_m5d
+        ldx #<fn_sr_m5d
+        ldy #>fn_sr_m5d
         jsr write_file
         lda #<msg_nl
         ldx #>msg_nl
@@ -357,9 +355,9 @@ main:
         lda #$01
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5aaa
-        ldx #>fn_sr_m5aaa
-        ldy #fn_sr_m5aaa_end - fn_sr_m5aaa
+        lda #fn_sr_m5aaa_end - fn_sr_m5aaa
+        ldx #<fn_sr_m5aaa
+        ldy #>fn_sr_m5aaa
         jsr write_file
 
         lda #$aa
@@ -369,9 +367,9 @@ main:
         lda #$02
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5aab
-        ldx #>fn_sr_m5aab
-        ldy #fn_sr_m5aab_end - fn_sr_m5aab
+        lda #fn_sr_m5aab_end - fn_sr_m5aab
+        ldx #<fn_sr_m5aab
+        ldy #>fn_sr_m5aab
         jsr write_file
 
         lda #$aa
@@ -381,9 +379,9 @@ main:
         lda #$03
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5aac
-        ldx #>fn_sr_m5aac
-        ldy #fn_sr_m5aac_end - fn_sr_m5aac
+        lda #fn_sr_m5aac_end - fn_sr_m5aac
+        ldx #<fn_sr_m5aac
+        ldy #>fn_sr_m5aac
         jsr write_file
 
         lda #$aa
@@ -393,9 +391,9 @@ main:
         lda #$04
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5aad
-        ldx #>fn_sr_m5aad
-        ldy #fn_sr_m5aad_end - fn_sr_m5aad
+        lda #fn_sr_m5aad_end - fn_sr_m5aad
+        ldx #<fn_sr_m5aad
+        ldy #>fn_sr_m5aad
         jsr write_file
         lda #<msg_nl
         ldx #>msg_nl
@@ -424,17 +422,15 @@ main:
 ; Saves MEAS_BUF (256 bytes, $7F00-$7FFF) to a PRG file on
 ; device 8 using the PET-compatible SAVE routine (PET_SAVE).
 ;
-; Entry: A = low byte of filename string address
-;        X = high byte of filename string address
-;        Y = filename string length
+; Entry: A = filename string length
+;        X = low byte of filename string address
+;        Y = high byte of filename string address
 ; On success: increments PASS_CNT, prints "."
 ; On error:   increments FAIL_CNT, prints "E"
 ; Clobbers: A, X, Y
 ; ============================================================
 write_file:
-        sta FNPTR
-        stx FNPTR+1
-        sty FNLEN
+        jsr SETNAM              ; set filename (A=len, X=addr_lo, Y=addr_hi)
 
         ; Save the current measurement ACR and restore the VIA to a
         ; KERNAL-safe state before any KERNAL I/O calls.
@@ -450,12 +446,6 @@ write_file:
         ora #$80
         sta VIA_BASE+VIA_IER
         cli
-
-        ; set filename via local SETNAM (writes to PET KERNAL ZP)
-        lda FNLEN
-        ldx FNPTR
-        ldy FNPTR+1
-        jsr SETNAM
 
         ; LFN=1, device=8, SA=0 -> SAVE writes PRG file to IEEE-488 disk
         lda #1

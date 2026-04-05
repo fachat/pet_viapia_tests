@@ -210,8 +210,6 @@ GETIN  = $FFE4
 STRPTR         = $02        ; 2-byte string pointer for print_str
 PASS_CNT       = $04        ; running pass counter
 FAIL_CNT       = $05        ; running fail counter
-FNPTR          = $06        ; 2-byte pointer to current filename ($06-$07)
-FNLEN          = $08        ; length of current filename
 ACR_SAVE       = $09        ; saved VIA ACR value
 IER_SAVE       = $0A        ; saved VIA IER value
 TMP            = $0B        ; scratch byte
@@ -347,9 +345,9 @@ main:
         jsr meas_sr_mode1
         jsr check_ifr_pre_post      ; verify IFR_PRE=0
         bne t2a_done
-        lda #<fn_sr_m1a
-        ldx #>fn_sr_m1a
-        ldy #fn_sr_m1a_end - fn_sr_m1a
+        lda #fn_sr_m1a_end - fn_sr_m1a
+        ldx #<fn_sr_m1a
+        ldy #>fn_sr_m1a
         jsr compare_file
 t2a_done:
         jsr print_result
@@ -364,9 +362,9 @@ t2a_done:
         jsr meas_sr_mode1
         jsr check_ifr_pre_post
         bne t2b_done
-        lda #<fn_sr_m1b
-        ldx #>fn_sr_m1b
-        ldy #fn_sr_m1b_end - fn_sr_m1b
+        lda #fn_sr_m1b_end - fn_sr_m1b
+        ldx #<fn_sr_m1b
+        ldy #>fn_sr_m1b
         jsr compare_file
 t2b_done:
         jsr print_result
@@ -381,9 +379,9 @@ t2b_done:
         jsr meas_sr_mode1
         jsr check_ifr_pre_post
         bne t2c_done
-        lda #<fn_sr_m1c
-        ldx #>fn_sr_m1c
-        ldy #fn_sr_m1c_end - fn_sr_m1c
+        lda #fn_sr_m1c_end - fn_sr_m1c
+        ldx #<fn_sr_m1c
+        ldy #>fn_sr_m1c
         jsr compare_file
 t2c_done:
         jsr print_result
@@ -398,9 +396,9 @@ t2c_done:
         jsr meas_sr_mode1
         jsr check_ifr_pre_post
         bne t2d_done
-        lda #<fn_sr_m1d
-        ldx #>fn_sr_m1d
-        ldy #fn_sr_m1d_end - fn_sr_m1d
+        lda #fn_sr_m1d_end - fn_sr_m1d
+        ldx #<fn_sr_m1d
+        ldy #>fn_sr_m1d
         jsr compare_file
 t2d_done:
         jsr print_result
@@ -427,9 +425,9 @@ t2d_done:
         jsr meas_sr_mode1_noarm
         jsr check_ifr_pre_post
         bne t3a_done
-        lda #<fn_sr_m1na
-        ldx #>fn_sr_m1na
-        ldy #fn_sr_m1na_end - fn_sr_m1na
+        lda #fn_sr_m1na_end - fn_sr_m1na
+        ldx #<fn_sr_m1na
+        ldy #>fn_sr_m1na
         jsr compare_file
 t3a_done:
         jsr print_result
@@ -444,9 +442,9 @@ t3a_done:
         jsr meas_sr_mode1_noarm
         jsr check_ifr_pre_post
         bne t3b_done
-        lda #<fn_sr_m1nb
-        ldx #>fn_sr_m1nb
-        ldy #fn_sr_m1nb_end - fn_sr_m1nb
+        lda #fn_sr_m1nb_end - fn_sr_m1nb
+        ldx #<fn_sr_m1nb
+        ldy #>fn_sr_m1nb
         jsr compare_file
 t3b_done:
         jsr print_result
@@ -461,9 +459,9 @@ t3b_done:
         jsr meas_sr_mode1_noarm
         jsr check_ifr_pre_post
         bne t3c_done
-        lda #<fn_sr_m1nc
-        ldx #>fn_sr_m1nc
-        ldy #fn_sr_m1nc_end - fn_sr_m1nc
+        lda #fn_sr_m1nc_end - fn_sr_m1nc
+        ldx #<fn_sr_m1nc
+        ldy #>fn_sr_m1nc
         jsr compare_file
 t3c_done:
         jsr print_result
@@ -478,9 +476,9 @@ t3c_done:
         jsr meas_sr_mode1_noarm
         jsr check_ifr_pre_post
         bne t3d_done
-        lda #<fn_sr_m1nd
-        ldx #>fn_sr_m1nd
-        ldy #fn_sr_m1nd_end - fn_sr_m1nd
+        lda #fn_sr_m1nd_end - fn_sr_m1nd
+        ldx #<fn_sr_m1nd
+        ldy #>fn_sr_m1nd
         jsr compare_file
 t3d_done:
         jsr print_result
@@ -652,9 +650,9 @@ t3d_done:
         lda #$01
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5a
-        ldx #>fn_sr_m5a
-        ldy #fn_sr_m5a_end - fn_sr_m5a
+        lda #fn_sr_m5a_end - fn_sr_m5a
+        ldx #<fn_sr_m5a
+        ldy #>fn_sr_m5a
         jsr compare_file
         jsr print_result
 
@@ -668,9 +666,9 @@ t3d_done:
         lda #$02
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5b
-        ldx #>fn_sr_m5b
-        ldy #fn_sr_m5b_end - fn_sr_m5b
+        lda #fn_sr_m5b_end - fn_sr_m5b
+        ldx #<fn_sr_m5b
+        ldy #>fn_sr_m5b
         jsr compare_file
         jsr print_result
 
@@ -684,9 +682,9 @@ t3d_done:
         lda #$03
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5c
-        ldx #>fn_sr_m5c
-        ldy #fn_sr_m5c_end - fn_sr_m5c
+        lda #fn_sr_m5c_end - fn_sr_m5c
+        ldx #<fn_sr_m5c
+        ldy #>fn_sr_m5c
         jsr compare_file
         jsr print_result
 
@@ -700,9 +698,9 @@ t3d_done:
         lda #$04
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5d
-        ldx #>fn_sr_m5d
-        ldy #fn_sr_m5d_end - fn_sr_m5d
+        lda #fn_sr_m5d_end - fn_sr_m5d
+        ldx #<fn_sr_m5d
+        ldy #>fn_sr_m5d
         jsr compare_file
         jsr print_result
 
@@ -723,9 +721,9 @@ t3d_done:
         lda #$01
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5aaa
-        ldx #>fn_sr_m5aaa
-        ldy #fn_sr_m5aaa_end - fn_sr_m5aaa
+        lda #fn_sr_m5aaa_end - fn_sr_m5aaa
+        ldx #<fn_sr_m5aaa
+        ldy #>fn_sr_m5aaa
         jsr compare_file
         jsr print_result
 
@@ -739,9 +737,9 @@ t3d_done:
         lda #$02
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5aab
-        ldx #>fn_sr_m5aab
-        ldy #fn_sr_m5aab_end - fn_sr_m5aab
+        lda #fn_sr_m5aab_end - fn_sr_m5aab
+        ldx #<fn_sr_m5aab
+        ldy #>fn_sr_m5aab
         jsr compare_file
         jsr print_result
 
@@ -755,9 +753,9 @@ t3d_done:
         lda #$03
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5aac
-        ldx #>fn_sr_m5aac
-        ldy #fn_sr_m5aac_end - fn_sr_m5aac
+        lda #fn_sr_m5aac_end - fn_sr_m5aac
+        ldx #<fn_sr_m5aac
+        ldy #>fn_sr_m5aac
         jsr compare_file
         jsr print_result
 
@@ -771,9 +769,9 @@ t3d_done:
         lda #$04
         sta SR_T2_HI
         jsr meas_sr_mode5
-        lda #<fn_sr_m5aad
-        ldx #>fn_sr_m5aad
-        ldy #fn_sr_m5aad_end - fn_sr_m5aad
+        lda #fn_sr_m5aad_end - fn_sr_m5aad
+        ldx #<fn_sr_m5aad
+        ldy #>fn_sr_m5aad
         jsr compare_file
         jsr print_result
 
@@ -1866,16 +1864,14 @@ sm7_restore:
 ; Loads 256 bytes from a CBM PRG file on device 8 into REF_BUF,
 ; then compares REF_BUF byte-by-byte against MEAS_BUF.
 ;
-; Entry: A = low byte of filename address
-;        X = high byte of filename address
-;        Y = filename length
+; Entry: A = filename length
+;        X = low byte of filename address
+;        Y = high byte of filename address
 ; Returns: A = 0 (pass), A = 1 (fail: mismatch or file error)
-; Clobbers: A, X, Y, FNPTR, FNLEN
+; Clobbers: A, X, Y
 ; ============================================================
 compare_file:
-        sta FNPTR
-        stx FNPTR+1
-        sty FNLEN
+        jsr SETNAM              ; set filename (A=len, X=addr_lo, Y=addr_hi)
 
         ; Save measurement ACR; restore VIA to KERNAL-safe state.
         sei
@@ -1890,11 +1886,6 @@ compare_file:
         ora #$80
         sta VIA_BASE+VIA_IER
         cli
-
-        lda FNLEN
-        ldx FNPTR
-        ldy FNPTR+1
-        jsr SETNAM
 
         ; LFN=1, device=8, SA=0 -> LOAD uses address embedded in PRG header ($7F00)
         lda #1
