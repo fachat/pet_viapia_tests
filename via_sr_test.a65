@@ -1548,8 +1548,7 @@ tsm5_bit_loop:
         ldx #0
 tsm5_wait_lo:
         lda PIA1_BASE+PIA_ORA
-        and #$80
-        beq tsm5_cb1_low        ; bit 7 = 0 -> CB1 low
+        bpl tsm5_cb1_low        ; bit 7 = 0 -> CB1 low
         inx
         bne tsm5_wait_lo
         jmp tsm5_err_lo
@@ -1558,8 +1557,7 @@ tsm5_cb1_low:
         ldx #0
 tsm5_wait_hi:
         lda PIA1_BASE+PIA_ORA
-        and #$80
-        bne tsm5_cb1_high       ; bit 7 = 1 -> CB1 high
+        bmi tsm5_cb1_high       ; bit 7 = 1 -> CB1 high
         inx
         bne tsm5_wait_hi
         jmp tsm5_err_hi
