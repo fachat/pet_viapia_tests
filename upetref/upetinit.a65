@@ -1,0 +1,48 @@
+
+
+PIA1	=$9910
+PIA2	=$9920
+VIA	=$9940
+
+	*=$0401-2
+	.word $0401
+	.word link
+	.word 10
+	.byt $9e
+	.asc "1037"
+	.byt 0
+link	.word 0
+
+main	; enable access to I/O bus in $9xxx
+	; where the cbmio is at $99xx
+	lda #5
+	sta $e804
+
+	; set kbd I/O
+	lda #0		; DDRA
+	sta PIA1+1
+	sta PIA1+3
+	lda #$0f
+	sta PIA1+0
+	lda #$0
+	sta PIA1+2
+
+	; set IEEE488 I/O
+	lda #0
+	sta PIA2+1
+	sta PIA2+3
+	lda #0
+	sta PIA2+0
+	lda #$ff
+	sta PIA2+2
+
+	lda #$1e
+	sta VIA+2	; ddrb
+	lda #0
+	sta VIA+3	; ddra
+
+	rts
+
+
+
+	
