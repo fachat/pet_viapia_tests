@@ -50,8 +50,11 @@
 ; ============================================================
 ; Hardware addresses
 ; ============================================================
-PIA1_BASE = $E810           ; PIA1 base address
-VIA_BASE  = $E840           ; VIA (6522) base address
+#ifndef IOBASE
+#define IOBASE $e800
+#endif
+PIA1_BASE = IOBASE + $10    ; PIA1 base address
+VIA_BASE  = IOBASE + $40    ; VIA (6522) base address
 
 ; PIA register offsets
 PIA_ORA   = 0               ; Port-A / DDR-A

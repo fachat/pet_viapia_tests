@@ -26,9 +26,12 @@
 ; ============================================================
 ; Hardware addresses
 ; ============================================================
-PIA1_BASE = $E810   ; PIA1 base address
+#ifndef IOBASE
+#define IOBASE $e800
+#endif
+PIA1_BASE = IOBASE + $10    ; PIA1 base address
 ; PIA2 base address kept for future reference
-PIA2_BASE = $E820   ; PIA2 base address (IEEE-488 tests in Module 3)
+PIA2_BASE = IOBASE + $20    ; PIA2 base address (IEEE-488 tests in Module 3)
 
 ; Register offsets from PIA base address
 PIA_ORA = 0         ; Port-A / DDR-A
