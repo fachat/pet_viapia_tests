@@ -1497,11 +1497,11 @@ tsm1ni_fail:
 ; so after 8 iterations SR_M5_RESULT == SR_INIT.
 ;
 ; FAIL_IDX encoding on failure:
-;   (bit_num << 4) | $0 : IFR.SR set early at this bit
-;   (bit_num << 4) | $1 : CB1 did not go low within 256 polls
-;   (bit_num << 4) | $2 : CB1 did not go high within 256 polls
-;   $09               : IFR.SR not set after 8 bits
-;   $0A               : reconstructed byte != SR_INIT
+;   $0N (N=bit_num) : IFR.SR set early at bit N
+;   $1N (N=bit_num) : CB1 did not go low within 256 polls at bit N
+;   $2N (N=bit_num) : CB1 did not go high within 256 polls at bit N
+;   $09             : IFR.SR not set after 8 bits
+;   $0A             : reconstructed byte != SR_INIT
 ;
 ; Returns: A = 0 (pass), A = 1 (fail)
 ; Clobbers: A, X
@@ -1544,12 +1544,8 @@ tsm5_bit_loop:
         lda VIA_BASE+VIA_IFR
         and #IFR_SR
         beq tsm5_ifr_ok
-        ; IFR.SR already set: FAIL_IDX = (bit_num << 4) | 0
+        ; IFR.SR already set: FAIL_IDX = bit_num (error type 0 in upper nibble)
         lda SR_M5_BITNO
-        asl
-        asl
-        asl
-        asl
         sta FAIL_IDX
         jmp tsm5_fail
 tsm5_ifr_ok:
@@ -1561,13 +1557,9 @@ tsm5_wait_lo:
         beq tsm5_cb1_low        ; bit 7 = 0 -> CB1 low
         inx
         bne tsm5_wait_lo
-        ; Timeout: FAIL_IDX = (bit_num << 4) | 1
+        ; Timeout: FAIL_IDX = $10 | bit_num (error type 1 in upper nibble)
         lda SR_M5_BITNO
-        asl
-        asl
-        asl
-        asl
-        ora #$01
+        ora #$10
         sta FAIL_IDX
         jmp tsm5_fail
 tsm5_cb1_low:
@@ -1579,13 +1571,9 @@ tsm5_wait_hi:
         bne tsm5_cb1_high       ; bit 7 = 1 -> CB1 high
         inx
         bne tsm5_wait_hi
-        ; Timeout: FAIL_IDX = (bit_num << 4) | 2
+        ; Timeout: FAIL_IDX = $20 | bit_num (error type 2 in upper nibble)
         lda SR_M5_BITNO
-        asl
-        asl
-        asl
-        asl
-        ora #$02
+        ora #$20
         sta FAIL_IDX
         jmp tsm5_fail
 tsm5_cb1_high:
