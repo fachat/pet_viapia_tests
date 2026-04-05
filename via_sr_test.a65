@@ -1543,12 +1543,7 @@ tsm5_bit_loop:
         ; -- Check IFR.SR is still clear --
         lda VIA_BASE+VIA_IFR
         and #IFR_SR
-        beq tsm5_ifr_ok
-        ; IFR.SR already set: FAIL_IDX = bit_num (error type 0 in upper nibble)
-        lda SR_M5_BITNO
-        sta FAIL_IDX
-        jmp tsm5_fail
-tsm5_ifr_ok:
+        bne tsm5_err_ifr
         ; -- Poll CB1 low (up to 256 iterations) --
         ldx #0
 tsm5_wait_lo:
@@ -1557,11 +1552,7 @@ tsm5_wait_lo:
         beq tsm5_cb1_low        ; bit 7 = 0 -> CB1 low
         inx
         bne tsm5_wait_lo
-        ; Timeout: FAIL_IDX = $10 | bit_num (error type 1 in upper nibble)
-        lda SR_M5_BITNO
-        ora #$10
-        sta FAIL_IDX
-        jmp tsm5_fail
+        jmp tsm5_err_lo
 tsm5_cb1_low:
         ; -- Poll CB1 high (up to 256 iterations) --
         ldx #0
@@ -1571,11 +1562,7 @@ tsm5_wait_hi:
         bne tsm5_cb1_high       ; bit 7 = 1 -> CB1 high
         inx
         bne tsm5_wait_hi
-        ; Timeout: FAIL_IDX = $20 | bit_num (error type 2 in upper nibble)
-        lda SR_M5_BITNO
-        ora #$20
-        sta FAIL_IDX
-        jmp tsm5_fail
+        jmp tsm5_err_hi
 tsm5_cb1_high:
         ; -- Sample CB2 and shift into result --
         lda VIA_BASE+VIA_ORA_NH ; read VIA PA7 (CB2 via loopback)
@@ -1617,6 +1604,24 @@ tsm5_pass:
         cli
         lda #0
         rts
+        ; -- Per-bit error handlers (branched/jumped to from the loop) --
+tsm5_err_ifr:
+        ; IFR.SR already set: FAIL_IDX = bit_num (error type 0 in upper nibble)
+        lda SR_M5_BITNO
+        sta FAIL_IDX
+        jmp tsm5_fail
+tsm5_err_lo:
+        ; CB1 did not go low: FAIL_IDX = $10 | bit_num (error type 1 in upper nibble)
+        lda SR_M5_BITNO
+        ora #$10
+        sta FAIL_IDX
+        jmp tsm5_fail
+tsm5_err_hi:
+        ; CB1 did not go high: FAIL_IDX = $20 | bit_num (error type 2 in upper nibble)
+        lda SR_M5_BITNO
+        ora #$20
+        sta FAIL_IDX
+        jmp tsm5_fail
 
 
 ; Loads 256 bytes from a CBM PRG file on device 8 into REF_BUF,
