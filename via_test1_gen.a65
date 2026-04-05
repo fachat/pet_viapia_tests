@@ -45,7 +45,10 @@
 ; ============================================================
 ; Hardware addresses
 ; ============================================================
-VIA_BASE = $E840            ; VIA (6522) base address
+#ifndef IOBASE
+#define IOBASE $e800
+#endif
+VIA_BASE = IOBASE + $40     ; VIA (6522) base address
 
 ; VIA register offsets from VIA_BASE
 VIA_T1CL = $04              ; T1 counter low  (read: clears IFR6)

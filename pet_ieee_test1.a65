@@ -42,8 +42,11 @@
 ; ============================================================
 ; Hardware addresses
 ; ============================================================
-PIA1_BASE = $E810   ; PIA1 base address (keyboard + EOI)
-PIA2_BASE = $E820   ; PIA2 base address (IEEE-488 data bus)
+#ifndef IOBASE
+#define IOBASE $e800
+#endif
+PIA1_BASE = IOBASE + $10    ; PIA1 base address (keyboard + EOI)
+PIA2_BASE = IOBASE + $20    ; PIA2 base address (IEEE-488 data bus)
 
 ; Register offsets from PIA base address
 PIA_ORA = 0         ; Port-A / DDR-A
@@ -64,7 +67,7 @@ PA6_MASK = $40
 ; ============================================================
 ; VIA (6522) at $E840 - IEEE-488 handshake lines
 ; ============================================================
-VIA_BASE  = $E840   ; VIA base address
+VIA_BASE  = IOBASE + $40    ; VIA base address
 
 ; Register offsets from VIA base address
 VIA_ORB   = 0       ; Port-B data register (read: inputs; write: output latch)

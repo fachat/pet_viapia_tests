@@ -23,8 +23,11 @@
 ; ============================================================
 ; Hardware addresses
 ; ============================================================
-PIA1_BASE = $E810   ; PIA1 base address
-PIA2_BASE = $E820   ; PIA2 base address
+#ifndef IOBASE
+#define IOBASE $e800
+#endif
+PIA1_BASE = IOBASE + $10    ; PIA1 base address
+PIA2_BASE = IOBASE + $20    ; PIA2 base address
 
 ; Register offsets from PIA base address
 PIA_ORA = 0         ; Port-A / DDR-A (CRA bit2=0->DDR, bit2=1->data)

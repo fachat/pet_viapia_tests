@@ -4,7 +4,8 @@
 # Emulator: VICE xpet
 
 XA      = xa
-XAFLAGS = -W -XMASM
+IOBASE  ?= \$$e800
+XAFLAGS = -W -XC -XMASM -DIOBASE=$(IOBASE)
 
 BUILD   = build
 LISTING = listing

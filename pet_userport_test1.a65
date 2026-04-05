@@ -58,7 +58,10 @@
 ; ============================================================
 ; Hardware addresses
 ; ============================================================
-VIA_BASE   = $E840          ; VIA (6522) base address
+#ifndef IOBASE
+#define IOBASE $e800
+#endif
+VIA_BASE   = IOBASE + $40   ; VIA (6522) base address
 
 ; VIA register offsets from VIA_BASE
 VIA_ORB    = $00            ; Port B data register
@@ -72,7 +75,7 @@ VIA_IER    = $0E            ; Interrupt enable register
 VIA_ORA_NH = $0F            ; Port A data, no handshake (no IFR side-effect)
 
 ; PIA1
-PIA1_BASE  = $E810          ; PIA1 base address
+PIA1_BASE  = IOBASE + $10   ; PIA1 base address
 PIA_ORA    = 0              ; Port A / DDRA (selected by CRA bit 2)
 PIA_CRA    = 1              ; Control register A (bit 2: 0=DDRA, 1=data)
 
