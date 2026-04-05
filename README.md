@@ -2,9 +2,12 @@
 Test programs for the PIA and VIA chips in 6502 assembler.
 
 Target: **Commodore PET 4032**  
-Assembler: **xa65** (`xa -W -XMASM`)  
+Assembler: **xa65** (`xa -W -XC -XMASM`)  
 Build: `make all`  
 Run in VICE: `make run1` … `make run8`, `make gen5`, `make gen8` (see Makefile)
+
+Note: the Makefile can build the test programs for I/O at a different base address. E.g. run as
+`IOBASE=0x9900 make` to build for PIAs at $9910 and $9920, and the VIA at $9940.
 
 ---
 
