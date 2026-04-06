@@ -18,6 +18,7 @@
 ;   Group 2 - Timer 2 register / latch access tests
 ;     2a: Write T2CL latch; writing T2CL alone does not start timer
 ;     2b: Writing T2CH starts the timer; latch value loaded into counter
+;     2c: Same as 2b but IFR5 cleared by writing IFR_T2 to VIA_IFR
 ;
 ;   Group 3 - Timer 1 single-shot timing (vs. reference files)
 ;     3a: T1 single-shot, latch=$00  (file: VIA.T1.SS.0)
@@ -241,6 +242,13 @@ main:
         ldx #>msg_t2b
         jsr print_str
         jsr test_t2ch_starts
+        jsr print_result
+
+        ; 2c: same as 2b but IFR5 cleared by writing to VIA_IFR
+        lda #<msg_t2c
+        ldx #>msg_t2c
+        jsr print_str
+        jsr test_t2ch_starts2
         jsr print_result
         jsr wait_key
 
@@ -906,31 +914,39 @@ t2lns_fail5:
 ; counter low byte from the T2CL latch.
 ;
 ; Strategy:
-;   1. Clear IFR5 by reading T2CL.
-;   2. Write $14 to T2CL (latch).
-;   3. Write $00 to T2CH (starts timer, counter = $0014).
-;   4. IFR5 must be clear immediately (timer not yet expired).
-;   5. Wait for IFR5 to be set (timer expired).
-;   6. If IFR5 is set within a reasonable timeout, test passes.
+;   1. Clear IFR5 by writing IFR_T2 to VIA_IFR.
+;   2. Verify IFR5 is clear.
+;   3. Write $14 to T2CL (latch).
+;   4. Write $00 to T2CH (starts timer, counter = $0014).
+;   5. IFR5 must be clear immediately (timer not yet expired).
+;   6. Wait for IFR5 to be set (timer expired).
+;   7. If IFR5 is set within a reasonable timeout, test passes.
+;   8. Clear IFR5 by writing IFR_T2 to VIA_IFR; verify it is clear.
 ;
 ; Returns: A=0 pass, A=1 fail
 ; ============================================================
 test_t2ch_starts:
         sei
 
-        ; clear IFR5
-        lda VIA_BASE+VIA_T2CL
+        ; clear IFR5 by writing IFR_T2 to VIA_IFR (step 1)
+        lda #IFR_T2
+        sta VIA_BASE+VIA_IFR
 
-        ; load T2 with $0014 and start
+        ; verify IFR5 is clear (step 2)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        bne t2chs_fail2
+
+        ; load T2 with $0014 and start (steps 3-4)
         lda #$14
         sta VIA_BASE+VIA_T2CL
         lda #$00
         sta VIA_BASE+VIA_T2CH       ; starts timer
 
-        ; IFR5 must be clear immediately after starting (step 4)
+        ; IFR5 must be clear immediately after starting (step 5)
         lda VIA_BASE+VIA_IFR
         and #IFR_T2
-        bne t2chs_fail4             ; set = timer expired too soon
+        bne t2chs_fail5             ; set = timer expired too soon
 
         ; wait for IFR5 (T2 should expire after ~$14+overhead cycles)
         nop
@@ -944,25 +960,139 @@ test_t2ch_starts:
         nop
         nop
 
+        ; IFR5 must be set (timer fired, step 7)
         lda VIA_BASE+VIA_IFR
         and #IFR_T2
-        beq t2chs_fail6             ; IFR5 not set = timer did not fire (step 6)
+        beq t2chs_fail7             ; IFR5 not set = timer did not fire
 
-        ; clear IFR5
-        lda VIA_BASE+VIA_T2CL
+        ; clear IFR5 by writing IFR_T2 to VIA_IFR (step 8)
+        lda #IFR_T2
+        sta VIA_BASE+VIA_IFR
+
+        ; verify IFR5 is clear (step 8)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        bne t2chs_fail8
 
         cli
         lda #0
         rts
-t2chs_fail4:
+t2chs_fail2:
         cli
-        lda #4
+        lda #2
         sta FAIL_IDX
         lda #1
         rts
-t2chs_fail6:
+t2chs_fail5:
         cli
-        lda #6
+        lda #5
+        sta FAIL_IDX
+        lda #1
+        rts
+t2chs_fail7:
+        cli
+        lda #7
+        sta FAIL_IDX
+        lda #1
+        rts
+t2chs_fail8:
+        cli
+        lda #8
+        sta FAIL_IDX
+        lda #1
+        rts
+
+; ============================================================
+; Subroutine: test_t2ch_starts2
+;
+; Duplicate of test_t2ch_starts.  Also clears IFR5 via a write
+; to VIA_IFR and verifies the bit is clear after each clear.
+;
+; Strategy:
+;   1. Clear IFR5 by writing IFR_T2 to VIA_IFR.
+;   2. Verify IFR5 is clear.
+;   3. Write $14 to T2CL (latch).
+;   4. Write $00 to T2CH (starts timer, counter = $0014).
+;   5. IFR5 must be clear immediately (timer not yet expired).
+;   6. Wait for IFR5 to be set (timer expired).
+;   7. If IFR5 is set within a reasonable timeout, test passes.
+;   8. Clear IFR5 by writing IFR_T2 to VIA_IFR; verify it is clear.
+;
+; Returns: A=0 pass, A=1 fail
+; ============================================================
+test_t2ch_starts2:
+        sei
+
+        ; clear IFR5 by writing IFR_T2 to VIA_IFR (step 1)
+        lda #IFR_T2
+        sta VIA_BASE+VIA_IFR
+
+        ; verify IFR5 is clear (step 2)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        bne t2chs2_fail2
+
+        ; load T2 with $0014 and start (steps 3-4)
+        lda #$14
+        sta VIA_BASE+VIA_T2CL
+        lda #$00
+        sta VIA_BASE+VIA_T2CH       ; starts timer
+
+        ; IFR5 must be clear immediately after starting (step 5)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        bne t2chs2_fail5            ; set = timer expired too soon
+
+        ; wait for IFR5 (T2 should expire after ~$14+overhead cycles)
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+
+        ; IFR5 must be set (timer fired, step 7)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        beq t2chs2_fail7            ; IFR5 not set = timer did not fire
+
+        ; clear IFR5 by writing IFR_T2 to VIA_IFR (step 8)
+        lda #IFR_T2
+        sta VIA_BASE+VIA_IFR
+
+        ; verify IFR5 is clear (step 8)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        bne t2chs2_fail8
+
+        cli
+        lda #0
+        rts
+t2chs2_fail2:
+        cli
+        lda #2
+        sta FAIL_IDX
+        lda #1
+        rts
+t2chs2_fail5:
+        cli
+        lda #5
+        sta FAIL_IDX
+        lda #1
+        rts
+t2chs2_fail7:
+        cli
+        lda #7
+        sta FAIL_IDX
+        lda #1
+        rts
+t2chs2_fail8:
+        cli
+        lda #8
         sta FAIL_IDX
         lda #1
         rts
@@ -1163,6 +1293,7 @@ msg_t1e:      .byte "  1E IFR WRITE CLEARS IFR6: ", 0
 msg_grp2:     .byte "GRP2: T2 LATCH/COUNTER REGS", $0d, 0
 msg_t2a:      .byte "  2A T2CL NO-START: ", 0
 msg_t2b:      .byte "  2B T2CH STARTS: ", 0
+msg_t2c:      .byte "  2C T2CH STARTS (IFR WRITE CLEAR): ", 0
 
 msg_grp3:     .byte "GRP3: T1 SINGLE-SHOT", $0d, 0
 msg_t3a:      .byte "  3A T1-SS LATCH=00: ", 0
