@@ -182,6 +182,17 @@ main:
         lda #$93
         jsr CHROUT
 
+        ; Print IOBASE address in hex on first line
+        lda #<msg_iobase
+        ldx #>msg_iobase
+        jsr print_str
+        lda #>IOBASE
+        jsr print_hex
+        lda #<IOBASE
+        jsr print_hex
+        lda #$0d
+        jsr CHROUT
+
         ; Print banner
         lda #<msg_banner
         ldx #>msg_banner
@@ -2242,6 +2253,7 @@ pbd_single:
         jmp CHROUT
 
 
+msg_iobase: .byte "IOBASE=$", 0
 msg_banner:
         .byte "PET USERPORT TEST 2", $0d
         .byte "VIA PA LATCH/HANDSHAKE", $0d

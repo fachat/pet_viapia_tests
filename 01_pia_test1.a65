@@ -89,6 +89,17 @@ main:
         lda #$93
         jsr CHROUT
 
+        ; Print IOBASE address in hex on first line
+        lda #<msg_iobase
+        ldx #>msg_iobase
+        jsr print_str
+        lda #>IOBASE
+        jsr print_hex
+        lda #<IOBASE
+        jsr print_hex
+        lda #$0d
+        jsr CHROUT
+
         ; Print banner
         lda #<msg_banner
         ldx #>msg_banner
@@ -361,8 +372,36 @@ ps_done:
         rts
 
 ; ============================================================
+; Subroutine: print_hex
+;
+; Prints byte in A as two uppercase hex digits via CHROUT.
+; Clobbers: A
+; ============================================================
+print_hex:
+        pha
+        lsr
+        lsr
+        lsr
+        lsr
+        jsr print_nybble
+        pla
+        and #$0f
+        jsr print_nybble
+        rts
+
+print_nybble:
+        cmp #10
+        bcc ph_digit
+        adc #6
+ph_digit:
+        adc #'0'
+        jsr CHROUT
+        rts
+
+; ============================================================
 ; Message strings  (null-terminated, CBM uppercase charset)
 ; ============================================================
+msg_iobase: .byte "IOBASE=$", 0
 msg_banner:
         .byte "PIA TEST MODULE 1", $0d
         .byte "----------------", $0d
