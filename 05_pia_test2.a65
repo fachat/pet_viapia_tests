@@ -92,9 +92,8 @@ VIA_T2_ACR = $20            ; ACR bit 5 = T2 mode (0=CPU clocks, 1=count PB6)
 ; PET user IRQ vector (KERNAL does JMP ($0090) at end of IRQ handler)
 PET_IRQ_VEC = $0090
 
-; Number of T2 overflows before declaring a 200000-cycle timeout:
-;   4 * 65536 = 262144 > 200000
-TIMEOUT_OVF = 4
+; A single T2 underflow is enough to declare a timeout/fail:
+TIMEOUT_OVF = 1
 
 ; ============================================================
 ; Zero-page variables ($02-$11 - safe for standalone ML on PET)
