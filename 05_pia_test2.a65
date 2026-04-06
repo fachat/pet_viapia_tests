@@ -8,7 +8,7 @@
 ;   Test 1a: Period between consecutive positive CB1 transitions.
 ;            Displays the CPU cycle count; passes if 16600+/-4
 ;            (60 Hz NTSC) or 20000+/-4 (50 Hz PAL).
-;            Aborts all remaining tests if > 200000 cycles
+;            Aborts all remaining tests if > 65535 cycles
 ;            elapsed without detecting an edge.
 ;   Test 1b: Period between consecutive negative CB1 transitions
 ;            (same criteria as 1a).
@@ -34,8 +34,8 @@
 ;   VIA Timer 2 is used as a free-running CPU-cycle counter.
 ;   Loaded with $FFFF, it counts down one step per CPU clock.
 ;   The period between two edges equals T2(edge1) - T2(edge2).
-;   For the 200000-cycle abort guard, T2 overflows are tracked:
-;   four overflows (4 * 65536 = 262144 > 200000) trigger abort.
+;   For the abort guard, a single T2 underflow (> 65535 cycles)
+;   is enough to trigger abort.
 ;
 ; PET user IRQ vector:
 ;   The PET 4032 KERNAL IRQ handler saves A, X, Y on the stack
@@ -92,9 +92,8 @@ VIA_T2_ACR = $20            ; ACR bit 5 = T2 mode (0=CPU clocks, 1=count PB6)
 ; PET user IRQ vector (KERNAL does JMP ($0090) at end of IRQ handler)
 PET_IRQ_VEC = $0090
 
-; Number of T2 overflows before declaring a 200000-cycle timeout:
-;   4 * 65536 = 262144 > 200000
-TIMEOUT_OVF = 4
+; A single T2 underflow is enough to declare a timeout/fail:
+TIMEOUT_OVF = 1
 
 ; ============================================================
 ; Zero-page variables ($02-$11 - safe for standalone ML on PET)
@@ -109,7 +108,7 @@ TOTAL_HI  = $09             ; full period from test 1a, high
 T1_LO     = $0A             ; T2 reading at first edge, low byte
 T1_HI     = $0B             ; T2 reading at first edge, high byte
 IRQ_FLAG  = $0C             ; $FF when test-4 ISR fires; 0 otherwise
-OVF_CNT   = $0D             ; T2 overflow count for 200000-cycle timeout
+OVF_CNT   = $0D             ; T2 underflow flag for timeout
 LEAD0     = $0E             ; leading-zero suppression flag for print_decimal
 DIVLO     = $0F             ; current divisor low byte (print_decimal helper)
 DIVHI     = $10             ; current divisor high byte
@@ -313,7 +312,7 @@ t4s4:
         jmp t4_summary
 
 t4_abort:
-        ; One of the timing routines detected > 200000 cycles
+        ; One of the timing routines detected > 65535 cycles
         ; without an edge.  Print an abort message, count as fail,
         ; and skip the remaining tests.
         lda #<msg_abort
@@ -373,7 +372,7 @@ t4_done:
 ;   8. period = T1 - CYCLES  (T2 counts down, so T1 > CYCLES).
 ;
 ; Returns: C=0  CYCLES_HI:CYCLES_LO = measured period in cycles
-;          C=1  timeout (> 200000 cycles without edge)
+;          C=1  timeout (> 65535 cycles without edge)
 ; Clobbers: A, X, OVF_CNT, T1_LO, T1_HI, CYCLES_LO, CYCLES_HI
 ; ============================================================
 measure_period_pos:
@@ -1249,7 +1248,7 @@ msg_ok:        .byte "OK", $0d, 0
 msg_fail:      .byte "FAIL", $0d, 0
 
 msg_abort:
-        .byte "TIMEOUT >200000", $0d
+        .byte "TIMEOUT >65535", $0d
         .byte "TESTS ABORTED", $0d, 0
 
 msg_divider:   .byte "----------------", $0d, 0
