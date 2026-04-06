@@ -848,8 +848,9 @@ t1chs_fail:
 ; Strategy:
 ;   1. Clear IFR5 by reading T2CL.
 ;   2. Write a value to T2CL (latch only, no start).
-;   3. Wait several cycles.
-;   4. IFR5 must still be clear (timer did not start).
+;   3. IFR5 must be clear immediately (timer not started).
+;   4. Wait several cycles.
+;   5. IFR5 must still be clear (timer did not start).
 ;
 ; Returns: A=0 pass, A=1 fail
 ; ============================================================
@@ -863,6 +864,11 @@ test_t2_latch_no_start:
         lda #$01
         sta VIA_BASE+VIA_T2CL
 
+        ; IFR5 must be clear immediately after writing latch (step 3)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        bne t2lns_fail3
+
         ; wait - if the timer had started with latch=1 it would
         ; expire within ~2 cycles and set IFR5
         nop
@@ -872,16 +878,24 @@ test_t2_latch_no_start:
         nop
         nop
 
-        ; IFR5 must still be clear
+        ; IFR5 must still be clear (step 5)
         lda VIA_BASE+VIA_IFR
         and #IFR_T2
-        bne t2lns_fail
+        bne t2lns_fail5
 
         cli
         lda #0
         rts
-t2lns_fail:
+t2lns_fail3:
         cli
+        lda #3
+        sta FAIL_IDX
+        lda #1
+        rts
+t2lns_fail5:
+        cli
+        lda #5
+        sta FAIL_IDX
         lda #1
         rts
 
@@ -892,10 +906,12 @@ t2lns_fail:
 ; counter low byte from the T2CL latch.
 ;
 ; Strategy:
-;   1. Write $05 to T2CL (latch).
-;   2. Write $00 to T2CH (starts timer, counter = $0005).
-;   3. Wait for IFR5 to be set (timer expired).
-;   4. If IFR5 is set within a reasonable timeout, test passes.
+;   1. Clear IFR5 by reading T2CL.
+;   2. Write $14 to T2CL (latch).
+;   3. Write $00 to T2CH (starts timer, counter = $0014).
+;   4. IFR5 must be clear immediately (timer not yet expired).
+;   5. Wait for IFR5 to be set (timer expired).
+;   6. If IFR5 is set within a reasonable timeout, test passes.
 ;
 ; Returns: A=0 pass, A=1 fail
 ; ============================================================
@@ -905,13 +921,18 @@ test_t2ch_starts:
         ; clear IFR5
         lda VIA_BASE+VIA_T2CL
 
-        ; load T2 with $0005 and start
-        lda #$05
+        ; load T2 with $0014 and start
+        lda #$14
         sta VIA_BASE+VIA_T2CL
         lda #$00
         sta VIA_BASE+VIA_T2CH       ; starts timer
 
-        ; wait for IFR5 (T2 should expire after ~5+overhead cycles)
+        ; IFR5 must be clear immediately after starting (step 4)
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        bne t2chs_fail4             ; set = timer expired too soon
+
+        ; wait for IFR5 (T2 should expire after ~$14+overhead cycles)
         nop
         nop
         nop
@@ -925,7 +946,7 @@ test_t2ch_starts:
 
         lda VIA_BASE+VIA_IFR
         and #IFR_T2
-        beq t2chs_fail              ; IFR5 not set = timer did not fire
+        beq t2chs_fail6             ; IFR5 not set = timer did not fire (step 6)
 
         ; clear IFR5
         lda VIA_BASE+VIA_T2CL
@@ -933,8 +954,16 @@ test_t2ch_starts:
         cli
         lda #0
         rts
-t2chs_fail:
+t2chs_fail4:
         cli
+        lda #4
+        sta FAIL_IDX
+        lda #1
+        rts
+t2chs_fail6:
+        cli
+        lda #6
+        sta FAIL_IDX
         lda #1
         rts
 
