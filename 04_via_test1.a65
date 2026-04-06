@@ -1293,7 +1293,7 @@ msg_t1e:      .byte "  1E IFR WRITE CLEARS IFR6: ", 0
 msg_grp2:     .byte "GRP2: T2 LATCH/COUNTER REGS", $0d, 0
 msg_t2a:      .byte "  2A T2CL NO-START: ", 0
 msg_t2b:      .byte "  2B T2CH STARTS: ", 0
-msg_t2c:      .byte "  2C T2CH STARTS (IFR WRITE CLEAR): ", 0
+msg_t2c:      .byte "  2C T2CH STARTS (IFR WR CLEAR): ", 0
 
 msg_grp3:     .byte "GRP3: T1 SINGLE-SHOT", $0d, 0
 msg_t3a:      .byte "  3A T1-SS LATCH=00: ", 0
