@@ -54,23 +54,6 @@ Tests PIA2 and the VIA for correct operation of the IEEE-488 interface.
 
 ---
 
-### `05_pia_test2.a65` — PIA Test Module 5: CB1 Vertical Blank Signal Tests
-
-Tests PIA1 CB1 input (vertical blank / frame-sync signal), which also appears on VIA PB5.
-
-| Test | Description |
-|------|-------------|
-| 1a — POS PERIOD | Measures CPU cycles between consecutive positive CB1 edges; passes if within ±4 of 16600 (60 Hz NTSC) or 20000 (50 Hz PAL). Aborts remaining tests if no edge is detected within 200 000 cycles. |
-| 1b — NEG PERIOD | Same period measurement using consecutive negative CB1 edges. |
-| 2a — HIGH PHASE | Counts cycles while VIA PB5 stays high after the first positive transition; passes if count is less than the full period from test 1a. |
-| 2b — LOW PHASE | Counts cycles while VIA PB5 stays low after the first negative transition; passes if count is less than the full period. |
-| 3a — IRQFLAG POS | Verifies IRQB1 (CRB bit 7) is set on a positive CB1 transition (CRB bit1=1, bit0=0; flag only, no CPU /IRQ). |
-| 3b — IRQFLAG NEG | Verifies IRQB1 is set on a negative CB1 transition (CRB bit1=0, bit0=0). |
-| 4a — CPU IRQ POS | Verifies a positive CB1 transition triggers a CPU /IRQ (CRB bit1=1, bit0=1) by redirecting the user IRQ vector to a test handler. |
-| 4b — CPU IRQ NEG | Verifies a negative CB1 transition triggers a CPU /IRQ (CRB bit1=0, bit0=1). |
-
----
-
 ### `04_via_test1_gen.a65` — VIA Test 1: Reference Data Generator (GEN 4)
 
 Runs the same timing measurement loops used by `04_via_test1.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
@@ -140,6 +123,23 @@ Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Gr
 | 7D — SR-IN T2 DIRECT LO | | Same scenario B setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.B.L`. |
 | 7E — SR-IN T2 LATCH HI | | Scenario C (T2=$0210, 16-cycle wait, then T2CL latch overridden to $20): captures 256 T2CH samples; compares against `VIA.SR.IT2.C.H`. |
 | 7F — SR-IN T2 LATCH LO | | Same scenario C setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.C.L`. |
+
+---
+
+### `05_pia_test2.a65` — PIA Test Module 5: CB1 Vertical Blank Signal Tests
+
+Tests PIA1 CB1 input (vertical blank / frame-sync signal), which also appears on VIA PB5.
+
+| Test | Description |
+|------|-------------|
+| 1a — POS PERIOD | Measures CPU cycles between consecutive positive CB1 edges; passes if within ±4 of 16600 (60 Hz NTSC) or 20000 (50 Hz PAL). Aborts remaining tests if no edge is detected within 200 000 cycles. |
+| 1b — NEG PERIOD | Same period measurement using consecutive negative CB1 edges. |
+| 2a — HIGH PHASE | Counts cycles while VIA PB5 stays high after the first positive transition; passes if count is less than the full period from test 1a. |
+| 2b — LOW PHASE | Counts cycles while VIA PB5 stays low after the first negative transition; passes if count is less than the full period. |
+| 3a — IRQFLAG POS | Verifies IRQB1 (CRB bit 7) is set on a positive CB1 transition (CRB bit1=1, bit0=0; flag only, no CPU /IRQ). |
+| 3b — IRQFLAG NEG | Verifies IRQB1 is set on a negative CB1 transition (CRB bit1=0, bit0=0). |
+| 4a — CPU IRQ POS | Verifies a positive CB1 transition triggers a CPU /IRQ (CRB bit1=1, bit0=1) by redirecting the user IRQ vector to a test handler. |
+| 4b — CPU IRQ NEG | Verifies a negative CB1 transition triggers a CPU /IRQ (CRB bit1=0, bit0=1). |
 
 ---
 
