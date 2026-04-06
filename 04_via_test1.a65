@@ -13,6 +13,7 @@
 ;     1b: Writing T1LL/T1LH does not start the counter
 ;     1c: Writing T1LH clears IFR bit 6 (T1 flag)
 ;     1d: Writing T1CH loads counter from latch and starts T1
+;     1e: Writing IFR.T1 (IFR bit 6) clears IFR bit 6 (T1 flag)
 ;
 ;   Group 2 - Timer 2 register / latch access tests
 ;     2a: Write T2CL latch; writing T2CL alone does not start timer
@@ -212,6 +213,13 @@ main:
         ldx #>msg_t1d
         jsr print_str
         jsr test_t1ch_starts
+        jsr print_result
+
+        ; 1e: writing IFR.T1 clears IFR bit 6
+        lda #<msg_t1e
+        ldx #>msg_t1e
+        jsr print_str
+        jsr test_ifr_write_clears_t1
         jsr print_result
 
         ; --------------------------------------------------------
@@ -725,6 +733,66 @@ t1lcifr_fail4:
         rts
 
 ; ============================================================
+; Subroutine: test_ifr_write_clears_t1
+;
+; Verifies that writing IFR_T1 (bit 6) directly to the IFR
+; register clears IFR bit 6 (T1 timeout flag).
+;
+; Strategy:
+;   1. Force-set IFR6 by starting T1 with latch=0 and waiting.
+;   2. Confirm IFR6 is set.
+;   3. Write IFR_T1 to IFR (direct clear).
+;   4. Verify IFR6 is now clear.
+;
+; Returns: A=0 pass, A=1 fail
+; ============================================================
+test_ifr_write_clears_t1:
+        sei
+
+        ; load T1 with $0000 so it times out almost immediately
+        lda #$00
+        sta VIA_BASE+VIA_T1LL
+        lda #$00
+        sta VIA_BASE+VIA_T1LH       ; clears IFR6
+        sta VIA_BASE+VIA_T1CH       ; starts T1 with $0000
+
+        ; wait a few cycles for the timeout to fire
+        nop
+        nop
+        nop
+        nop
+
+        ; IFR6 should now be set
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T1
+        beq ifr_wct1_fail2          ; not set = unexpected (step 2)
+
+        ; writing IFR_T1 to IFR should clear IFR6
+        lda #IFR_T1
+        sta VIA_BASE+VIA_IFR
+
+        ; IFR6 must now be clear
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T1
+        bne ifr_wct1_fail4          ; still set = fail (step 4)
+
+        cli
+        lda #0
+        rts
+ifr_wct1_fail2:
+        cli
+        lda #2
+        sta FAIL_IDX
+        lda #1
+        rts
+ifr_wct1_fail4:
+        cli
+        lda #4
+        sta FAIL_IDX
+        lda #1
+        rts
+
+; ============================================================
 ; Subroutine: test_t1ch_starts
 ;
 ; Verifies that writing T1CH:
@@ -1061,6 +1129,7 @@ msg_t1a:      .byte "  1A T1LL/T1LH RD/WR: ", 0
 msg_t1b:      .byte "  1B T1LL/T1LH NO-START: ", 0
 msg_t1c:      .byte "  1C T1LH CLEARS IFR6: ", 0
 msg_t1d:      .byte "  1D T1CH LOADS+STARTS: ", 0
+msg_t1e:      .byte "  1E IFR WRITE CLEARS IFR6: ", 0
 
 msg_grp2:     .byte "GRP2: T2 LATCH/COUNTER REGS", $0d, 0
 msg_t2a:      .byte "  2A T2CL NO-START: ", 0
