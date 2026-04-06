@@ -167,6 +167,17 @@ main:
         lda #$93
         jsr CHROUT
 
+        ; Print IOBASE address in hex on first line
+        lda #<msg_iobase
+        ldx #>msg_iobase
+        jsr print_str
+        lda #>IOBASE
+        jsr print_hex
+        lda #<IOBASE
+        jsr print_hex
+        lda #$0d
+        jsr CHROUT
+
         lda #<msg_banner
         ldx #>msg_banner
         jsr print_str
@@ -1280,6 +1291,7 @@ cf_via_restore:
 ; ============================================================
 ; Message strings (null-terminated, CBM uppercase charset)
 ; ============================================================
+msg_iobase:   .byte "IOBASE=$", 0
 msg_banner:   .byte "VIA TEST MODULE 1", $0d
               .byte "-----------------", $0d, 0
 
