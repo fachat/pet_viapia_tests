@@ -4,7 +4,7 @@ Test programs for the PIA and VIA chips in 6502 assembler.
 Target: **Commodore PET 4032**  
 Assembler: **xa65** (`xa -W -XC -XMASM`)  
 Build: `make all`  
-Run in VICE: `make run1` … `make run8`, `make gen5`, `make gen8` (see Makefile)
+Run in VICE: `make run1` … `make run8`, `make gen4`, `make gen8` (see Makefile)
 
 Note: the Makefile can build the test programs for I/O at a different base address. E.g. run as
 `IOBASE=0x9900 make` to build for PIAs at $9910 and $9920, and the VIA at $9940.
@@ -54,7 +54,7 @@ Tests PIA2 and the VIA for correct operation of the IEEE-488 interface.
 
 ---
 
-### `04_pia_test2.a65` — PIA Test Module 4: CB1 Vertical Blank Signal Tests
+### `05_pia_test2.a65` — PIA Test Module 5: CB1 Vertical Blank Signal Tests
 
 Tests PIA1 CB1 input (vertical blank / frame-sync signal), which also appears on VIA PB5.
 
@@ -71,10 +71,10 @@ Tests PIA1 CB1 input (vertical blank / frame-sync signal), which also appears on
 
 ---
 
-### `05_via_test1_gen.a65` — VIA Test 1: Reference Data Generator (GEN 5)
+### `04_via_test1_gen.a65` — VIA Test 1: Reference Data Generator (GEN 4)
 
-Runs the same timing measurement loops used by `05_via_test1.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
-Run this **once** on a known-good machine or in VICE (`make gen5`) to produce the reference files that `05_via_test1.a65` compares against.
+Runs the same timing measurement loops used by `04_via_test1.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
+Run this **once** on a known-good machine or in VICE (`make gen4`) to produce the reference files that `04_via_test1.a65` compares against.
 
 | Reference file written | Description |
 |------------------------|-------------|
@@ -100,7 +100,7 @@ Run this **once** on a known-good machine or in VICE (`make gen5`) to produce th
 
 ---
 
-### `05_via_test1.a65` — VIA Test Module 1: Generic 6522 VIA Tests (Test 5)
+### `04_via_test1.a65` — VIA Test Module 1: Generic 6522 VIA Tests (Test 4)
 
 Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Groups 3–7 compare a live 256-byte timing capture against the reference files produced by `via_test1_gen.prg`.  On a mismatch the output shows `FAIL @xx` where `xx` is the hex index of the first differing byte.
 
