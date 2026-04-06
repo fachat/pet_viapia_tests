@@ -697,7 +697,7 @@ test_t1lh_clears_ifr:
         ; IFR6 should now be set
         lda VIA_BASE+VIA_IFR
         and #IFR_T1
-        beq t1lcifr_fail            ; not set = unexpected
+        beq t1lcifr_fail2           ; not set = unexpected (step 2)
 
         ; writing T1LH should clear IFR6
         lda #$00
@@ -706,13 +706,21 @@ test_t1lh_clears_ifr:
         ; IFR6 must now be clear
         lda VIA_BASE+VIA_IFR
         and #IFR_T1
-        bne t1lcifr_fail            ; still set = fail
+        bne t1lcifr_fail4           ; still set = fail (step 4)
 
         cli
         lda #0
         rts
-t1lcifr_fail:
+t1lcifr_fail2:
         cli
+        lda #2
+        sta FAIL_IDX
+        lda #1
+        rts
+t1lcifr_fail4:
+        cli
+        lda #4
+        sta FAIL_IDX
         lda #1
         rts
 
