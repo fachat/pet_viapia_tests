@@ -13,7 +13,8 @@
 ;     1b: Writing T1LL/T1LH does not start the counter
 ;     1c: Writing T1LH clears IFR bit 6 (T1 flag)
 ;     1d: Writing T1CH loads counter from latch and starts T1
-;     1e: Writing IFR.T1 (IFR bit 6) clears IFR bit 6 (T1 flag)
+;     1e: T1 timer underflows and IFR.T1 (IFR bit 6) is set
+;     1f: Writing IFR.T1 (IFR bit 6) clears IFR bit 6 (T1 flag)
 ;
 ;   Group 2 - Timer 2 register / latch access tests
 ;     2a: Write T2CL latch; writing T2CL alone does not start timer
@@ -227,9 +228,16 @@ main:
         jsr test_t1ch_starts
         jsr print_result
 
-        ; 1e: writing IFR.T1 clears IFR bit 6
+        ; 1e: T1 timer underflows and IFR.T1 is set
         lda #<msg_t1e
         ldx #>msg_t1e
+        jsr print_str
+        jsr test_t1ch_starts_ifr
+        jsr print_result
+
+        ; 1f: writing IFR.T1 clears IFR bit 6
+        lda #<msg_t1f
+        ldx #>msg_t1f
         jsr print_str
         jsr test_ifr_write_clears_t1
         jsr print_result
@@ -859,6 +867,50 @@ t1chs_fail:
         rts
 
 ; ============================================================
+; Subroutine: test_t1ch_starts_ifr
+;
+; Verifies that writing T1CH starts T1 and that IFR.T1 (bit 6)
+; is set when the T1 counter underflows.
+;
+; Strategy:
+;   1. Write $00 to T1LL and T1LH (latch=$0000).
+;   2. Write $00 to T1CH to load the latch into the counter
+;      and start T1.  With latch=$0000 the counter reaches
+;      $FFFF on the very next cycle and underflows almost
+;      immediately.
+;   3. Wait a few cycles for the underflow to occur.
+;   4. Read IFR and check that IFR.T1 (bit 6) is set.
+;
+; Returns: A=0 pass, A=1 fail
+; ============================================================
+test_t1ch_starts_ifr:
+        sei
+        lda #$00
+        sta VIA_BASE+VIA_T1LL
+        lda #$00
+        sta VIA_BASE+VIA_T1LH       ; clears IFR6
+        sta VIA_BASE+VIA_T1CH       ; starts T1 with $0000
+
+        ; wait a few cycles for the timer to underflow
+        nop
+        nop
+        nop
+        nop
+
+        ; IFR.T1 (bit 6) must now be set
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T1
+        beq t1csifr_fail            ; not set = timer did not underflow
+
+        cli
+        lda #0
+        rts
+t1csifr_fail:
+        cli
+        lda #1
+        rts
+
+; ============================================================
 ; Subroutine: test_t2_latch_no_start
 ;
 ; Verifies that writing T2CL (latch) does not start the timer.
@@ -1300,7 +1352,8 @@ msg_t1a:      .byte "  1A T1LL/T1LH RD/WR: ", 0
 msg_t1b:      .byte "  1B T1LL/T1LH NO-START: ", 0
 msg_t1c:      .byte "  1C T1LH CLEARS IFR6: ", 0
 msg_t1d:      .byte "  1D T1CH LOADS+STARTS: ", 0
-msg_t1e:      .byte "  1E IFR WRITE CLEARS IFR6: ", 0
+msg_t1e:      .byte "  1E T1CH STARTS IFR.T1: ", 0
+msg_t1f:      .byte "  1F IFR WRITE CLEARS IFR6: ", 0
 
 msg_grp2:     .byte "GRP2: T2 LATCH/COUNTER REGS", $0d, 0
 msg_t2a:      .byte "  2A T2CL NO-START: ", 0
