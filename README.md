@@ -111,6 +111,8 @@ Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Gr
 | 1B — T1LL/T1LH NO-START | | Confirms that writing T1LL/T1LH does not start the T1 counter. |
 | 1C — T1LH CLEARS IFR6 | | Verifies that writing the T1 latch-high register clears IFR bit 6 (T1 interrupt flag). |
 | 1D — T1CH LOADS+STARTS | | Confirms that writing T1CH loads the counter from the latch and starts T1 counting. |
+| 1E — T1CH STARTS IFR.T1 | | Sets T1 latch to $0000 so the timer underflows almost immediately after being started by writing T1CH; verifies that IFR bit 6 (T1 interrupt flag) is set after the underflow. |
+| 1F — IFR WRITE CLEARS IFR6 | | Verifies that writing IFR_T1 (bit 6) directly to the IFR register clears IFR bit 6. |
 | **GRP2: T2 LATCH/COUNTER REGS** | — (no change) | |
 | 2A — T2CL NO-START | | Writes T2CL latch and confirms that writing T2CL alone does not start the counter. |
 | 2B — T2CH STARTS | | Confirms that writing T2CH loads the counter from the T2CL latch and starts T2. |
