@@ -16,8 +16,7 @@
 ;     B  02_pia_test1    - PIA Test 2 (PET keyboard I/O)
 ;     C  03_ieee_test1   - IEEE-488 / PIA2 tests
 ;     D  04_via_test1    - VIA Test 1 (needs ref data on disk)
-;     E  05_pia_test2    - PIA Test 4 (CB1 / IRQ)
-;     F  06_userport_t1  - Userport Test 1
+;     E  05_pia_test2    - PIA Test 4 (CB1 / IRQ);     F  06_userport_t1  - Userport Test 1
 ;     G  07_userport_t2  - Userport Test 2
 ;     H  08_sr_test      - SR Test (needs ref data on disk)
 ;
@@ -343,7 +342,7 @@ msg_tests:
         .byte "  B  02 PIA TEST 2 (KEYBOARD)", $0d
         .byte "  C  03 IEEE TEST 1", $0d
         .byte "  D  04 VIA TEST 1", $0d
-        .byte "  E  05 PIA TEST 2 (CB1/IRQ)", $0d
+        .byte "  E  05 PIA TEST 4 (CB1/IRQ)", $0d
         .byte "  F  06 USERPORT TEST 1", $0d
         .byte "  G  07 USERPORT TEST 2", $0d
         .byte "  H  08 SR TEST", $0d
