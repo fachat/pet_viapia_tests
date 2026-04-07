@@ -5,7 +5,7 @@
 # is attached as IEEE-488 device 8.  The menu program is loaded and
 # started via the VICE keyboard buffer.
 #
-# Usage: bash vice/run_menu.sh <d64_image> [extra VICE options]
+# Usage: bash vice/run-menu.sh <d64_image> [extra VICE options]
 # Requires: VICE xpet binary in PATH
 
 D64="${1:?Usage: $0 <d64_image> [extra VICE options]}"

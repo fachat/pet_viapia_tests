@@ -12,17 +12,17 @@
 ;
 ; Menu layout:
 ;   Tests (press A-H):
-;     A  01_pia_test1    - PIA Test 1 (DDR / CR)
-;     B  02_pia_test1    - PIA Test 2 (PET keyboard I/O)
-;     C  03_ieee_test1   - IEEE-488 / PIA2 tests
-;     D  04_via_test1    - VIA Test 1 (needs ref data on disk)
-;     E  05_pia_test2    - PIA Test 4 (CB1 / IRQ);     F  06_userport_t1  - Userport Test 1
-;     G  07_userport_t2  - Userport Test 2
-;     H  08_sr_test      - SR Test (needs ref data on disk)
+;     A  01-pia-test1    - PIA Test 1 (DDR / CR)
+;     B  02-pia-test1    - PIA Test 2 (PET keyboard I/O)
+;     C  03-ieee-test1   - IEEE-488 / PIA2 tests
+;     D  04-via-test1    - VIA Test 1 (needs ref data on disk)
+;     E  05-pia-test2    - PIA Test 4 (CB1 / IRQ);     F  06-userport-t1  - Userport Test 1
+;     G  07-userport-t2  - Userport Test 2
+;     H  08-sr-test      - SR Test (needs ref data on disk)
 ;
 ;   Generators (press digit):
-;     4  04_via_test1_gen - VIA ref-data generator
-;     8  08_sr_test_gen   - SR  ref-data generator
+;     4  04-via-test1-gen - VIA ref-data generator
+;     8  08-sr-test-gen   - SR  ref-data generator
 ;
 ;   Exit (press X):
 ;     X  Return to BASIC
@@ -300,16 +300,16 @@ ps_done:
 ; Table ends with a zero key byte.
 ; ============================================================
 dispatch_table:
-        .byte 'A',  12, <fn_01,  >fn_01     ; a  01_pia_test1
-        .byte 'B',  12, <fn_02,  >fn_02     ; b  02_pia_test1
-        .byte 'C',  13, <fn_03,  >fn_03     ; c  03_ieee_test1
-        .byte 'D',  12, <fn_04,  >fn_04     ; d  04_via_test1
-        .byte 'E',  12, <fn_05,  >fn_05     ; e  05_pia_test2
-        .byte 'F',  14, <fn_06,  >fn_06     ; f  06_userport_t1
-        .byte 'G',  14, <fn_07,  >fn_07     ; g  07_userport_t2
-        .byte 'H',  10, <fn_08,  >fn_08     ; h  08_sr_test
-        .byte '4',  16, <fn_04g, >fn_04g    ; 4  04_via_test1_gen
-        .byte '8',  14, <fn_08g, >fn_08g    ; 8  08_sr_test_gen
+        .byte 'A',  12, <fn_01,  >fn_01     ; a  01-pia-test1
+        .byte 'B',  12, <fn_02,  >fn_02     ; b  02-pia-test1
+        .byte 'C',  13, <fn_03,  >fn_03     ; c  03-ieee-test1
+        .byte 'D',  12, <fn_04,  >fn_04     ; d  04-via-test1
+        .byte 'E',  12, <fn_05,  >fn_05     ; e  05-pia-test2
+        .byte 'F',  14, <fn_06,  >fn_06     ; f  06-userport-t1
+        .byte 'G',  14, <fn_07,  >fn_07     ; g  07-userport-t2
+        .byte 'H',  10, <fn_08,  >fn_08     ; h  08-sr-test
+        .byte '4',  16, <fn_04g, >fn_04g    ; 4  04-via-test1-gen
+        .byte '8',  14, <fn_08g, >fn_08g    ; 8  08-sr-test-gen
         .byte 'X',   0, 0, 0                ; x  exit (fn_len=0)
         .byte 0                             ; end of table
 
@@ -317,16 +317,16 @@ dispatch_table:
 ; Filename strings (CBM disk filenames, not null-terminated;
 ; lengths stored in dispatch_table above)
 ; ============================================================
-fn_01:  .byte "01_pia_test1"
-fn_02:  .byte "02_pia_test1"
-fn_03:  .byte "03_ieee_test1"
-fn_04:  .byte "04_via_test1"
-fn_05:  .byte "05_pia_test2"
-fn_06:  .byte "06_userport_t1"
-fn_07:  .byte "07_userport_t2"
-fn_08:  .byte "08_sr_test"
-fn_04g: .byte "04_via_test1_gen"
-fn_08g: .byte "08_sr_test_gen"
+fn_01:  .byte "01-pia-test1"
+fn_02:  .byte "02-pia-test1"
+fn_03:  .byte "03-ieee-test1"
+fn_04:  .byte "04-via-test1"
+fn_05:  .byte "05-pia-test2"
+fn_06:  .byte "06-userport-t1"
+fn_07:  .byte "07-userport-t2"
+fn_08:  .byte "08-sr-test"
+fn_04g: .byte "04-via-test1-gen"
+fn_08g: .byte "08-sr-test-gen"
 
 ; ============================================================
 ; Message strings (null-terminated, CBM uppercase charset)

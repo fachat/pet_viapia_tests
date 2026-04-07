@@ -1,5 +1,5 @@
 ; ============================================================
-; 06_userport_t1.a65
+; 06-userport-t1.a65
 ; PET Userport Test Module 1 - VIA Userport Connection Tests
 ;
 ; Assumes the following connections at the PET userport:

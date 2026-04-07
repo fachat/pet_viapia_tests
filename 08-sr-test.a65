@@ -1,5 +1,5 @@
 ; ============================================================
-; 08_sr_test.a65
+; 08-sr-test.a65
 ; VIA Shift Register Tests
 ;
 ; Tests the 6522 VIA shift register at $E840 on the PET 4032.
@@ -145,7 +145,7 @@
 ; so the flag may not yet have been raised.
 ;
 ; The measurement subroutine (meas_sr_mode1) is byte-for-byte
-; identical to the one in 08_sr_test_gen.a65, ensuring that the
+; identical to the one in 08-sr-test-gen.a65, ensuring that the
 ; measured values match the pre-recorded reference data.
 ;
 ; Target   : Commodore PET 4032
@@ -237,7 +237,7 @@ SR_M7_BITNO    = $1E        ; current bit number (1..8) in test_sr_mode7_cb1
 ; Memory buffers
 ; ============================================================
 MEAS_BUF = $7E00            ; measurement result buffer (256 bytes, $7E00-$7EFF)
-; NOTE: REF_BUF must equal MEAS_BUF in 08_sr_test_gen.a65 ($7F00) so that
+; NOTE: REF_BUF must equal MEAS_BUF in 08-sr-test-gen.a65 ($7F00) so that
 ; the PRG file saved by via_sr_test_gen loads at REF_BUF without address override.
 REF_BUF  = $7F00            ; reference data buffer    (256 bytes, $7F00-$7FFF)
 
@@ -269,7 +269,7 @@ basic_end:
 * = $040D
         jmp main            ; skip measurement code; land at main below
 
-.include "sr_meas.inc"   ; meas_sr_mode1 subroutine assembled at $0410
+.include "sr-meas.inc"   ; meas_sr_mode1 subroutine assembled at $0410
 
 ; ============================================================
 ; Main entry point

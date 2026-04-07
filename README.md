@@ -13,7 +13,7 @@ Note: the Makefile can build the test programs for I/O at a different base addre
 
 ## Test Programs
 
-### `01_pia_test1.a65` — PIA Test Module 1: General Functionality
+### `01-pia-test1.a65` — PIA Test Module 1: General Functionality
 
 Tests 6520 PIA register access that does not require any external I/O connections.
 Runs on both PIA1 ($E810) and PIA2 ($E820).
@@ -25,7 +25,7 @@ Runs on both PIA1 ($E810) and PIA2 ($E820).
 
 ---
 
-### `02_pia_test1.a65` — PIA Test Module 2: PET-Specific I/O
+### `02-pia-test1.a65` — PIA Test Module 2: PET-Specific I/O
 
 Tests the two 6520 PIAs using the actual I/O connections on the PET 4032.
 
@@ -37,7 +37,7 @@ Tests the two 6520 PIAs using the actual I/O connections on the PET 4032.
 
 ---
 
-### `03_ieee_test1.a65` — PIA Test Module 3: IEEE-488 Bus Tests
+### `03-ieee-test1.a65` — PIA Test Module 3: IEEE-488 Bus Tests
 
 Tests PIA2 and the VIA for correct operation of the IEEE-488 interface.
 
@@ -54,10 +54,10 @@ Tests PIA2 and the VIA for correct operation of the IEEE-488 interface.
 
 ---
 
-### `04_via_test1_gen.a65` — VIA Test 1: Reference Data Generator (GEN 4)
+### `04-via-test1-gen.a65` — VIA Test 1: Reference Data Generator (GEN 4)
 
-Runs the same timing measurement loops used by `04_via_test1.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
-Run this **once** on a known-good machine or in VICE (`make gen4`) to produce the reference files that `04_via_test1.a65` compares against.
+Runs the same timing measurement loops used by `04-via-test1.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
+Run this **once** on a known-good machine or in VICE (`make gen4`) to produce the reference files that `04-via-test1.a65` compares against.
 
 | Reference file written | Description |
 |------------------------|-------------|
@@ -83,7 +83,7 @@ Run this **once** on a known-good machine or in VICE (`make gen4`) to produce th
 
 ---
 
-### `04_via_test1.a65` — VIA Test Module 1: Generic 6522 VIA Tests (Test 4)
+### `04-via-test1.a65` — VIA Test Module 1: Generic 6522 VIA Tests (Test 4)
 
 Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Groups 3–7 compare a live 256-byte timing capture against the reference files produced by `via_test1_gen.prg`.  On a mismatch the output shows `FAIL @xx` where `xx` is the hex index of the first differing byte.
 
@@ -126,7 +126,7 @@ Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Gr
 
 ---
 
-### `05_pia_test2.a65` — PIA Test Module 5: CB1 Vertical Blank Signal Tests
+### `05-pia-test2.a65` — PIA Test Module 5: CB1 Vertical Blank Signal Tests
 
 Tests PIA1 CB1 input (vertical blank / frame-sync signal), which also appears on VIA PB5.
 
@@ -143,7 +143,7 @@ Tests PIA1 CB1 input (vertical blank / frame-sync signal), which also appears on
 
 ---
 
-### `06_userport_t1.a65` — PET Userport Test Module 1: VIA Userport Connection Tests (Test 6)
+### `06-userport-t1.a65` — PET Userport Test Module 1: VIA Userport Connection Tests (Test 6)
 
 Tests the VIA and PIA1 using specific connections wired at the PET userport.
 Only output-by-default pins drive input-by-default pins to avoid bus contention.
@@ -179,7 +179,7 @@ Required connections:
 
 ---
 
-### `07_userport_t2.a65` — PET Userport Test Module 2: VIA PA Latching and Write Handshake (Test 7)
+### `07-userport-t2.a65` — PET Userport Test Module 2: VIA PA Latching and Write Handshake (Test 7)
 
 Tests VIA PA input latching and CB2/CA2 write handshake using the same test fixture as Module 1 (see above for required connections).
 
@@ -201,10 +201,10 @@ PA input latch behaviour: IRA is transparent when IFR.CA1=0; it latches on the C
 
 ---
 
-### `08_sr_test_gen.a65` — VIA Shift Register Test: Reference Data Generator (GEN 8)
+### `08-sr-test-gen.a65` — VIA Shift Register Test: Reference Data Generator (GEN 8)
 
-Runs the SR mode 1 and mode 5 measurement loops used by `08_sr_test.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
-Run this **once** on a known-good machine or in VICE (`make gen8`) to produce the reference files that `08_sr_test.a65` compares against.
+Runs the SR mode 1 and mode 5 measurement loops used by `08-sr-test.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
+Run this **once** on a known-good machine or in VICE (`make gen8`) to produce the reference files that `08-sr-test.a65` compares against.
 
 Requires the userport test fixture (PIA1 PA7 must be an input to avoid bus conflict on CB1 in SR mode 1).
 
@@ -221,7 +221,7 @@ Requires the userport test fixture (PIA1 PA7 must be an input to avoid bus confl
 
 ---
 
-### `08_sr_test.a65` — VIA Shift Register Tests (Test 8)
+### `08-sr-test.a65` — VIA Shift Register Tests (Test 8)
 
 Tests the 6522 VIA shift register at $E840.  Reference files (produced by `via_sr_test_gen.prg`) must be present on device 8 before running Groups 2 and 3.
 
