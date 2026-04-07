@@ -316,17 +316,18 @@ dispatch_table:
 ; ============================================================
 ; Filename strings (CBM disk filenames, not null-terminated;
 ; lengths stored in dispatch_table above)
+; Use upper case due to encoding issues.
 ; ============================================================
-fn_01:  .byte "01-pia-test1"
-fn_02:  .byte "02-pia-test1"
-fn_03:  .byte "03-ieee-test1"
-fn_04:  .byte "04-via-test1"
-fn_05:  .byte "05-pia-test2"
-fn_06:  .byte "06-userport-t1"
-fn_07:  .byte "07-userport-t2"
-fn_08:  .byte "08-sr-test"
-fn_04g: .byte "04-via-test1-gen"
-fn_08g: .byte "08-sr-test-gen"
+fn_01:  .byte "01-PIA-TEST1"
+fn_02:  .byte "02-PIA-TEST1"
+fn_03:  .byte "03-IEEE-TEST1"
+fn_04:  .byte "04-VIA-TEST1"
+fn_05:  .byte "05-PIA-TEST2"
+fn_06:  .byte "06-USERPORT-T1"
+fn_07:  .byte "07-USERPORT-T2"
+fn_08:  .byte "08-SR-TEST"
+fn_04g: .byte "04-VIA-TEST1-GEN"
+fn_08g: .byte "08-SR-TEST-GEN"
 
 ; ============================================================
 ; Message strings (null-terminated, CBM uppercase charset)
