@@ -32,9 +32,13 @@ LST7    = $(LISTING)/07_userport_t2.lst
 LSTGEN8 = $(LISTING)/08_sr_test_gen.lst
 LST8    = $(LISTING)/08_sr_test.lst
 
-.PHONY: all clean run1 run2 run3 run4 run5 gen4 run6 run7 gen8 run8
+MENU     = $(BUILD)/menu
+LSTMENU  = $(LISTING)/menu.lst
+D64_MENU = $(BUILD)/menu_tests.d64
 
-all: $(PRG1) $(PRG2) $(PRG3) $(GEN4) $(PRG4) $(PRG5) $(PRG6) $(PRG7) $(GEN8) $(PRG8) $(D64) $(D64_SR)
+.PHONY: all clean run1 run2 run3 run4 run5 gen4 run6 run7 gen8 run8 menu run_menu
+
+all: $(PRG1) $(PRG2) $(PRG3) $(GEN4) $(PRG4) $(PRG5) $(PRG6) $(PRG7) $(GEN8) $(PRG8) $(D64) $(D64_SR) $(MENU) $(D64_MENU)
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -121,6 +125,31 @@ gen8: $(D64_SR)
 # Run via_sr_test in VICE using the SR reference data files
 run8: $(D64_SR)
 	bash vice/run_08_sr_test.sh $(D64_SR)
+
+$(MENU): menu.a65 | $(BUILD) $(LISTING)
+	$(XA) $(XAFLAGS) -o $@ -P $(LSTMENU) $<
+
+# Combined disk image with the menu launcher and all test/generator programs.
+# Load with: LOAD "menu",8 then RUN
+$(D64_MENU): $(MENU) $(PRG1) $(PRG2) $(PRG3) $(GEN4) $(PRG4) $(PRG5) $(PRG6) $(PRG7) $(GEN8) $(PRG8) | $(BUILD)
+	c1541 -format "test menu,tm" d64 $@
+	c1541 $@ -write $(MENU)   menu
+	c1541 $@ -write $(PRG1)   01_pia_test1
+	c1541 $@ -write $(PRG2)   02_pia_test1
+	c1541 $@ -write $(PRG3)   03_ieee_test1
+	c1541 $@ -write $(GEN4)   04_via_test1_gen
+	c1541 $@ -write $(PRG4)   04_via_test1
+	c1541 $@ -write $(PRG5)   05_pia_test2
+	c1541 $@ -write $(PRG6)   06_userport_t1
+	c1541 $@ -write $(PRG7)   07_userport_t2
+	c1541 $@ -write $(GEN8)   08_sr_test_gen
+	c1541 $@ -write $(PRG8)   08_sr_test
+
+menu: $(MENU) $(D64_MENU)
+
+# Run the test menu in VICE (PET 4032) using the combined disk image
+run_menu: $(D64_MENU)
+	bash vice/run_menu.sh $(D64_MENU)
 
 clean:
 	rm -rf $(BUILD) $(LISTING)

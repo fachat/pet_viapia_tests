@@ -1,0 +1,376 @@
+; ============================================================
+; menu.a65
+; Test Menu Launcher
+;
+; Loads as a BASIC program (LOAD "menu",8 then RUN).
+; The BASIC stub calls the startup code at $040D, which jumps
+; to the menu body at $7000.  The menu body is placed at $7000
+; by the BASIC LOAD itself (the .PRG file is structured so that
+; the menu code occupies $7000 in RAM when loaded).  This keeps
+; the menu safe in high memory while test programs are loaded
+; and run in the BASIC area ($0401).
+;
+; Menu layout:
+;   Tests (press A-H):
+;     A  01_pia_test1    - PIA Test 1 (DDR / CR)
+;     B  02_pia_test1    - PIA Test 2 (PET keyboard I/O)
+;     C  03_ieee_test1   - IEEE-488 / PIA2 tests
+;     D  04_via_test1    - VIA Test 1 (needs ref data on disk)
+;     E  05_pia_test2    - PIA Test 4 (CB1 / IRQ)
+;     F  06_userport_t1  - Userport Test 1
+;     G  07_userport_t2  - Userport Test 2
+;     H  08_sr_test      - SR Test (needs ref data on disk)
+;
+;   Generators (press digit):
+;     4  04_via_test1_gen - VIA ref-data generator
+;     8  08_sr_test_gen   - SR  ref-data generator
+;
+;   Exit (press X):
+;     X  Return to BASIC
+;
+; Each program is loaded from device 8 at its native address
+; ($0401) and entered via JSR $040D.  On return the menu
+; waits for a key before redisplaying.
+;
+; Target   : Commodore PET 4032
+; Assembler: xa65  (command: xa -W -XC -XMASM)
+; Load     : CBM BASIC LOAD then RUN  -or-  autostart in VICE
+; ============================================================
+
+; ============================================================
+; CBM KERNAL
+; ============================================================
+CHROUT   = $FFD2            ; output character in A
+GETIN    = $FFE4            ; read keyboard (A=0 if no key)
+
+; PET KERNAL zero-page file I/O variables (see kernal.inc)
+KERNAL_FNLEN  = $D1         ; filename length
+KERNAL_LFN    = $D2         ; logical file number
+KERNAL_SA     = $D3         ; secondary address
+KERNAL_DEVNO  = $D4         ; device number
+KERNAL_FNLO   = $DA         ; filename pointer, low byte
+KERNAL_FNHI   = $DB         ; filename pointer, high byte
+KERNAL_STATUS = $96         ; KERNAL I/O status
+
+; ============================================================
+; Zero-page variables ($02-$05 -- safe for standalone ML)
+; ============================================================
+STRPTR    = $02             ; 2-byte string pointer (print_str)
+KEY_PRESS = $04             ; last keypress (uppercased)
+
+; ============================================================
+; Dispatch table entry size
+; ============================================================
+ENTRY_SIZE = 4              ; bytes per entry: key, fn_len, fn_lo, fn_hi
+
+; ============================================================
+; .PRG file header -- load address = $0401
+; ============================================================
+* = $0401 - 2
+        .word $0401
+
+; ============================================================
+; BASIC stub at $0401:  10 SYS 1037
+;
+;   $0401-$0402  next-line pointer -> $040B
+;   $0403-$0404  line number = 10
+;   $0405        SYS token ($9E)
+;   $0406-$0409  "1037"
+;   $040A        line terminator
+;   $040B-$040C  end-of-BASIC marker
+;   $040D        machine code begins (1037 decimal)
+; ============================================================
+* = $0401
+        .word basic_end     ; pointer to next BASIC line
+        .word 10            ; line number
+        .byte $9e           ; SYS token
+        .byte "1037"        ; decimal address of code_start
+        .byte 0             ; end of BASIC line
+basic_end:
+        .word 0             ; end of BASIC program
+
+; ============================================================
+; Startup at $040D
+;
+; xa65 does not create a gap when * = $7000 is used: the menu
+; body bytes are placed in the .PRG output immediately after
+; this startup code (~$0445).  BASIC LOAD therefore places the
+; menu body at that low address, not at $7000.
+;
+; The startup copies the menu body from its physical load
+; address (menu_phys_start, captured just before the * = $7000
+; directive) to $7000, then jumps there.  After the copy the
+; menu is safe in high memory and test programs can be loaded
+; at $0401 without overwriting it.
+;
+; ZP bytes $06-$0B are used as scratch by the copy loop; they
+; are in the $02-$13 range that is safe for standalone ML on
+; the PET.
+; ============================================================
+* = $040D
+startup:
+        ; Set up copy: source = menu_phys_start, dest = $7000
+        lda #<menu_phys_start   ; physical load address (low)
+        sta $06
+        lda #>menu_phys_start   ; physical load address (high)
+        sta $07
+        lda #<$7000             ; destination low
+        sta $08
+        lda #>$7000             ; destination high
+        sta $09
+
+        ; Copy (menu_end - $7000) bytes page by page, then remainder
+        ldy #0
+        ldx #>(menu_end - $7000)    ; X = number of full 256-byte pages
+        beq st_rem                  ; skip if fewer than 256 bytes total
+st_page:
+        lda ($06),y
+        sta ($08),y
+        iny
+        bne st_page             ; inner: 256 bytes
+        inc $07                 ; advance source by one page
+        inc $09                 ; advance destination by one page
+        dex
+        bne st_page             ; outer: remaining full pages
+                                ; Y = 0 after last full page
+st_rem:
+        ldx #<(menu_end - $7000)    ; X = remaining bytes (<256)
+        beq st_done
+st_rem_loop:
+        lda ($06),y
+        sta ($08),y
+        iny
+        dex
+        bne st_rem_loop
+st_done:
+        jmp menu_main           ; now at $7000
+
+
+; ============================================================
+; Menu body -- assembled at $7000, physically loaded at
+; menu_phys_start (right after the startup code above).
+;
+; menu_phys_start captures the current assembly address just
+; before the * = $7000 directive so the startup copy loop can
+; use it as the source address.  All internal labels (strings,
+; subroutines, dispatch table) are $7000-based; the copy places
+; them at those addresses before the menu executes.
+; ============================================================
+menu_phys_start = *     ; physical load address of the menu body
+* = $7000
+
+; ============================================================
+; menu_main: clear screen, display menu, wait for input
+; ============================================================
+menu_main:
+        ; clear screen
+        lda #$93
+        jsr CHROUT
+
+        ; print header
+        lda #<msg_header
+        ldx #>msg_header
+        jsr print_str
+
+        ; print test list
+        lda #<msg_tests
+        ldx #>msg_tests
+        jsr print_str
+
+        ; print generator list + exit line + prompt
+        lda #<msg_gens
+        ldx #>msg_gens
+        jsr print_str
+
+menu_wait:
+        jsr GETIN
+        beq menu_wait
+
+        ; convert lowercase a-z to uppercase A-Z
+        cmp #'a'
+        bcc not_lower
+        cmp #'z' + 1
+        bcs not_lower
+        sec
+        sbc #$20            ; to uppercase
+not_lower:
+        sta KEY_PRESS
+
+        ; search dispatch table for matching key
+        ldx #0
+find_loop:
+        lda dispatch_table,x    ; key byte (0 = end of table)
+        beq menu_wait           ; not found -- ignore
+        cmp KEY_PRESS
+        beq key_found
+        txa
+        clc
+        adc #ENTRY_SIZE
+        tax
+        jmp find_loop
+
+key_found:
+        ; dispatch_table+1,x = fn_len (0 means "exit")
+        lda dispatch_table+1,x
+        beq do_exit
+
+        ; set up KERNAL filename
+        sta KERNAL_FNLEN
+        lda dispatch_table+2,x
+        sta KERNAL_FNLO
+        lda dispatch_table+3,x
+        sta KERNAL_FNHI
+
+        ; SETLFS: logical-file 1, device 8, SA 0
+        ; SA=0 -> load at the native address from the .PRG header
+        lda #1
+        sta KERNAL_LFN
+        lda #8
+        sta KERNAL_DEVNO
+        lda #0
+        sta KERNAL_SA
+
+        ; PET inner LOAD ($f356)
+        ; load/verify flag in $9D; destination in $FB/$FC (overridden by SA=0)
+        lda #0
+        sta $9d             ; load flag (0 = load)
+        lda #<$0401
+        sta $fb             ; destination lo (native address used because SA=0)
+        lda #>$0401
+        sta $fc             ; destination hi
+        lda #0
+        sta KERNAL_STATUS   ; clear I/O status before LOAD
+        jsr $f356           ; PET inner LOAD
+
+        ; check for I/O error (any bit except bit 6 EOF)
+        lda KERNAL_STATUS
+        and #$bf            ; mask out EOF bit (not an error)
+        bne load_error
+
+        ; call the loaded program's machine-code entry point
+        jsr $040D
+
+        ; program returned -- wait for a key before re-menu
+        lda #<msg_press_key
+        ldx #>msg_press_key
+        jsr print_str
+press_wait:
+        jsr GETIN
+        beq press_wait
+        jmp menu_main
+
+load_error:
+        lda #<msg_load_fail
+        ldx #>msg_load_fail
+        jsr print_str
+load_err_wait:
+        jsr GETIN
+        beq load_err_wait
+        jmp menu_main
+
+do_exit:
+        lda #<msg_bye
+        ldx #>msg_bye
+        jsr print_str
+        rts                 ; return to BASIC
+
+; ============================================================
+; print_str: output null-terminated string via CHROUT
+; In: A = low byte of string address, X = high byte
+; ============================================================
+print_str:
+        sta STRPTR
+        stx STRPTR+1
+ps_loop:
+        ldy #0
+        lda (STRPTR),y
+        beq ps_done
+        jsr CHROUT
+        inc STRPTR
+        bne ps_loop
+        inc STRPTR+1
+        jmp ps_loop
+ps_done:
+        rts
+
+; ============================================================
+; Dispatch table
+; Format per entry: key (1 byte), fn_len (1 byte),
+;                   fn_ptr_lo (1 byte), fn_ptr_hi (1 byte)
+; fn_len = 0 signals the "exit" action (no file to load).
+; Table ends with a zero key byte.
+; ============================================================
+dispatch_table:
+        .byte 'A',  12, <fn_01,  >fn_01     ; a  01_pia_test1
+        .byte 'B',  12, <fn_02,  >fn_02     ; b  02_pia_test1
+        .byte 'C',  13, <fn_03,  >fn_03     ; c  03_ieee_test1
+        .byte 'D',  12, <fn_04,  >fn_04     ; d  04_via_test1
+        .byte 'E',  12, <fn_05,  >fn_05     ; e  05_pia_test2
+        .byte 'F',  14, <fn_06,  >fn_06     ; f  06_userport_t1
+        .byte 'G',  14, <fn_07,  >fn_07     ; g  07_userport_t2
+        .byte 'H',  10, <fn_08,  >fn_08     ; h  08_sr_test
+        .byte '4',  16, <fn_04g, >fn_04g    ; 4  04_via_test1_gen
+        .byte '8',  14, <fn_08g, >fn_08g    ; 8  08_sr_test_gen
+        .byte 'X',   0, 0, 0                ; x  exit (fn_len=0)
+        .byte 0                             ; end of table
+
+; ============================================================
+; Filename strings (CBM disk filenames, not null-terminated;
+; lengths stored in dispatch_table above)
+; ============================================================
+fn_01:  .byte "01_pia_test1"
+fn_02:  .byte "02_pia_test1"
+fn_03:  .byte "03_ieee_test1"
+fn_04:  .byte "04_via_test1"
+fn_05:  .byte "05_pia_test2"
+fn_06:  .byte "06_userport_t1"
+fn_07:  .byte "07_userport_t2"
+fn_08:  .byte "08_sr_test"
+fn_04g: .byte "04_via_test1_gen"
+fn_08g: .byte "08_sr_test_gen"
+
+; ============================================================
+; Message strings (null-terminated, CBM uppercase charset)
+; ============================================================
+msg_header:
+        .byte "TEST LAUNCHER", $0d
+        .byte "-------------", $0d
+        .byte 0
+
+msg_tests:
+        .byte "TESTS:", $0d
+        .byte "  A  01 PIA TEST 1", $0d
+        .byte "  B  02 PIA TEST 2 (KEYBOARD)", $0d
+        .byte "  C  03 IEEE TEST 1", $0d
+        .byte "  D  04 VIA TEST 1", $0d
+        .byte "  E  05 PIA TEST 2 (CB1/IRQ)", $0d
+        .byte "  F  06 USERPORT TEST 1", $0d
+        .byte "  G  07 USERPORT TEST 2", $0d
+        .byte "  H  08 SR TEST", $0d
+        .byte 0
+
+msg_gens:
+        .byte $0d
+        .byte "GENERATORS:", $0d
+        .byte "  4  04 VIA TEST 1 GEN", $0d
+        .byte "  8  08 SR TEST GEN", $0d
+        .byte $0d
+        .byte "  X  EXIT", $0d
+        .byte $0d
+        .byte "PRESS KEY: ", 0
+
+msg_press_key:
+        .byte $0d
+        .byte "PRESS ANY KEY TO CONTINUE...", $0d
+        .byte 0
+
+msg_load_fail:
+        .byte "LOAD ERROR - CHECK DISK (DEVICE 8)", $0d
+        .byte "PRESS ANY KEY...", $0d
+        .byte 0
+
+msg_bye:
+        .byte "EXITING TO BASIC...", $0d
+        .byte 0
+
+menu_end:
