@@ -4,7 +4,7 @@ all: upetinit tests
 tests:
 	(rm -f ../build/0*)
 	IOBASE=0x9900 make -C .. all
-	for i in ../build/0*; do mv $$i .; done
+	for i in ../build/0* ../build/menu; do mv $$i .; done
 	rm -f 04*gen 08*gen *.d64
 
 
