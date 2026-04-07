@@ -2087,7 +2087,7 @@ msg_t2b:       .byte "  2B SR MODE1 T2=$0220: ", 0
 msg_t2c:       .byte "  2C SR MODE1 T2=$0330: ", 0
 msg_t2d:       .byte "  2D SR MODE1 T2=$0440: ", 0
 
-msg_grp3:      .byte "GRP3: SR MODE 1 NO ARM (SHIFT IN VIA T2)", $0d, 0
+msg_grp3:      .byte "GRP3: SR MODE 1 NO ARM (T2 SHIFT IN)", $0d, 0
 msg_t3a:       .byte "  3A SR M1NOARM T2=$0110: ", 0
 msg_t3b:       .byte "  3B SR M1NOARM T2=$0220: ", 0
 msg_t3c:       .byte "  3C SR M1NOARM T2=$0330: ", 0
@@ -2099,7 +2099,7 @@ msg_t4b:       .byte "  4B SR M1IFR T2=$0220: ", 0
 msg_t4c:       .byte "  4C SR M1IFR T2=$0330: ", 0
 msg_t4d:       .byte "  4D SR M1IFR T2=$0440: ", 0
 
-msg_grp5:      .byte "GRP5: SR MODE 1 NO ARM IFR POLL (VIA T2)", $0d, 0
+msg_grp5:      .byte "GRP5: SR MODE 1 NO ARM IFR POLL (T2)", $0d, 0
 msg_t5a:       .byte "  5A SR M1NIFR T2=$0110: ", 0
 msg_t5b:       .byte "  5B SR M1NIFR T2=$0220: ", 0
 msg_t5c:       .byte "  5C SR M1NIFR T2=$0330: ", 0
