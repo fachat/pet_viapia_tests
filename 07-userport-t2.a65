@@ -1,8 +1,8 @@
 ; ============================================================
-; 07_userport_t2.a65
+; 07-userport-t2.a65
 ; PET Userport Test Module 2 - VIA PA Latching and Write Handshake
 ;
-; Uses the same test fixture as 06_userport_t1.a65:
+; Uses the same test fixture as 06-userport-t1.a65:
 ;
 ;   Pin C  (PA0)     - Pin D  (PA1)  : PA0/PA1 loopback pair
 ;   Pin E  (PA2)     - Pin F  (PA3)  : PA2/PA3 loopback pair

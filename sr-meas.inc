@@ -1,7 +1,7 @@
 ; ============================================================
-; sr_meas.inc
+; sr-meas.inc
 ; SR measurement subroutines - shared between
-; 08_sr_test_gen.a65 and 08_sr_test.a65.
+; 08-sr-test-gen.a65 and 08-sr-test.a65.
 ;
 ; Both files include this file at the same fixed address ($0410,
 ; immediately after the 3-byte JMP at $040D).  Because the

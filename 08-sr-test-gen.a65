@@ -1,12 +1,12 @@
 ; ============================================================
-; 08_sr_test_gen.a65
+; 08-sr-test-gen.a65
 ; VIA Shift Register Test - Reference Data Generator
 ;
-; Runs the SR mode 1 measurement loops used by 08_sr_test.a65
+; Runs the SR mode 1 measurement loops used by 08-sr-test.a65
 ; and saves the raw results (256 bytes each) to CBM sequential
 ; files on device 8 (IEEE-488 disk drive).  Run this once on a
 ; known-good machine or in the VICE emulator to produce the
-; reference data that 08_sr_test.a65 will compare against.
+; reference data that 08-sr-test.a65 will compare against.
 ;
 ; In SR mode 1 (shift in under T2 control):
 ;   - CB2 is the data input (held high via PA7 loopback).
@@ -95,8 +95,8 @@ SR_IFR_POST = $12           ; IFR & IFR_SR sampled after sample loop (expected: 
 ; Memory buffers
 ; ============================================================
 MEAS_BUF = $7F00            ; measurement result buffer (256 bytes, $7F00-$7FFF)
-; NOTE: MEAS_BUF must equal REF_BUF in 08_sr_test.a65 ($7F00) so that
-; the PRG file header embeds the correct load address and 08_sr_test.a65
+; NOTE: MEAS_BUF must equal REF_BUF in 08-sr-test.a65 ($7F00) so that
+; the PRG file header embeds the correct load address and 08-sr-test.a65
 ; can load it without an address override (SA=0).
 
 ; ============================================================
@@ -127,7 +127,7 @@ basic_end:
 * = $040D
         jmp main            ; skip measurement code; land at main below
 
-.include "sr_meas.inc"   ; meas_sr_mode1 subroutine assembled at $0410
+.include "sr-meas.inc"   ; meas_sr_mode1 subroutine assembled at $0410
 
 ; ============================================================
 ; Main entry point
