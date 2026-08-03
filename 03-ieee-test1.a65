@@ -40,23 +40,15 @@
 ; ============================================================
 
 ; ============================================================
-; Hardware addresses
+; Common hardware and zero-page definitions
 ; ============================================================
-#ifndef IOBASE
-#define IOBASE $e800
-#endif
-PIA1_BASE = IOBASE + $10    ; PIA1 base address (keyboard + EOI)
-PIA2_BASE = IOBASE + $20    ; PIA2 base address (IEEE-488 data bus)
+#include "hw.inc"
 
-; Register offsets from PIA base address
-PIA_ORA = 0         ; Port-A / DDR-A
-PIA_CRA = 1         ; Control Register A
-PIA_ORB = 2         ; Port-B / DDR-B
-PIA_CRB = 3         ; Control Register B
-
-; CRA bits 5:3 control CA2 when bit 5 = 1 (output mode):
-;   bits 5:3 = 110 -> CA2 output = 0  (EOI asserted,  active-low)
-;   bits 5:3 = 111 -> CA2 output = 1  (EOI deasserted)
+; ============================================================
+; PIA CA2 control bits (CRA bits 5:3, bit 5 = 1 = output mode)
+; bits 5:3 = 110 -> CA2 output = 0  (EOI asserted,  active-low)
+; bits 5:3 = 111 -> CA2 output = 1  (EOI deasserted)
+; ============================================================
 CA2_CTRL_MASK = $38     ; mask for CA2 control bits in CRA (bits 5:3)
 CA2_OUT_HIGH  = $38     ; bits 5:3 = 111  -> CA2 = 1
 CA2_OUT_LOW   = $30     ; bits 5:3 = 110  -> CA2 = 0
@@ -65,23 +57,13 @@ CA2_OUT_LOW   = $30     ; bits 5:3 = 110  -> CA2 = 0
 PA6_MASK = $40
 
 ; ============================================================
-; VIA (6522) at $E840 - IEEE-488 handshake lines
-; ============================================================
-VIA_BASE  = IOBASE + $40    ; VIA base address
-
-; Register offsets from VIA base address
-VIA_ORB   = 0       ; Port-B data register (read: inputs; write: output latch)
-VIA_DDRB  = 2       ; Port-B data direction register (1=output, 0=input)
-
 ; VIA Port-B IEEE-488 bit assignments
 ;   PB0: /NDAC in  - DDR=0 (reads bus)
 ;   PB1: /NRFD out - DDR=1 (drives bus)
 ;   PB2: /ATN  out - DDR=1 (drives bus)
-;   PB3: not used by IEEE-488
-;   PB4: not used by IEEE-488
-;   PB5: not used by IEEE-488
 ;   PB6: /NRFD in  - DDR=0 (reads bus)
 ;   PB7: /DAV  in  - DDR=0 (reads bus)
+; ============================================================
 VIA_NDAC_IN  = $01  ; PB0 mask - /NDAC input
 VIA_NRFD_OUT = $02  ; PB1 mask - /NRFD output
 VIA_ATN_OUT  = $04  ; PB2 mask - /ATN  output
@@ -93,15 +75,9 @@ VIA_DDRB_INIT = $1E ; expected KERNAL-initialised DDRB value
 ; Mask covering all output bits (used to pre-load the output latch)
 VIA_OUT_MASK  = $1E ; all output bits deasserted (high = inactive)
 
-; CBM KERNAL
-CHROUT   = $FFD2    ; Output character in A
-
 ; ============================================================
-; Zero-page temporaries
+; Zero-page temporaries (file-specific, $06 onwards)
 ; ============================================================
-STRPTR   = $02      ; 2-byte string pointer for print_str ($02-$03)
-PASS_CNT = $04      ; running pass count
-FAIL_CNT = $05      ; running fail count
 OUTMASK  = $08      ; output bit mask for VIA handshake loopback test
 INMASK   = $09      ; input  bit mask for VIA handshake loopback test
 

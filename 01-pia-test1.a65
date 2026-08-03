@@ -21,31 +21,13 @@
 ; ============================================================
 
 ; ============================================================
-; Hardware addresses
+; Common hardware and zero-page definitions
 ; ============================================================
-#ifndef IOBASE
-#define IOBASE $e800
-#endif
-PIA1_BASE = IOBASE + $10    ; PIA1 base address
-PIA2_BASE = IOBASE + $20    ; PIA2 base address
-
-; Register offsets from PIA base address
-PIA_ORA = 0         ; Port-A / DDR-A (CRA bit2=0->DDR, bit2=1->data)
-PIA_CRA = 1         ; Control Register A
-PIA_ORB = 2         ; Port-B / DDR-B (CRB bit2=0->DDR, bit2=1->data)
-PIA_CRB = 3         ; Control Register B
-
-; CBM KERNAL output routine
-CHROUT   = $FFD2    ; Output character in A to current channel
+#include "hw.inc"
 
 ; ============================================================
-; Zero-page temporaries
-; ($02-$09 are safe for standalone ML on PET when BASIC is
-;  not actively running)
+; Zero-page temporaries (file-specific, $06 onwards)
 ; ============================================================
-STRPTR   = $02      ; 2-byte pointer used by print_str ($02-$03)
-PASS_CNT = $04      ; running count of passed tests
-FAIL_CNT = $05      ; running count of failed tests
 PIAPTR   = $06      ; 2-byte pointer to PIA base address ($06-$07)
 
 ; ============================================================

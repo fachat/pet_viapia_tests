@@ -66,31 +66,9 @@
 ; ============================================================
 
 ; ============================================================
-; Hardware addresses
+; Common hardware and zero-page definitions
 ; ============================================================
-#ifndef IOBASE
-#define IOBASE $e800
-#endif
-VIA_BASE   = IOBASE + $40   ; VIA (6522) base address
-
-; VIA register offsets
-VIA_ORB    = $00            ; Port B data register
-VIA_ORA    = $01            ; Port A data (read clears CA1/CA2 IFR bits)
-VIA_DDRB   = $02            ; Port B data direction register (1=output)
-VIA_DDRA   = $03            ; Port A data direction register (1=output)
-VIA_ACR    = $0B            ; Auxiliary control register
-VIA_PCR    = $0C            ; Peripheral control register
-VIA_IFR    = $0D            ; Interrupt flag register
-VIA_IER    = $0E            ; Interrupt enable register
-VIA_ORA_NH = $0F            ; Port A data, no handshake (no IFR side-effect)
-
-; PIA1
-PIA1_BASE  = IOBASE + $10   ; PIA1 base address
-PIA_ORA    = 0              ; Port A / DDRA (selected by CRA bit 2)
-PIA_CRA    = 1              ; Control register A (bit 2: 0=DDRA, 1=data)
-
-; CBM KERNAL
-CHROUT     = $FFD2          ; Output character in A to current channel
+#include "hw.inc"
 
 ; ============================================================
 ; VIA PCR bit-field constants (bits 3:0 = CA2/CA1 settings)
@@ -131,16 +109,12 @@ DDRA_HI_OUT = $4A           ; PA1+PA3+PA6 as outputs ($02+$08+$40)
 ; ============================================================
 ; VIA ACR constants
 ; ============================================================
-ACR_SR_NMASK       = $E3    ; clears SR mode bits 4:2 (inverse of $1C)
 ACR_PA_LATCH       = $01    ; bit 0 = PA input latch enable
 ACR_PA_LATCH_NMASK = $FE    ; inverse of ACR_PA_LATCH: clears bit 0
 
 ; ============================================================
-; Zero-page variables ($02-$0A - safe for standalone ML on PET)
+; Zero-page variables ($06-$0D - file-specific)
 ; ============================================================
-STRPTR         = $02        ; 2-byte string pointer for print_str
-PASS_CNT       = $04        ; running pass counter
-FAIL_CNT       = $05        ; running fail counter
 ORB_SAVE       = $06        ; saved ORB value (handshake tests 2a, 2b)
 PIA1_DDRA_SAVE = $07        ; saved PIA1 DDRA (setup_pia1_pa7_out)
 TPLA_DDRA      = $08        ; PA latch test param: DDRA value to set

@@ -34,53 +34,13 @@
 ; ============================================================
 
 ; ============================================================
-; Hardware addresses
+; Common hardware and zero-page definitions
 ; ============================================================
-#ifndef IOBASE
-#define IOBASE $e800
-#endif
-VIA_BASE = IOBASE + $40     ; VIA (6522) base address
-
-; VIA register offsets from VIA_BASE
-VIA_T1CL = $04              ; T1 counter low  (read: clears IFR6)
-VIA_T1LH = $07              ; T1 latch high   (write: clears IFR6; read: latch)
-VIA_T1LL = $06              ; T1 latch low    (read/write: latch only)
-VIA_T2CL = $08              ; T2 counter low  (write: latch; read: counter, clears IFR5)
-VIA_T2CH = $09              ; T2 counter high (write: loads T2CL from latch, starts)
-VIA_SR   = $0A              ; Shift register
-VIA_ACR  = $0B              ; Auxiliary control register
-VIA_PCR  = $0C              ; Peripheral control register
-VIA_IFR  = $0D              ; Interrupt flag register
-VIA_IER  = $0E              ; Interrupt enable register
-VIA_DDRA = $03              ; Port A data direction register (1=output)
-VIA_ORA_NH = $0F            ; Port A data, no handshake (no IFR side-effect)
-
-; PIA1
-PIA1_BASE = IOBASE + $10    ; PIA1 base address
-PIA_ORA   = 0               ; Port A / DDRA (selected by CRA bit 2)
-PIA_CRA   = 1               ; Control register A (bit 2: 0=DDRA, 1=data)
-
-; ACR SR mode (bits 4:2)
-ACR_SR_MASK  = $1C          ; mask for SR mode bits
-ACR_SR_NMASK = $E3          ; inverse mask: clears SR mode bits 4:2
-ACR_SR_OFF   = $00          ; 000 -> SR disabled
-ACR_SR_IT2   = $04          ; 001 -> shift in under T2 control
-ACR_SR_OT2   = $14          ; 101 -> shift out under T2 control
-
-; IFR / IER bit masks
-IFR_T1 = $40                ; bit 6 = T1 timeout
-IFR_T2 = $20                ; bit 5 = T2 timeout
-IFR_SR = $04                ; bit 2 = SR complete
-
-; CBM KERNAL
-CHROUT = $FFD2              ; output char in A to current channel
+#include "hw.inc"
 
 ; ============================================================
-; Zero-page ($02-$0F - safe for standalone ML on PET)
+; Zero-page ($09-$12 - file-specific)
 ; ============================================================
-STRPTR    = $02             ; 2-byte string pointer for print_str
-PASS_CNT  = $04             ; running pass counter
-FAIL_CNT  = $05             ; running fail counter
 ACR_SAVE  = $09             ; saved VIA ACR value
 IER_SAVE  = $0A             ; saved VIA IER value
 MEAS_ACR  = $0B             ; current measurement ACR, saved/restored around KERNAL calls

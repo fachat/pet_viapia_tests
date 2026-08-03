@@ -24,30 +24,9 @@
 ; ============================================================
 
 ; ============================================================
-; Hardware addresses
+; Common hardware and zero-page definitions
 ; ============================================================
-#ifndef IOBASE
-#define IOBASE $e800
-#endif
-PIA1_BASE = IOBASE + $10    ; PIA1 base address
-; PIA2 base address kept for future reference
-PIA2_BASE = IOBASE + $20    ; PIA2 base address (IEEE-488 tests in Module 3)
-
-; Register offsets from PIA base address
-PIA_ORA = 0         ; Port-A / DDR-A
-PIA_CRA = 1         ; Control Register A
-PIA_ORB = 2         ; Port-B / DDR-B
-PIA_CRB = 3         ; Control Register B
-
-; CBM KERNAL
-CHROUT   = $FFD2    ; Output character in A
-
-; ============================================================
-; Zero-page temporaries
-; ============================================================
-STRPTR   = $02      ; 2-byte string pointer for print_str ($02-$03)
-PASS_CNT = $04      ; running pass count
-FAIL_CNT = $05      ; running fail count
+#include "hw.inc"
 
 ; ============================================================
 ; .PRG load address header
