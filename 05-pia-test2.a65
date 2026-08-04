@@ -48,31 +48,9 @@
 ; ============================================================
 
 ; ============================================================
-; Hardware addresses
+; Common hardware and zero-page definitions
 ; ============================================================
-#ifndef IOBASE
-#define IOBASE $e800
-#endif
-PIA1_BASE = IOBASE + $10    ; PIA1 base address
-VIA_BASE  = IOBASE + $40    ; VIA (6522) base address
-
-; PIA register offsets
-PIA_ORA   = 0               ; Port-A / DDR-A
-PIA_CRA   = 1               ; Control Register A
-PIA_ORB   = 2               ; Port-B / DDR-B
-PIA_CRB   = 3               ; Control Register B
-
-; VIA register offsets from VIA_BASE
-VIA_ORB   = $00             ; Port-B data register
-VIA_DDRB  = $02             ; Port-B data direction
-VIA_T2CL  = $08             ; T2 counter low  (read: also clears IFR bit 5)
-VIA_T2CH  = $09             ; T2 counter high (write: also starts timer)
-VIA_ACR   = $0B             ; Auxiliary control register
-VIA_IFR   = $0D             ; Interrupt flag register
-VIA_IER   = $0E             ; Interrupt enable register
-
-; CBM KERNAL
-CHROUT    = $FFD2            ; Output character in A to current channel
+#include "hw.inc"
 
 ; ============================================================
 ; Bit masks and control values
@@ -96,11 +74,8 @@ PET_IRQ_VEC = $0090
 TIMEOUT_OVF = 1
 
 ; ============================================================
-; Zero-page variables ($02-$11 - safe for standalone ML on PET)
+; Zero-page variables ($06-$13 - file-specific)
 ; ============================================================
-STRPTR    = $02             ; 2-byte string pointer for print_str
-PASS_CNT  = $04             ; running pass counter
-FAIL_CNT  = $05             ; running fail counter
 CYCLES_LO = $06             ; measured cycle count, low byte
 CYCLES_HI = $07             ; measured cycle count, high byte
 TOTAL_LO  = $08             ; full period from test 1a (timeout ref), low

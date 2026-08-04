@@ -46,34 +46,34 @@ $(BUILD):
 $(LISTING):
 	mkdir -p $(LISTING)
 
-$(PRG1): 01-pia-test1.a65 | $(BUILD) $(LISTING)
+$(PRG1): 01-pia-test1.a65 hw.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST1) $<
 
-$(PRG2): 02-pia-test1.a65 | $(BUILD) $(LISTING)
+$(PRG2): 02-pia-test1.a65 hw.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST2) $<
 
-$(PRG3): 03-ieee-test1.a65 | $(BUILD) $(LISTING)
+$(PRG3): 03-ieee-test1.a65 hw.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST3) $<
 
-$(GEN4): 04-via-test1-gen.a65 meas.inc kernal.inc | $(BUILD) $(LISTING)
+$(GEN4): 04-via-test1-gen.a65 hw.inc meas.inc kernal.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LSTGEN4) $<
 
-$(PRG4): 04-via-test1.a65 meas.inc kernal.inc | $(BUILD) $(LISTING)
+$(PRG4): 04-via-test1.a65 hw.inc meas.inc kernal.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST4) $<
 
-$(PRG5): 05-pia-test2.a65 | $(BUILD) $(LISTING)
+$(PRG5): 05-pia-test2.a65 hw.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST5) $<
 
-$(PRG6): 06-userport-t1.a65 | $(BUILD) $(LISTING)
+$(PRG6): 06-userport-t1.a65 hw.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST6) $<
 
-$(PRG7): 07-userport-t2.a65 | $(BUILD) $(LISTING)
+$(PRG7): 07-userport-t2.a65 hw.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST7) $<
 
-$(GEN8): 08-sr-test-gen.a65 sr-meas.inc kernal.inc | $(BUILD) $(LISTING)
+$(GEN8): 08-sr-test-gen.a65 hw.inc sr-meas.inc kernal.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LSTGEN8) $<
 
-$(PRG8): 08-sr-test.a65 sr-meas.inc kernal.inc | $(BUILD) $(LISTING)
+$(PRG8): 08-sr-test.a65 hw.inc sr-meas.inc kernal.inc | $(BUILD) $(LISTING)
 	$(XA) $(XAFLAGS) -o $@ -P $(LST8) $<
 
 $(D64): $(GEN4) $(PRG4) | $(BUILD)

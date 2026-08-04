@@ -56,31 +56,9 @@
 ; ============================================================
 
 ; ============================================================
-; Hardware addresses
+; Common hardware and zero-page definitions
 ; ============================================================
-#ifndef IOBASE
-#define IOBASE $e800
-#endif
-VIA_BASE   = IOBASE + $40   ; VIA (6522) base address
-
-; VIA register offsets from VIA_BASE
-VIA_ORB    = $00            ; Port B data register
-VIA_ORA    = $01            ; Port A data (read: clears CA1/CA2 IFR bits)
-VIA_DDRB   = $02            ; Port B data direction register (1=output)
-VIA_DDRA   = $03            ; Port A data direction register (1=output)
-VIA_ACR    = $0B            ; Auxiliary control register
-VIA_PCR    = $0C            ; Peripheral control register
-VIA_IFR    = $0D            ; Interrupt flag register
-VIA_IER    = $0E            ; Interrupt enable register
-VIA_ORA_NH = $0F            ; Port A data, no handshake (no IFR side-effect)
-
-; PIA1
-PIA1_BASE  = IOBASE + $10   ; PIA1 base address
-PIA_ORA    = 0              ; Port A / DDRA (selected by CRA bit 2)
-PIA_CRA    = 1              ; Control register A (bit 2: 0=DDRA, 1=data)
-
-; CBM KERNAL
-CHROUT     = $FFD2          ; Output character in A to current channel
+#include "hw.inc"
 
 ; ============================================================
 ; VIA PCR constants
@@ -89,8 +67,6 @@ PCR_CA1_POS  = $01          ; CA1 positive active edge (bit 0 = 1)
 PCR_CA2_HI   = $0E          ; CA2 manual output high (bits 3:1 = 111)
 PCR_CA2_LO   = $0C          ; CA2 manual output low  (bits 3:1 = 110)
 PCR_CB1_POS  = $10          ; CB1 positive active edge (bit 4 = 1)
-PCR_CB2_HI   = $E0          ; CB2 manual output high  (bits 7:5 = 111)
-PCR_CB2_LO   = $C0          ; CB2 manual output low   (bits 7:5 = 110)
 PCR_CB2_IND  = $20          ; CB2 neg edge, independent interrupt mode (bits 7:5 = 001)
 
 ; ============================================================
@@ -115,10 +91,6 @@ VIA_PB3    = $08            ; PB3 bitmask
 DDRA_LO_OUT = $25           ; PA0+PA2+PA5 as outputs ($01+$04+$20)
 DDRA_HI_OUT = $4A           ; PA1+PA3+PA6 as outputs ($02+$08+$40)
 
-; VIA ACR shift-register mode mask (bits 4:2); must be 000 to use CB1 as input
-ACR_SR_MASK  = $1C
-ACR_SR_NMASK = $E3          ; inverse of ACR_SR_MASK: clears SR mode bits 4:2
-
 ; Inverse masks for AND-to-clear single-bit operations
 VIA_PA4_NMASK  = $EF        ; inverse of VIA_PA4  ($10): clears PA4 bit
 VIA_PA7_NMASK  = $7F        ; inverse of VIA_PA7  ($80): clears PA7 bit
@@ -129,11 +101,8 @@ PCR_CB1_NMASK  = $EF        ; inverse of PCR_CB1_POS ($10): clears CB1 edge-sele
 PET_IRQ_VEC = $0090
 
 ; ============================================================
-; Zero-page variables ($02-$0A - safe for standalone ML on PET)
+; Zero-page variables ($06-$0A - file-specific)
 ; ============================================================
-STRPTR         = $02        ; 2-byte string pointer for print_str
-PASS_CNT       = $04        ; running pass counter
-FAIL_CNT       = $05        ; running fail counter
 IRQ_FLAG       = $06        ; $FF when irq_handler fires; 0 otherwise
 ORIG_VEC_LO    = $07        ; saved $0090 vector low  (irq_handler chains here)
 ORIG_VEC_HI    = $08        ; saved $0090 vector high

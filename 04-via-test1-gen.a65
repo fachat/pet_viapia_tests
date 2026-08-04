@@ -43,65 +43,20 @@
 ; ============================================================
 
 ; ============================================================
-; Hardware addresses
+; Common hardware and zero-page definitions
 ; ============================================================
-#ifndef IOBASE
-#define IOBASE $e800
-#endif
-VIA_BASE = IOBASE + $40     ; VIA (6522) base address
+#include "hw.inc"
 
-; VIA register offsets from VIA_BASE
-VIA_T1CL = $04              ; T1 counter low  (read: clears IFR6)
-VIA_T1CH = $05              ; T1 counter high (write: loads T1CL from T1LL, starts)
-VIA_T1LL = $06              ; T1 latch low    (read/write: latch only)
-VIA_T1LH = $07              ; T1 latch high   (write: clears IFR6; read: latch)
-VIA_T2CL = $08              ; T2 counter low  (write: latch; read: counter, clears IFR5)
-VIA_T2CH = $09              ; T2 counter high (write: loads T2CL from latch, starts)
-VIA_SR   = $0A              ; Shift register
-VIA_ACR  = $0B              ; Auxiliary control register
-VIA_IFR  = $0D              ; Interrupt flag register
-VIA_IER  = $0E              ; Interrupt enable register
-
-; ACR T1 mode (bits 7-6):
-;   00 = one-shot, no PB7  01 = one-shot with PB7
-;   10 = free-run, no PB7  11 = free-run with PB7
-ACR_T1_MASK  = $C0          ; mask for T1 mode bits
-ACR_T1_NMASK = $3F          ; inverse mask: bits NOT in T1 mode field
-ACR_T1_SS    = $00          ; 00 -> single-shot, no PB7
-ACR_T1_FR    = $80          ; 10 -> free-run,    no PB7
-
-; ACR SR mode (bits 4-2):
-;   000=off 001=in/T2 010=in/phi2 011=in/CB1
-;   100=out/T2-free 101=out/T2 110=out/phi2 111=out/CB1
-ACR_SR_MASK  = $1C          ; mask for SR mode bits
-ACR_SR_NMASK = $E3          ; inverse mask: bits NOT in SR mode field
-ACR_SR_OFF   = $00          ; 000 -> SR disabled
-ACR_SR_IT2   = $04          ; 001 -> shift in under T2 control
+; ACR SR free-running T2 mode (only used in this generator)
 ACR_SR_FRT2  = $10          ; 100 -> shift out, T2 free-running
-
-; ACR T2 mode (bit 5):  0=timer, 1=count PB6 pulses
-ACR_T2_MASK  = $20          ; mask for T2 mode bit
-ACR_T2_NMASK = $DF          ; inverse mask: bits NOT in T2 mode field
-
-; IFR / IER bit masks
-IFR_T1 = $40                ; bit 6 = T1 timeout
-IFR_T2 = $20                ; bit 5 = T2 timeout
-IFR_SR = $04                ; bit 2 = SR complete
-
-; CBM KERNAL
-CHROUT = $FFD2              ; output char in A to current channel
-
 
 ; ============================================================
 ; Zero-page ($02-$13 - safe for standalone ML on PET)
 ; ============================================================
-STRPTR   = $02              ; 2-byte string pointer for print_str
-PASS_CNT = $04              ; running pass counter
-FAIL_CNT = $05              ; running fail counter
-ACR_SAVE = $09              ; saved VIA ACR value
-IER_SAVE = $0A              ; saved VIA IER value
-MEAS_ACR  = $0B              ; current measurement ACR, saved/restored around KERNAL calls
-SAVE_START = $0C             ; 2-byte ZP buffer ($0C-$0D) for start address passed to PET_SAVE
+ACR_SAVE   = $09            ; saved VIA ACR value
+IER_SAVE   = $0A            ; saved VIA IER value
+MEAS_ACR   = $0B            ; current measurement ACR, saved/restored around KERNAL calls
+SAVE_START = $0C            ; 2-byte ZP buffer ($0C-$0D) for start address passed to PET_SAVE
 
 ; ============================================================
 ; Memory buffers
