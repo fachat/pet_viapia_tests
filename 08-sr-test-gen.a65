@@ -87,7 +87,7 @@ basic_end:
 * = $040D
         jmp main            ; skip measurement code; land at main below
 
-.include "sr-meas.inc"   ; meas_sr_mode1 subroutine assembled at $0410
+.include "08-meas.i65"   ; meas_sr_mode1 subroutine assembled at $0410
 
 ; ============================================================
 ; Main entry point
