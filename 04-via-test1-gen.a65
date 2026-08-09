@@ -1,12 +1,12 @@
 ; ============================================================
-; 05-via-test1-gen.a65
+; 04-via-test1-gen.a65
 ; VIA Test 1 - Reference Data Generator
 ;
-; Runs the timing measurement loops used by 05-via-test1.a65 and
+; Runs the timing measurement loops used by 04-via-test1.a65 and
 ; saves the raw results (256 bytes each) to CBM sequential
 ; files on device 8 (IEEE-488 disk drive).  Run this once on
 ; a known-good machine or in the VICE emulator to produce the
-; reference data that 05-via-test1.a65 will compare against.
+; reference data that 04-via-test1.a65 will compare against.
 ;
 ; The SR tests use SR shift-in-under-T2 mode.
 ; NOTE: CB1 must not be hard-wired as input; the VIA drives CB1
@@ -62,7 +62,7 @@ SAVE_START = $0C            ; 2-byte ZP buffer ($0C-$0D) for start address passe
 ; Memory buffers
 ; ============================================================
 MEAS_BUF = $7F00            ; measurement result buffer (256 bytes, $7F00-$7FFF, top of RAM)
-; NOTE: MEAS_BUF must equal REF_BUF in 05-via-test1.a65 ($7F00) so that the PRG
+; NOTE: MEAS_BUF must equal REF_BUF in 04-via-test1.a65 ($7F00) so that the PRG
 ; file header embeds the correct load address and via_test1 can load it without
 ; an address override (SA=0).
 
@@ -94,7 +94,7 @@ basic_end:
 * = $040D
         jmp main            ; skip measurement code; land at main below
 
-.include "meas.inc"         ; measurement subroutines assembled at $0410
+.include "04-meas.i65"         ; measurement subroutines assembled at $0410
 
 ; ============================================================
 ; Main entry point

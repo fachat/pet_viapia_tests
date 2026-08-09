@@ -1,5 +1,5 @@
 ; ============================================================
-; sr-meas.inc
+; 08-meas.i65
 ; SR measurement subroutines - shared between
 ; 08-sr-test-gen.a65 and 08-sr-test.a65.
 ;
