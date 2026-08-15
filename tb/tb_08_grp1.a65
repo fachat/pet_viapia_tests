@@ -1,0 +1,52 @@
+
+	*=$f000
+
+; ============================================================
+; Zero-page ($09-$1E - file-specific)
+; ============================================================
+;ACR_SAVE       = $09        ; saved VIA ACR value
+;IER_SAVE       = $0A        ; saved VIA IER value
+;TMP            = $0B        ; scratch byte
+;MEAS_ACR       = $0C        ; measurement ACR, saved/restored around KERNAL calls
+FAIL_IDX       = $0D        ; index of first mismatch byte from compare_file
+SR_T2_LO       = $0E        ; T2 initial value low byte (for meas_sr_mode1)
+SR_T2_HI       = $0F        ; T2 initial value high byte (for meas_sr_mode1)
+FAIL_STEP      = $10        ; step number where mode 0 test last failed
+PCR_SAVE       = $11        ; saved VIA PCR (mode 0 test save/restore)
+PIA1_DDRA_SAVE = $12        ; saved PIA1 DDRA (mode 0 test save/restore)
+PIA1_ORA_SAVE  = $13        ; saved PIA1 ORA data (mode 0 test save/restore)
+SR_INIT        = $14        ; initial value written to SR in meas_sr_mode5 before sampling
+SR_IFR_PRE     = $15        ; IFR & IFR_SR sampled before arming SR (expected: 0)
+;SR_IFR_POST    = $16        ; IFR & IFR_SR sampled after sample loop (expected: IFR_SR)
+SR_M3_DATA     = $17        ; original data byte passed to test_sr_mode3
+SR_M3_SHIFT    = $18        ; working copy of data, shifted left each iteration
+SR_IFR_COUNT   = $19        ; iteration count from test_sr_mode1_ifr / _noarm_ifr
+SR_M5_RESULT   = $1A        ; reconstructed byte in test_sr_mode5_cb1
+SR_M5_BITNO    = $1B        ; current bit number (1..8) in test_sr_mode5_cb1
+SR_M7_DATA     = $1C        ; payload byte for test_sr_mode7_cb1
+SR_M7_RESULT   = $1D        ; reconstructed byte in test_sr_mode7_cb1
+SR_M7_BITNO    = $1E        ; current bit number (1..8) in test_sr_mode7_cb1
+
+#include "../hw.inc"
+#include "../08-tests.i65"
+
+reset	sei
+	cld
+	ldx #$ff
+	txs
+
+	; test assumes DRA and not DDRA to be active
+	lda PIA1_BASE+PIA_CRA
+	ora #4
+	sta PIA1_BASE+PIA_CRA
+
+	jsr test_sr_mode0
+	brk
+
+irq	rti
+nmi	rti
+
+	.dsb $fffa-*
+	.word nmi
+	.word reset
+	.word irq
