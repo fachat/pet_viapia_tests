@@ -566,6 +566,7 @@ tsm1ni_fail:
 ; Tests SR mode 4 (shift out under free-running T2 control) by
 ; bit-banging. The setup and checks match test_sr_mode5_cb1; only
 ; the SR mode programmed into ACR differs.
+; IFR.SR must remain clear after the eighth bit in this mode.
 ;
 ; Returns: A = 0 (pass), A = 1 (fail)
 ; Clobbers: A, X
@@ -635,10 +636,10 @@ tsm4_cb1_high:
         lda SR_M5_BITNO
         cmp #9
         bne tsm4_bit_loop
-        ; -- Verify IFR.SR is set after 8 bits --
+        ; -- Verify IFR.SR is still clear after 8 bits --
         lda VIA_BASE+VIA_IFR
         and #IFR_SR
-        bne tsm4_check_val
+        beq tsm4_check_val
         lda #$09
         sta FAIL_IDX
         jmp tsm4_fail
@@ -688,8 +689,8 @@ tsm4_err_hi:
 ; Tests SR mode 5 (shift out under T2 control) by bit-banging:
 ; for each of 8 output bits, polls CB1 low then CB1 high, samples
 ; CB2 at the rising CB1 edge, and accumulates the result byte.
-; Verifies IFR.SR remains clear during shifting and also remains
-; clear after all 8 bits. Verifies the reconstructed byte == SR_INIT.
+; Verifies IFR.SR remains clear during shifting and is set after
+; all 8 bits. Verifies the reconstructed byte == SR_INIT.
 ;
 ; Hardware connections required:
 ;   CB1 -> Pin 6 -> Pin 5 -> PIA1 PA7 (input): reads VIA output clock
@@ -707,7 +708,7 @@ tsm4_err_hi:
 ;   $0N (N=bit_num) : IFR.SR set early at bit N
 ;   $1N (N=bit_num) : CB1 did not go low within 256 polls at bit N
 ;   $2N (N=bit_num) : CB1 did not go high within 256 polls at bit N
-;   $09             : IFR.SR unexpectedly set after 8 bits
+;   $09             : IFR.SR not set after 8 bits
 ;   $0A             : reconstructed byte != SR_INIT
 ;
 ; Returns: A = 0 (pass), A = 1 (fail)
@@ -778,10 +779,10 @@ tsm5_cb1_high:
         lda SR_M5_BITNO
         cmp #9
         bne tsm5_bit_loop
-        ; -- Verify IFR.SR is still clear after 8 bits --
+        ; -- Verify IFR.SR is set after 8 bits --
         lda VIA_BASE+VIA_IFR
         and #IFR_SR
-        beq tsm5_check_val
+        bne tsm5_check_val
         lda #$09
         sta FAIL_IDX
         jmp tsm5_fail

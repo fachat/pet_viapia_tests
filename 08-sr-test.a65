@@ -108,8 +108,7 @@
 ;     For each of 8 bits: verifies IFR.SR is still clear; polls
 ;     CB1 low (up to 256 iterations); polls CB1 high (up to 256
 ;     iterations); samples CB2 via VIA PA7 (ASL -> carry; ROL into
-;     result).  After 8 bits: verifies IFR.SR is still clear and
-;     result == SR_INIT.
+;     result).  After 8 bits: verifies IFR.SR is set and result == SR_INIT.
 ;     On timeout FAIL_IDX = (bit_num << 4) | step (1=lo, 2=hi).
 ;
 ;     9A: SR mode 5 CB1 poll SR=$55 T2=$011c
@@ -157,7 +156,8 @@
 ;     13D: SR mode 4 SR=$AA, T2 initial value = $0440  (file: V.SR.M4G13.AA.D)
 ;
 ;   Group 14 - SR mode 4 CB1 poll, SR init = $55
-;     Matches Group 9 but uses SR mode 4.
+;     Matches Group 9 but uses SR mode 4 and expects IFR.SR to
+;     remain clear after the eighth bit.
 ;
 ;     14A: SR mode 4 CB1 poll SR=$55 T2=$011c
 ;     14B: SR mode 4 CB1 poll SR=$55 T2=$0220
@@ -777,8 +777,8 @@ t3d_done:
         ; Same setup as Group 7 (mode 5, SR=$55) but instead of sampling
         ; CB1/CB2 into MEAS_BUF, reconstructs the shifted-out byte by
         ; polling CB1 low/high for each of 8 bits and sampling CB2.
-        ; IFR.SR is expected to remain clear throughout, including after
-        ; the eighth bit.
+        ; IFR.SR is expected to remain clear during shifting and to be set
+        ; after the eighth bit.
         ; PIA1 PA7 must be an input (already set; VIA drives CB1).
         ; --------------------------------------------------------
         lda #<msg_grp9
