@@ -17,26 +17,30 @@
 ;   - PIA1 PA7 MUST be an input to avoid bus conflict on CB1.
 ;
 ; Files written (CBM PRG, 256 bytes + 2-byte load address header):
-;   VIA.SR.M1.A   SR mode 1, T2 initial value = $0110
-;   VIA.SR.M1.B   SR mode 1, T2 initial value = $0220
-;   VIA.SR.M1.C   SR mode 1, T2 initial value = $0330
-;   VIA.SR.M1.D   SR mode 1, T2 initial value = $0440
-;   VIA.SR.M4.55.A SR mode 4, SR=$55, T2 initial value = $0110
-;   VIA.SR.M4.55.B SR mode 4, SR=$55, T2 initial value = $0220
-;   VIA.SR.M4.55.C SR mode 4, SR=$55, T2 initial value = $0330
-;   VIA.SR.M4.55.D SR mode 4, SR=$55, T2 initial value = $0440
-;   VIA.SR.M4.AA.A SR mode 4, SR=$AA, T2 initial value = $0110
-;   VIA.SR.M4.AA.B SR mode 4, SR=$AA, T2 initial value = $0220
-;   VIA.SR.M4.AA.C SR mode 4, SR=$AA, T2 initial value = $0330
-;   VIA.SR.M4.AA.D SR mode 4, SR=$AA, T2 initial value = $0440
-;   VIA.SR.M5.55.A SR mode 5, SR=$55, T2 initial value = $0110
-;   VIA.SR.M5.55.B SR mode 5, SR=$55, T2 initial value = $0220
-;   VIA.SR.M5.55.C SR mode 5, SR=$55, T2 initial value = $0330
-;   VIA.SR.M5.55.D SR mode 5, SR=$55, T2 initial value = $0440
-;   VIA.SR.M5.AA.A SR mode 5, SR=$AA, T2 initial value = $0110
-;   VIA.SR.M5.AA.B SR mode 5, SR=$AA, T2 initial value = $0220
-;   VIA.SR.M5.AA.C SR mode 5, SR=$AA, T2 initial value = $0330
-;   VIA.SR.M5.AA.D SR mode 5, SR=$AA, T2 initial value = $0440
+;   VIA.SR.M1.G2.A    SR mode 1, T2 initial value = $0110
+;   VIA.SR.M1.G2.B    SR mode 1, T2 initial value = $0220
+;   VIA.SR.M1.G2.C    SR mode 1, T2 initial value = $0330
+;   VIA.SR.M1.G2.D    SR mode 1, T2 initial value = $0440
+;   VIA.SR.M1N.G3.A   SR mode 1 no-arm, T2 initial value = $0110
+;   VIA.SR.M1N.G3.B   SR mode 1 no-arm, T2 initial value = $0220
+;   VIA.SR.M1N.G3.C   SR mode 1 no-arm, T2 initial value = $0330
+;   VIA.SR.M1N.G3.D   SR mode 1 no-arm, T2 initial value = $0440
+;   VIA.SR.M4.G12.55.A SR mode 4, SR=$55, T2 initial value = $0110
+;   VIA.SR.M4.G12.55.B SR mode 4, SR=$55, T2 initial value = $0220
+;   VIA.SR.M4.G12.55.C SR mode 4, SR=$55, T2 initial value = $0330
+;   VIA.SR.M4.G12.55.D SR mode 4, SR=$55, T2 initial value = $0440
+;   VIA.SR.M4.G13.AA.A SR mode 4, SR=$AA, T2 initial value = $0110
+;   VIA.SR.M4.G13.AA.B SR mode 4, SR=$AA, T2 initial value = $0220
+;   VIA.SR.M4.G13.AA.C SR mode 4, SR=$AA, T2 initial value = $0330
+;   VIA.SR.M4.G13.AA.D SR mode 4, SR=$AA, T2 initial value = $0440
+;   VIA.SR.M5.G7.55.A SR mode 5, SR=$55, T2 initial value = $0110
+;   VIA.SR.M5.G7.55.B SR mode 5, SR=$55, T2 initial value = $0220
+;   VIA.SR.M5.G7.55.C SR mode 5, SR=$55, T2 initial value = $0330
+;   VIA.SR.M5.G7.55.D SR mode 5, SR=$55, T2 initial value = $0440
+;   VIA.SR.M5.G8.AA.A SR mode 5, SR=$AA, T2 initial value = $0110
+;   VIA.SR.M5.G8.AA.B SR mode 5, SR=$AA, T2 initial value = $0220
+;   VIA.SR.M5.G8.AA.C SR mode 5, SR=$AA, T2 initial value = $0330
+;   VIA.SR.M5.G8.AA.D SR mode 5, SR=$AA, T2 initial value = $0440
 ;
 ; Files are written using PET_SAVE (JMP $f6e3), bypassing the
 ; $FFD8 KERNAL entry which includes BASIC parsing.
@@ -628,51 +632,51 @@ msg_nl:     .byte $0d, 0
 ; ============================================================
 ; Filename strings
 ; ============================================================
-fn_sr_m1a:    .byte "VIA.SR.M1.A"
+fn_sr_m1a:    .byte "VIA.SR.M1.G2.A"
 fn_sr_m1a_end:
-fn_sr_m1b:    .byte "VIA.SR.M1.B"
+fn_sr_m1b:    .byte "VIA.SR.M1.G2.B"
 fn_sr_m1b_end:
-fn_sr_m1c:    .byte "VIA.SR.M1.C"
+fn_sr_m1c:    .byte "VIA.SR.M1.G2.C"
 fn_sr_m1c_end:
-fn_sr_m1d:    .byte "VIA.SR.M1.D"
+fn_sr_m1d:    .byte "VIA.SR.M1.G2.D"
 fn_sr_m1d_end:
-fn_sr_m1na:   .byte "VIA.SR.M1N.A"
+fn_sr_m1na:   .byte "VIA.SR.M1N.G3.A"
 fn_sr_m1na_end:
-fn_sr_m1nb:   .byte "VIA.SR.M1N.B"
+fn_sr_m1nb:   .byte "VIA.SR.M1N.G3.B"
 fn_sr_m1nb_end:
-fn_sr_m1nc:   .byte "VIA.SR.M1N.C"
+fn_sr_m1nc:   .byte "VIA.SR.M1N.G3.C"
 fn_sr_m1nc_end:
-fn_sr_m1nd:   .byte "VIA.SR.M1N.D"
+fn_sr_m1nd:   .byte "VIA.SR.M1N.G3.D"
 fn_sr_m1nd_end:
-fn_sr_m4a:    .byte "VIA.SR.M4.55.A"
+fn_sr_m4a:    .byte "VIA.SR.M4.G12.55.A"
 fn_sr_m4a_end:
-fn_sr_m4b:    .byte "VIA.SR.M4.55.B"
+fn_sr_m4b:    .byte "VIA.SR.M4.G12.55.B"
 fn_sr_m4b_end:
-fn_sr_m4c:    .byte "VIA.SR.M4.55.C"
+fn_sr_m4c:    .byte "VIA.SR.M4.G12.55.C"
 fn_sr_m4c_end:
-fn_sr_m4d:    .byte "VIA.SR.M4.55.D"
+fn_sr_m4d:    .byte "VIA.SR.M4.G12.55.D"
 fn_sr_m4d_end:
-fn_sr_m4aaa:  .byte "VIA.SR.M4.AA.A"
+fn_sr_m4aaa:  .byte "VIA.SR.M4.G13.AA.A"
 fn_sr_m4aaa_end:
-fn_sr_m4aab:  .byte "VIA.SR.M4.AA.B"
+fn_sr_m4aab:  .byte "VIA.SR.M4.G13.AA.B"
 fn_sr_m4aab_end:
-fn_sr_m4aac:  .byte "VIA.SR.M4.AA.C"
+fn_sr_m4aac:  .byte "VIA.SR.M4.G13.AA.C"
 fn_sr_m4aac_end:
-fn_sr_m4aad:  .byte "VIA.SR.M4.AA.D"
+fn_sr_m4aad:  .byte "VIA.SR.M4.G13.AA.D"
 fn_sr_m4aad_end:
-fn_sr_m5a:    .byte "VIA.SR.M5.55.A"
+fn_sr_m5a:    .byte "VIA.SR.M5.G7.55.A"
 fn_sr_m5a_end:
-fn_sr_m5b:    .byte "VIA.SR.M5.55.B"
+fn_sr_m5b:    .byte "VIA.SR.M5.G7.55.B"
 fn_sr_m5b_end:
-fn_sr_m5c:    .byte "VIA.SR.M5.55.C"
+fn_sr_m5c:    .byte "VIA.SR.M5.G7.55.C"
 fn_sr_m5c_end:
-fn_sr_m5d:    .byte "VIA.SR.M5.55.D"
+fn_sr_m5d:    .byte "VIA.SR.M5.G7.55.D"
 fn_sr_m5d_end:
-fn_sr_m5aaa:  .byte "VIA.SR.M5.AA.A"
+fn_sr_m5aaa:  .byte "VIA.SR.M5.G8.AA.A"
 fn_sr_m5aaa_end:
-fn_sr_m5aab:  .byte "VIA.SR.M5.AA.B"
+fn_sr_m5aab:  .byte "VIA.SR.M5.G8.AA.B"
 fn_sr_m5aab_end:
-fn_sr_m5aac:  .byte "VIA.SR.M5.AA.C"
+fn_sr_m5aac:  .byte "VIA.SR.M5.G8.AA.C"
 fn_sr_m5aac_end:
-fn_sr_m5aad:  .byte "VIA.SR.M5.AA.D"
+fn_sr_m5aad:  .byte "VIA.SR.M5.G8.AA.D"
 fn_sr_m5aad_end:

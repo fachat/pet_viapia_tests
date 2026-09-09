@@ -74,12 +74,12 @@ Run this **once** on a known-good machine or in VICE (`make gen4`) to produce th
 | `VIA.T2.1` | T2 one-shot, latch=$01 |
 | `VIA.T2.2` | T2 one-shot, latch=$02 |
 | `VIA.T2.FF` | T2 one-shot, latch=$FF |
-| `VIA.SR.IT2.A.H` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (high byte) samples |
-| `VIA.SR.IT2.A.L` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (low byte) samples |
-| `VIA.SR.IT2.B.H` | SR shift-in via T2, T2=$0210 direct, T2CH samples |
-| `VIA.SR.IT2.B.L` | SR shift-in via T2, T2=$0210 direct, T2CL samples |
-| `VIA.SR.IT2.C.H` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CH samples |
-| `VIA.SR.IT2.C.L` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CL samples |
+| `VIA.SR.IT2.G7.A.H` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (high byte) samples |
+| `VIA.SR.IT2.G7.A.L` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (low byte) samples |
+| `VIA.SR.IT2.G7.B.H` | SR shift-in via T2, T2=$0210 direct, T2CH samples |
+| `VIA.SR.IT2.G7.B.L` | SR shift-in via T2, T2=$0210 direct, T2CL samples |
+| `VIA.SR.IT2.G7.C.H` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CH samples |
+| `VIA.SR.IT2.G7.C.L` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CL samples |
 
 ---
 
@@ -117,12 +117,12 @@ Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Gr
 | 6C — T2 LATCH=02 | | Same test with latch=$02; compares against `VIA.T2.2`. |
 | 6D — T2 LATCH=FF | | Same test with latch=$FF; compares against `VIA.T2.FF`. |
 | **GRP7: SR SHIFT-IN VIA T2** | bits 4–2 = `$04` (SR shift-in under T2 clock); bit 5 = `0` (T2 timer mode) | NOTE: CB1 must not be hard-wired as input — the VIA drives CB1 as output clock in this mode. |
-| 7A — SR-IN T2 SETUP HI | | Scenario A (T2 pre-set $04FF then $0210): captures 256 T2CH samples while SR shifts in under T2; compares against `VIA.SR.IT2.A.H`. |
-| 7B — SR-IN T2 SETUP LO | | Same scenario A setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.A.L`. |
-| 7C — SR-IN T2 DIRECT HI | | Scenario B (T2 set directly to $0210): captures 256 T2CH samples; compares against `VIA.SR.IT2.B.H`. |
-| 7D — SR-IN T2 DIRECT LO | | Same scenario B setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.B.L`. |
-| 7E — SR-IN T2 LATCH HI | | Scenario C (T2=$0210, 16-cycle wait, then T2CL latch overridden to $20): captures 256 T2CH samples; compares against `VIA.SR.IT2.C.H`. |
-| 7F — SR-IN T2 LATCH LO | | Same scenario C setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.C.L`. |
+| 7A — SR-IN T2 SETUP HI | | Scenario A (T2 pre-set $04FF then $0210): captures 256 T2CH samples while SR shifts in under T2; compares against `VIA.SR.IT2.G7.A.H`. |
+| 7B — SR-IN T2 SETUP LO | | Same scenario A setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.G7.A.L`. |
+| 7C — SR-IN T2 DIRECT HI | | Scenario B (T2 set directly to $0210): captures 256 T2CH samples; compares against `VIA.SR.IT2.G7.B.H`. |
+| 7D — SR-IN T2 DIRECT LO | | Same scenario B setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.G7.B.L`. |
+| 7E — SR-IN T2 LATCH HI | | Scenario C (T2=$0210, 16-cycle wait, then T2CL latch overridden to $20): captures 256 T2CH samples; compares against `VIA.SR.IT2.G7.C.H`. |
+| 7F — SR-IN T2 LATCH LO | | Same scenario C setup; captures 256 T2CL samples; compares against `VIA.SR.IT2.G7.C.L`. |
 
 ---
 
@@ -210,26 +210,30 @@ Requires the userport test fixture (PIA1 PA7 must be an input to avoid bus confl
 
 | Reference file written | Description |
 |------------------------|-------------|
-| `VIA.SR.M1.A` | SR mode 1 (shift in under T2), T2=$0110 |
-| `VIA.SR.M1.B` | SR mode 1, T2=$0220 |
-| `VIA.SR.M1.C` | SR mode 1, T2=$0330 |
-| `VIA.SR.M1.D` | SR mode 1, T2=$0440 |
-| `VIA.SR.M4.55.A` | SR mode 4 (shift out under free-running T2), SR=$55, T2=$0110 |
-| `VIA.SR.M4.55.B` | SR mode 4, SR=$55, T2=$0220 |
-| `VIA.SR.M4.55.C` | SR mode 4, SR=$55, T2=$0330 |
-| `VIA.SR.M4.55.D` | SR mode 4, SR=$55, T2=$0440 |
-| `VIA.SR.M4.AA.A` | SR mode 4, SR=$AA, T2=$0110 |
-| `VIA.SR.M4.AA.B` | SR mode 4, SR=$AA, T2=$0220 |
-| `VIA.SR.M4.AA.C` | SR mode 4, SR=$AA, T2=$0330 |
-| `VIA.SR.M4.AA.D` | SR mode 4, SR=$AA, T2=$0440 |
-| `VIA.SR.M5.55.A` | SR mode 5 (shift out under T2), SR=$55, T2=$0110 |
-| `VIA.SR.M5.55.B` | SR mode 5, SR=$55, T2=$0220 |
-| `VIA.SR.M5.55.C` | SR mode 5, SR=$55, T2=$0330 |
-| `VIA.SR.M5.55.D` | SR mode 5, SR=$55, T2=$0440 |
-| `VIA.SR.M5.AA.A` | SR mode 5, SR=$AA, T2=$0110 |
-| `VIA.SR.M5.AA.B` | SR mode 5, SR=$AA, T2=$0220 |
-| `VIA.SR.M5.AA.C` | SR mode 5, SR=$AA, T2=$0330 |
-| `VIA.SR.M5.AA.D` | SR mode 5, SR=$AA, T2=$0440 |
+| `VIA.SR.M1.G2.A` | SR mode 1 (shift in under T2), T2=$0110 |
+| `VIA.SR.M1.G2.B` | SR mode 1, T2=$0220 |
+| `VIA.SR.M1.G2.C` | SR mode 1, T2=$0330 |
+| `VIA.SR.M1.G2.D` | SR mode 1, T2=$0440 |
+| `VIA.SR.M1N.G3.A` | SR mode 1 no-arm, T2=$0110 |
+| `VIA.SR.M1N.G3.B` | SR mode 1 no-arm, T2=$0220 |
+| `VIA.SR.M1N.G3.C` | SR mode 1 no-arm, T2=$0330 |
+| `VIA.SR.M1N.G3.D` | SR mode 1 no-arm, T2=$0440 |
+| `VIA.SR.M4.G12.55.A` | SR mode 4 (shift out under free-running T2), SR=$55, T2=$0110 |
+| `VIA.SR.M4.G12.55.B` | SR mode 4, SR=$55, T2=$0220 |
+| `VIA.SR.M4.G12.55.C` | SR mode 4, SR=$55, T2=$0330 |
+| `VIA.SR.M4.G12.55.D` | SR mode 4, SR=$55, T2=$0440 |
+| `VIA.SR.M4.G13.AA.A` | SR mode 4, SR=$AA, T2=$0110 |
+| `VIA.SR.M4.G13.AA.B` | SR mode 4, SR=$AA, T2=$0220 |
+| `VIA.SR.M4.G13.AA.C` | SR mode 4, SR=$AA, T2=$0330 |
+| `VIA.SR.M4.G13.AA.D` | SR mode 4, SR=$AA, T2=$0440 |
+| `VIA.SR.M5.G7.55.A` | SR mode 5 (shift out under T2), SR=$55, T2=$0110 |
+| `VIA.SR.M5.G7.55.B` | SR mode 5, SR=$55, T2=$0220 |
+| `VIA.SR.M5.G7.55.C` | SR mode 5, SR=$55, T2=$0330 |
+| `VIA.SR.M5.G7.55.D` | SR mode 5, SR=$55, T2=$0440 |
+| `VIA.SR.M5.G8.AA.A` | SR mode 5, SR=$AA, T2=$0110 |
+| `VIA.SR.M5.G8.AA.B` | SR mode 5, SR=$AA, T2=$0220 |
+| `VIA.SR.M5.G8.AA.C` | SR mode 5, SR=$AA, T2=$0330 |
+| `VIA.SR.M5.G8.AA.D` | SR mode 5, SR=$AA, T2=$0440 |
 
 ---
 
@@ -246,15 +250,15 @@ Requires the userport test fixture:
 | **GRP1: SR MODE 0 — external CB1 clock** | ACR SR = 000. CB1 rising edges shift CB2 data into SR (left-shift, new bit at bit 0). VIA does not count bits; IFR.SR is never set. |
 | 1 — MODE 0 SEQUENCE | Verifies SR=$01, $03, $06 after individual CB1 pulses, then an 8-cycle alternating-CB2 loop confirms SR=$AA and IFR.SR=0 throughout. |
 | **GRP2: SR MODE 1 — shift in under T2 control** | ACR SR = 001. T2 underflows clock the SR; CB2 held high via PA7 loopback. After 8 bits IFR.SR is set. 256 SR samples compared against reference files. |
-| 2A — M1 T2=$0110 | Compares against `VIA.SR.M1.A`. |
-| 2B — M1 T2=$0220 | Compares against `VIA.SR.M1.B`. |
-| 2C — M1 T2=$0330 | Compares against `VIA.SR.M1.C`. |
-| 2D — M1 T2=$0440 | Compares against `VIA.SR.M1.D`. |
+| 2A — M1 T2=$0110 | Compares against `VIA.SR.M1.G2.A`. |
+| 2B — M1 T2=$0220 | Compares against `VIA.SR.M1.G2.B`. |
+| 2C — M1 T2=$0330 | Compares against `VIA.SR.M1.G2.C`. |
+| 2D — M1 T2=$0440 | Compares against `VIA.SR.M1.G2.D`. |
 | **GRP3: SR MODE 1 NO-ARM — shift in under T2 control** | Identical to Group 2 but the SR read that arms shifting is omitted; first shift occurs on the first T2 underflow after ACR is set. 256 samples compared against reference files. |
-| 3A — M1N T2=$0110 | Compares against `VIA.SR.M1N.A`. |
-| 3B — M1N T2=$0220 | Compares against `VIA.SR.M1N.B`. |
-| 3C — M1N T2=$0330 | Compares against `VIA.SR.M1N.C`. |
-| 3D — M1N T2=$0440 | Compares against `VIA.SR.M1N.D`. |
+| 3A — M1N T2=$0110 | Compares against `VIA.SR.M1N.G3.A`. |
+| 3B — M1N T2=$0220 | Compares against `VIA.SR.M1N.G3.B`. |
+| 3C — M1N T2=$0330 | Compares against `VIA.SR.M1N.G3.C`. |
+| 3D — M1N T2=$0440 | Compares against `VIA.SR.M1N.G3.D`. |
 | **GRP4: SR MODE 1 IFR POLL — shift in under T2 control** | Same setup as Group 2 (armed). Polls IFR.SR up to 256 times; prints iteration count on pass; fails if IFR.SR not set within 256 polls. |
 | 4A–4D | T2=$0110, $0220, $0330, $0440. |
 | **GRP5: SR MODE 1 NO-ARM IFR POLL** | Same as Group 4 but SR arm read omitted (matching Group 3 setup). |
@@ -265,9 +269,9 @@ Requires the userport test fixture:
 | 6C — M3 DATA=$A5 | Same for $A5. |
 | 6D — M3 DATA=$5A | Same for $5A. |
 | **GRP7: SR MODE 5 SR=$55 — shift out under T2 control** | ACR SR = 101. VIA drives CB1 (clock) and CB2 (data). 256 combined CB1/CB2 samples compared against reference files. SR armed with $55. |
-| 7A–7D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M5.55.A`–`.D`. |
+| 7A–7D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M5.G7.55.A`–`.D`. |
 | **GRP8: SR MODE 5 SR=$AA — shift out under T2 control** | Identical to Group 7 but SR armed with $AA. |
-| 8A–8D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M5.AA.A`–`.D`. |
+| 8A–8D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M5.G8.AA.A`–`.D`. |
 | **GRP9: SR MODE 5 CB1 POLL SR=$55** | Mode 5, SR=$55. Instead of sampling into a buffer, reconstructs the shifted-out byte bit by bit by polling CB1 low/high and sampling CB2 via PA7. Verifies IFR.SR set after 8 bits and result == $55. |
 | 9A–9D | T2=$011C, $0220, $0330, $0440. |
 | **GRP10: SR MODE 5 CB1 POLL SR=$AA** | Identical to Group 9 but SR armed with $AA; result verified == $AA. |
@@ -278,9 +282,9 @@ Requires the userport test fixture:
 | 11C — M7 DATA=$5A | Same for $5A. |
 | 11D — M7 DATA=$A5 | Same for $A5. |
 | **GRP12: SR MODE 4 SR=$55 — shift out under free-running T2 control** | ACR SR = 100. VIA drives CB1 (clock) and CB2 (data). 256 combined CB1/CB2 samples compared against reference files. SR armed with $55. |
-| 12A–12D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M4.55.A`–`.D`. |
+| 12A–12D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M4.G12.55.A`–`.D`. |
 | **GRP13: SR MODE 4 SR=$AA — shift out under free-running T2 control** | Identical to Group 12 but SR armed with $AA. |
-| 13A–13D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M4.AA.A`–`.D`. |
+| 13A–13D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M4.G13.AA.A`–`.D`. |
 | **GRP14: SR MODE 4 CB1 POLL SR=$55** | Mode 4, SR=$55. Instead of sampling into a buffer, reconstructs the shifted-out byte bit by bit by polling CB1 low/high and sampling CB2 via PA7. Verifies IFR.SR set after 8 bits and result == $55. |
 | 14A–14D | T2=$011C, $0220, $0330, $0440. |
 | **GRP15: SR MODE 4 CB1 POLL SR=$AA** | Identical to Group 14 but SR armed with $AA; result verified == $AA. |
