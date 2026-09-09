@@ -717,16 +717,16 @@ msg_banner:   .byte "VIA TEST MODULE 1", $0d
               .byte "-----------------", $0d, 0
 
 msg_grp1:     .byte "GRP1: T1 LATCH/COUNTER REGS", $0d, 0
-msg_t1a:      .byte "  1A T1LL/T1LH RD/WR: ", 0
-msg_t1b:      .byte "  1B T1LL/T1LH NO-START: ", 0
-msg_t1c:      .byte "  1C T1LH CLEARS IFR6: ", 0
-msg_t1d:      .byte "  1D T1CH LOADS+STARTS: ", 0
-msg_t1e:      .byte "  1E T1CH STARTS IFR.T1: ", 0
-msg_t1f:      .byte "  1F IFR WRITE CLEARS IFR6: ", 0
+msg_t1a:      .byte "  1A T1LL/T1LH RD/WR           : ", 0
+msg_t1b:      .byte "  1B T1LL/T1LH NO-START        : ", 0
+msg_t1c:      .byte "  1C T1LH CLEARS IFR6          : ", 0
+msg_t1d:      .byte "  1D T1CH LOADS+STARTS         : ", 0
+msg_t1e:      .byte "  1E T1CH STARTS IFR.T1        : ", 0
+msg_t1f:      .byte "  1F IFR WRITE CLEARS IFR6     : ", 0
 
 msg_grp2:     .byte "GRP2: T2 LATCH/COUNTER REGS", $0d, 0
-msg_t2a:      .byte "  2A T2CL NO-START: ", 0
-msg_t2b:      .byte "  2B T2CH STARTS: ", 0
+msg_t2a:      .byte "  2A T2CL NO-START             : ", 0
+msg_t2b:      .byte "  2B T2CH STARTS               : ", 0
 msg_t2c:      .byte "  2C T2CH STARTS (IFR WR CLEAR): ", 0
 
 msg_grp3:     .byte "GRP3: T1 SINGLE-SHOT", $0d, 0
