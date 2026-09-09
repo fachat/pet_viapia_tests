@@ -272,7 +272,7 @@ Requires the userport test fixture:
 | 7A–7D | T2=$0110, $0220, $0330, $0440; files `V.SR.M5G7.55.A`–`.D`. |
 | **GRP8: SR MODE 5 SR=$AA — shift out under T2 control** | Identical to Group 7 but SR armed with $AA. |
 | 8A–8D | T2=$0110, $0220, $0330, $0440; files `V.SR.M5G8.AA.A`–`.D`. |
-| **GRP9: SR MODE 5 CB1 POLL SR=$55** | Mode 5, SR=$55. Instead of sampling into a buffer, reconstructs the shifted-out byte bit by bit by polling CB1 low/high and sampling CB2 via PA7. Verifies IFR.SR set after 8 bits and result == $55. |
+| **GRP9: SR MODE 5 CB1 POLL SR=$55** | Mode 5, SR=$55. Instead of sampling into a buffer, reconstructs the shifted-out byte bit by bit by polling CB1 low/high and sampling CB2 via PA7. Verifies IFR.SR remains clear after 8 bits and result == $55. |
 | 9A–9D | T2=$011C, $0220, $0330, $0440. |
 | **GRP10: SR MODE 5 CB1 POLL SR=$AA** | Identical to Group 9 but SR armed with $AA; result verified == $AA. |
 | 10A–10D | T2=$011C, $0220, $0330, $0440. |
