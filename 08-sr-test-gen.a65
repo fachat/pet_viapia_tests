@@ -2,7 +2,8 @@
 ; 08-sr-test-gen.a65
 ; VIA Shift Register Test - Reference Data Generator
 ;
-; Runs the SR mode 1 measurement loops used by 08-sr-test.a65
+; Runs the SR mode 1, mode 4, and mode 5 measurement loops used by
+; 08-sr-test.a65
 ; and saves the raw results (256 bytes each) to CBM sequential
 ; files on device 8 (IEEE-488 disk drive).  Run this once on a
 ; known-good machine or in the VICE emulator to produce the
@@ -16,14 +17,30 @@
 ;   - PIA1 PA7 MUST be an input to avoid bus conflict on CB1.
 ;
 ; Files written (CBM PRG, 256 bytes + 2-byte load address header):
-;   VIA.SR.M1.A   SR mode 1, T2 initial value = $0110
-;   VIA.SR.M1.B   SR mode 1, T2 initial value = $0220
-;   VIA.SR.M1.C   SR mode 1, T2 initial value = $0330
-;   VIA.SR.M1.D   SR mode 1, T2 initial value = $0440
-;   VIA.SR.M5.A   SR mode 5, T2 initial value = $0110
-;   VIA.SR.M5.B   SR mode 5, T2 initial value = $0220
-;   VIA.SR.M5.C   SR mode 5, T2 initial value = $0330
-;   VIA.SR.M5.D   SR mode 5, T2 initial value = $0440
+;   V.SR.M1G2.A     SR mode 1, T2 initial value = $0110
+;   V.SR.M1G2.B     SR mode 1, T2 initial value = $0220
+;   V.SR.M1G2.C     SR mode 1, T2 initial value = $0330
+;   V.SR.M1G2.D     SR mode 1, T2 initial value = $0440
+;   V.SR.M1NG3.A    SR mode 1 no-arm, T2 initial value = $0110
+;   V.SR.M1NG3.B    SR mode 1 no-arm, T2 initial value = $0220
+;   V.SR.M1NG3.C    SR mode 1 no-arm, T2 initial value = $0330
+;   V.SR.M1NG3.D    SR mode 1 no-arm, T2 initial value = $0440
+;   V.SR.M4G12.55.A SR mode 4, SR=$55, T2 initial value = $0110
+;   V.SR.M4G12.55.B SR mode 4, SR=$55, T2 initial value = $0220
+;   V.SR.M4G12.55.C SR mode 4, SR=$55, T2 initial value = $0330
+;   V.SR.M4G12.55.D SR mode 4, SR=$55, T2 initial value = $0440
+;   V.SR.M4G13.AA.A SR mode 4, SR=$AA, T2 initial value = $0110
+;   V.SR.M4G13.AA.B SR mode 4, SR=$AA, T2 initial value = $0220
+;   V.SR.M4G13.AA.C SR mode 4, SR=$AA, T2 initial value = $0330
+;   V.SR.M4G13.AA.D SR mode 4, SR=$AA, T2 initial value = $0440
+;   V.SR.M5G7.55.A  SR mode 5, SR=$55, T2 initial value = $0110
+;   V.SR.M5G7.55.B  SR mode 5, SR=$55, T2 initial value = $0220
+;   V.SR.M5G7.55.C  SR mode 5, SR=$55, T2 initial value = $0330
+;   V.SR.M5G7.55.D  SR mode 5, SR=$55, T2 initial value = $0440
+;   V.SR.M5G8.AA.A  SR mode 5, SR=$AA, T2 initial value = $0110
+;   V.SR.M5G8.AA.B  SR mode 5, SR=$AA, T2 initial value = $0220
+;   V.SR.M5G8.AA.C  SR mode 5, SR=$AA, T2 initial value = $0330
+;   V.SR.M5G8.AA.D  SR mode 5, SR=$AA, T2 initial value = $0440
 ;
 ; Files are written using PET_SAVE (JMP $f6e3), bypassing the
 ; $FFD8 KERNAL entry which includes BASIC parsing.
@@ -47,7 +64,7 @@ MEAS_ACR  = $0B             ; current measurement ACR, saved/restored around KER
 SAVE_START = $0C            ; 2-byte ZP buffer ($0C-$0D) for start address passed to PET_SAVE
 SR_T2_LO  = $0E             ; T2 initial value low byte (written before calling meas_sr_mode1)
 SR_T2_HI  = $0F             ; T2 initial value high byte
-SR_INIT   = $10             ; initial value written to SR in meas_sr_mode5 before sampling
+SR_INIT   = $10             ; initial value written to SR in meas_sr_mode4 / meas_sr_mode5 before sampling
 SR_IFR_PRE  = $11           ; IFR & IFR_SR sampled before arming SR (expected: 0)
 SR_IFR_POST = $12           ; IFR & IFR_SR sampled after sample loop (expected: IFR_SR)
 
@@ -236,6 +253,124 @@ main:
         lda #fn_sr_m1nd_end - fn_sr_m1nd
         ldx #<fn_sr_m1nd
         ldy #>fn_sr_m1nd
+        jsr write_file
+        lda #<msg_nl
+        ldx #>msg_nl
+        jsr print_str
+
+        ; --------------------------------------------------------
+        ; SR mode 4 (shift out under free-running T2 control), SR init = $55
+        ; PIA1 PA7 and VIA PA7 are both inputs (already set above).
+        ; meas_sr_mode4 sets VIA DDRA=$00 internally.
+        ; --------------------------------------------------------
+        lda #<msg_sr_m45
+        ldx #>msg_sr_m45
+        jsr print_str
+
+        lda #$55
+        sta SR_INIT
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4a_end - fn_sr_m4a
+        ldx #<fn_sr_m4a
+        ldy #>fn_sr_m4a
+        jsr write_file
+
+        lda #$55
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4b_end - fn_sr_m4b
+        ldx #<fn_sr_m4b
+        ldy #>fn_sr_m4b
+        jsr write_file
+
+        lda #$55
+        sta SR_INIT
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4c_end - fn_sr_m4c
+        ldx #<fn_sr_m4c
+        ldy #>fn_sr_m4c
+        jsr write_file
+
+        lda #$55
+        sta SR_INIT
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4d_end - fn_sr_m4d
+        ldx #<fn_sr_m4d
+        ldy #>fn_sr_m4d
+        jsr write_file
+        lda #<msg_nl
+        ldx #>msg_nl
+        jsr print_str
+
+        ; --------------------------------------------------------
+        ; SR mode 4 (shift out under free-running T2 control), SR init = $AA
+        ; --------------------------------------------------------
+        lda #<msg_sr_m4aa
+        ldx #>msg_sr_m4aa
+        jsr print_str
+
+        lda #$aa
+        sta SR_INIT
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4aaa_end - fn_sr_m4aaa
+        ldx #<fn_sr_m4aaa
+        ldy #>fn_sr_m4aaa
+        jsr write_file
+
+        lda #$aa
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4aab_end - fn_sr_m4aab
+        ldx #<fn_sr_m4aab
+        ldy #>fn_sr_m4aab
+        jsr write_file
+
+        lda #$aa
+        sta SR_INIT
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4aac_end - fn_sr_m4aac
+        ldx #<fn_sr_m4aac
+        ldy #>fn_sr_m4aac
+        jsr write_file
+
+        lda #$aa
+        sta SR_INIT
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4aad_end - fn_sr_m4aad
+        ldx #<fn_sr_m4aad
+        ldy #>fn_sr_m4aad
         jsr write_file
         lda #<msg_nl
         ldx #>msg_nl
@@ -485,6 +620,8 @@ msg_banner: .byte "VIA SR TEST DATA GENERATOR", $0d
             .byte "--------------------------", $0d, 0
 msg_sr_m1:  .byte "SR MODE1...", 0
 msg_sr_m1n: .byte "SR MODE1 NO ARM...", 0
+msg_sr_m45: .byte "SR MODE4 SR=$55...", 0
+msg_sr_m4aa:.byte "SR MODE4 SR=$AA...", 0
 msg_sr_m55: .byte "SR MODE5 SR=$55...", 0
 msg_sr_m5aa:.byte "SR MODE5 SR=$AA...", 0
 msg_done:   .byte "DONE.", $0d, 0
@@ -495,35 +632,51 @@ msg_nl:     .byte $0d, 0
 ; ============================================================
 ; Filename strings
 ; ============================================================
-fn_sr_m1a:    .byte "VIA.SR.M1.A"
+fn_sr_m1a:    .byte "V.SR.M1G2.A"
 fn_sr_m1a_end:
-fn_sr_m1b:    .byte "VIA.SR.M1.B"
+fn_sr_m1b:    .byte "V.SR.M1G2.B"
 fn_sr_m1b_end:
-fn_sr_m1c:    .byte "VIA.SR.M1.C"
+fn_sr_m1c:    .byte "V.SR.M1G2.C"
 fn_sr_m1c_end:
-fn_sr_m1d:    .byte "VIA.SR.M1.D"
+fn_sr_m1d:    .byte "V.SR.M1G2.D"
 fn_sr_m1d_end:
-fn_sr_m1na:   .byte "VIA.SR.M1N.A"
+fn_sr_m1na:   .byte "V.SR.M1NG3.A"
 fn_sr_m1na_end:
-fn_sr_m1nb:   .byte "VIA.SR.M1N.B"
+fn_sr_m1nb:   .byte "V.SR.M1NG3.B"
 fn_sr_m1nb_end:
-fn_sr_m1nc:   .byte "VIA.SR.M1N.C"
+fn_sr_m1nc:   .byte "V.SR.M1NG3.C"
 fn_sr_m1nc_end:
-fn_sr_m1nd:   .byte "VIA.SR.M1N.D"
+fn_sr_m1nd:   .byte "V.SR.M1NG3.D"
 fn_sr_m1nd_end:
-fn_sr_m5a:    .byte "VIA.SR.M5.55.A"
+fn_sr_m4a:    .byte "V.SR.M4G12.55.A"
+fn_sr_m4a_end:
+fn_sr_m4b:    .byte "V.SR.M4G12.55.B"
+fn_sr_m4b_end:
+fn_sr_m4c:    .byte "V.SR.M4G12.55.C"
+fn_sr_m4c_end:
+fn_sr_m4d:    .byte "V.SR.M4G12.55.D"
+fn_sr_m4d_end:
+fn_sr_m4aaa:  .byte "V.SR.M4G13.AA.A"
+fn_sr_m4aaa_end:
+fn_sr_m4aab:  .byte "V.SR.M4G13.AA.B"
+fn_sr_m4aab_end:
+fn_sr_m4aac:  .byte "V.SR.M4G13.AA.C"
+fn_sr_m4aac_end:
+fn_sr_m4aad:  .byte "V.SR.M4G13.AA.D"
+fn_sr_m4aad_end:
+fn_sr_m5a:    .byte "V.SR.M5G7.55.A"
 fn_sr_m5a_end:
-fn_sr_m5b:    .byte "VIA.SR.M5.55.B"
+fn_sr_m5b:    .byte "V.SR.M5G7.55.B"
 fn_sr_m5b_end:
-fn_sr_m5c:    .byte "VIA.SR.M5.55.C"
+fn_sr_m5c:    .byte "V.SR.M5G7.55.C"
 fn_sr_m5c_end:
-fn_sr_m5d:    .byte "VIA.SR.M5.55.D"
+fn_sr_m5d:    .byte "V.SR.M5G7.55.D"
 fn_sr_m5d_end:
-fn_sr_m5aaa:  .byte "VIA.SR.M5.AA.A"
+fn_sr_m5aaa:  .byte "V.SR.M5G8.AA.A"
 fn_sr_m5aaa_end:
-fn_sr_m5aab:  .byte "VIA.SR.M5.AA.B"
+fn_sr_m5aab:  .byte "V.SR.M5G8.AA.B"
 fn_sr_m5aab_end:
-fn_sr_m5aac:  .byte "VIA.SR.M5.AA.C"
+fn_sr_m5aac:  .byte "V.SR.M5G8.AA.C"
 fn_sr_m5aac_end:
-fn_sr_m5aad:  .byte "VIA.SR.M5.AA.D"
+fn_sr_m5aad:  .byte "V.SR.M5G8.AA.D"
 fn_sr_m5aad_end:

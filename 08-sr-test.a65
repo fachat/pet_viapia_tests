@@ -5,7 +5,7 @@
 ; Tests the 6522 VIA shift register at $E840 on the PET 4032.
 ; Reference timing data (produced by via_sr_test_gen.prg) must
 ; be present on device 8 (IEEE-488 disk drive) before running
-; the mode 1 tests.
+; the reference-comparison groups.
 ;
 ; Requires the userport test fixture:
 ;   Pin 5 (PIA1 PA7)  ->  Pin 6  (CB1) : PIA1 PA7 drives CB1 clock
@@ -31,20 +31,20 @@
 ;     After 8 bits the IFR.SR bit is set.
 ;     256 SR samples are compared against reference files.
 ;
-;     2A: SR mode 1, T2 initial value = $0110  (file: VIA.SR.M1.A)
-;     2B: SR mode 1, T2 initial value = $0220  (file: VIA.SR.M1.B)
-;     2C: SR mode 1, T2 initial value = $0330  (file: VIA.SR.M1.C)
-;     2D: SR mode 1, T2 initial value = $0440  (file: VIA.SR.M1.D)
+;     2A: SR mode 1, T2 initial value = $0110  (file: V.SR.M1G2.A)
+;     2B: SR mode 1, T2 initial value = $0220  (file: V.SR.M1G2.B)
+;     2C: SR mode 1, T2 initial value = $0330  (file: V.SR.M1G2.C)
+;     2D: SR mode 1, T2 initial value = $0440  (file: V.SR.M1G2.D)
 ;
 ;   Group 3 - SR mode 1 (no arm read): shift in under T2 control
 ;     Identical to Group 2 but the SR read that arms shifting is
 ;     omitted.  The first shift clock therefore occurs on the first
 ;     T2 underflow after ACR is set to mode 1.
 ;
-;     3A: SR mode 1 no-arm, T2 initial value = $0110  (file: VIA.SR.M1N.A)
-;     3B: SR mode 1 no-arm, T2 initial value = $0220  (file: VIA.SR.M1N.B)
-;     3C: SR mode 1 no-arm, T2 initial value = $0330  (file: VIA.SR.M1N.C)
-;     3D: SR mode 1 no-arm, T2 initial value = $0440  (file: VIA.SR.M1N.D)
+;     3A: SR mode 1 no-arm, T2 initial value = $0110  (file: V.SR.M1NG3.A)
+;     3B: SR mode 1 no-arm, T2 initial value = $0220  (file: V.SR.M1NG3.B)
+;     3C: SR mode 1 no-arm, T2 initial value = $0330  (file: V.SR.M1NG3.C)
+;     3D: SR mode 1 no-arm, T2 initial value = $0440  (file: V.SR.M1NG3.D)
 ;
 ;   Group 4 - SR mode 1 IFR poll: shift in under T2 control
 ;     Identical setup to Group 2 (SR mode 1, armed).  Instead of
@@ -88,18 +88,18 @@
 ;     SR is armed by writing $55 to SR after setting ACR to mode 5.
 ;     256 combined CB1/CB2 samples are compared against reference files.
 ;
-;     7A: SR mode 5 SR=$55, T2 initial value = $0110  (file: VIA.SR.M5.55.A)
-;     7B: SR mode 5 SR=$55, T2 initial value = $0220  (file: VIA.SR.M5.55.B)
-;     7C: SR mode 5 SR=$55, T2 initial value = $0330  (file: VIA.SR.M5.55.C)
-;     7D: SR mode 5 SR=$55, T2 initial value = $0440  (file: VIA.SR.M5.55.D)
+;     7A: SR mode 5 SR=$55, T2 initial value = $0110  (file: V.SR.M5G7.55.A)
+;     7B: SR mode 5 SR=$55, T2 initial value = $0220  (file: V.SR.M5G7.55.B)
+;     7C: SR mode 5 SR=$55, T2 initial value = $0330  (file: V.SR.M5G7.55.C)
+;     7D: SR mode 5 SR=$55, T2 initial value = $0440  (file: V.SR.M5G7.55.D)
 ;
 ;   Group 8 - SR mode 5: shift out under T2 control, SR init = $AA
 ;     Identical to Group 7 but SR is armed by writing $AA to SR.
 ;
-;     8A: SR mode 5 SR=$AA, T2 initial value = $0110  (file: VIA.SR.M5.AA.A)
-;     8B: SR mode 5 SR=$AA, T2 initial value = $0220  (file: VIA.SR.M5.AA.B)
-;     8C: SR mode 5 SR=$AA, T2 initial value = $0330  (file: VIA.SR.M5.AA.C)
-;     8D: SR mode 5 SR=$AA, T2 initial value = $0440  (file: VIA.SR.M5.AA.D)
+;     8A: SR mode 5 SR=$AA, T2 initial value = $0110  (file: V.SR.M5G8.AA.A)
+;     8B: SR mode 5 SR=$AA, T2 initial value = $0220  (file: V.SR.M5G8.AA.B)
+;     8C: SR mode 5 SR=$AA, T2 initial value = $0330  (file: V.SR.M5G8.AA.C)
+;     8D: SR mode 5 SR=$AA, T2 initial value = $0440  (file: V.SR.M5G8.AA.D)
 ;
 ;   Group 9 - SR mode 5 CB1 poll, SR init = $55
 ;     Identical setup to Group 7 (mode 5, SR=$55, T2 driven) but
@@ -138,6 +138,40 @@
 ;     11C: SR mode 7, data = $5A
 ;     11D: SR mode 7, data = $A5
 ;
+;   Group 12 - SR mode 4: shift out under free-running T2 control, SR init = $55
+;     Matches Group 7 but uses SR mode 4 and compares against the
+;     V.SR.M4G12.55.* reference files.
+;
+;     12A: SR mode 4 SR=$55, T2 initial value = $0110  (file: V.SR.M4G12.55.A)
+;     12B: SR mode 4 SR=$55, T2 initial value = $0220  (file: V.SR.M4G12.55.B)
+;     12C: SR mode 4 SR=$55, T2 initial value = $0330  (file: V.SR.M4G12.55.C)
+;     12D: SR mode 4 SR=$55, T2 initial value = $0440  (file: V.SR.M4G12.55.D)
+;
+;   Group 13 - SR mode 4: shift out under free-running T2 control, SR init = $AA
+;     Identical to Group 12 but SR is armed by writing $AA to SR.
+;
+;     13A: SR mode 4 SR=$AA, T2 initial value = $0110  (file: V.SR.M4G13.AA.A)
+;     13B: SR mode 4 SR=$AA, T2 initial value = $0220  (file: V.SR.M4G13.AA.B)
+;     13C: SR mode 4 SR=$AA, T2 initial value = $0330  (file: V.SR.M4G13.AA.C)
+;     13D: SR mode 4 SR=$AA, T2 initial value = $0440  (file: V.SR.M4G13.AA.D)
+;
+;   Group 14 - SR mode 4 CB1 poll, SR init = $55
+;     Matches Group 9 but uses SR mode 4 and expects IFR.SR to
+;     remain clear after the eighth bit.
+;
+;     14A: SR mode 4 CB1 poll SR=$55 T2=$011c
+;     14B: SR mode 4 CB1 poll SR=$55 T2=$0220
+;     14C: SR mode 4 CB1 poll SR=$55 T2=$0330
+;     14D: SR mode 4 CB1 poll SR=$55 T2=$0440
+;
+;   Group 15 - SR mode 4 CB1 poll, SR init = $AA
+;     Identical to Group 14 but SR is armed with $AA.
+;
+;     15A: SR mode 4 CB1 poll SR=$AA T2=$011c
+;     15B: SR mode 4 CB1 poll SR=$AA T2=$0220
+;     15C: SR mode 4 CB1 poll SR=$AA T2=$0330
+;     15D: SR mode 4 CB1 poll SR=$AA T2=$0440
+;
 ; For Groups 2 and 3 only SR_IFR_PRE (expected: 0) is verified after
 ; each run; a mismatch is reported as a FAIL and the file comparison
 ; is skipped for that test.  SR_IFR_POST is NOT checked: the
@@ -172,14 +206,14 @@ FAIL_STEP      = $10        ; step number where mode 0 test last failed
 PCR_SAVE       = $11        ; saved VIA PCR (mode 0 test save/restore)
 PIA1_DDRA_SAVE = $12        ; saved PIA1 DDRA (mode 0 test save/restore)
 PIA1_ORA_SAVE  = $13        ; saved PIA1 ORA data (mode 0 test save/restore)
-SR_INIT        = $14        ; initial value written to SR in meas_sr_mode5 before sampling
+SR_INIT        = $14        ; initial value written to SR in meas_sr_mode4 / meas_sr_mode5 before sampling
 SR_IFR_PRE     = $15        ; IFR & IFR_SR sampled before arming SR (expected: 0)
 SR_IFR_POST    = $16        ; IFR & IFR_SR sampled after sample loop (expected: IFR_SR)
 SR_M3_DATA     = $17        ; original data byte passed to test_sr_mode3
 SR_M3_SHIFT    = $18        ; working copy of data, shifted left each iteration
 SR_IFR_COUNT   = $19        ; iteration count from test_sr_mode1_ifr / _noarm_ifr
-SR_M5_RESULT   = $1A        ; reconstructed byte in test_sr_mode5_cb1
-SR_M5_BITNO    = $1B        ; current bit number (1..8) in test_sr_mode5_cb1
+SR_M5_RESULT   = $1A        ; reconstructed byte in test_sr_mode4_cb1 / test_sr_mode5_cb1
+SR_M5_BITNO    = $1B        ; current bit number (1..8) in test_sr_mode4_cb1 / test_sr_mode5_cb1
 SR_M7_DATA     = $1C        ; payload byte for test_sr_mode7_cb1
 SR_M7_RESULT   = $1D        ; reconstructed byte in test_sr_mode7_cb1
 SR_M7_BITNO    = $1E        ; current bit number (1..8) in test_sr_mode7_cb1
@@ -743,6 +777,8 @@ t3d_done:
         ; Same setup as Group 7 (mode 5, SR=$55) but instead of sampling
         ; CB1/CB2 into MEAS_BUF, reconstructs the shifted-out byte by
         ; polling CB1 low/high for each of 8 bits and sampling CB2.
+        ; IFR.SR is expected to remain clear during shifting and to be set
+        ; after the eighth bit.
         ; PIA1 PA7 must be an input (already set; VIA drives CB1).
         ; --------------------------------------------------------
         lda #<msg_grp9
@@ -894,6 +930,271 @@ t3d_done:
         jsr print_str
         lda #$a5
         jsr test_sr_mode7_cb1
+        jsr print_result
+
+        jsr wait_key
+
+        ; --------------------------------------------------------
+        ; Group 12 - SR mode 4 (shift out under free-running T2 control), SR init = $55
+        ;
+        ; PIA1 PA7 remains an input (VIA drives CB1 as output clock).
+        ; meas_sr_mode4 sets VIA DDRA=$00 internally so VIA PA7 is
+        ; an input to read CB2 data via the loopback cable.
+        ; --------------------------------------------------------
+        lda #<msg_grp12
+        ldx #>msg_grp12
+        jsr print_str
+
+        lda #<msg_t12a
+        ldx #>msg_t12a
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4a_end - fn_sr_m4a
+        ldx #<fn_sr_m4a
+        ldy #>fn_sr_m4a
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t12b
+        ldx #>msg_t12b
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4b_end - fn_sr_m4b
+        ldx #<fn_sr_m4b
+        ldy #>fn_sr_m4b
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t12c
+        ldx #>msg_t12c
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4c_end - fn_sr_m4c
+        ldx #<fn_sr_m4c
+        ldy #>fn_sr_m4c
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t12d
+        ldx #>msg_t12d
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4d_end - fn_sr_m4d
+        ldx #<fn_sr_m4d
+        ldy #>fn_sr_m4d
+        jsr compare_file
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Group 13 - SR mode 4 (shift out under free-running T2 control), SR init = $AA
+        ; --------------------------------------------------------
+        lda #<msg_grp13
+        ldx #>msg_grp13
+        jsr print_str
+
+        lda #<msg_t13a
+        ldx #>msg_t13a
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$10
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4aaa_end - fn_sr_m4aaa
+        ldx #<fn_sr_m4aaa
+        ldy #>fn_sr_m4aaa
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t13b
+        ldx #>msg_t13b
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4aab_end - fn_sr_m4aab
+        ldx #<fn_sr_m4aab
+        ldy #>fn_sr_m4aab
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t13c
+        ldx #>msg_t13c
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4aac_end - fn_sr_m4aac
+        ldx #<fn_sr_m4aac
+        ldy #>fn_sr_m4aac
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t13d
+        ldx #>msg_t13d
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr meas_sr_mode4
+        lda #fn_sr_m4aad_end - fn_sr_m4aad
+        ldx #<fn_sr_m4aad
+        ldy #>fn_sr_m4aad
+        jsr compare_file
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Group 14 - SR mode 4 CB1 poll (shift out under free-running T2 control), SR init = $55
+        ;
+        ; Same setup as Group 12 (mode 4, SR=$55) but instead of sampling
+        ; CB1/CB2 into MEAS_BUF, reconstructs the shifted-out byte by
+        ; polling CB1 low/high for each of 8 bits and sampling CB2.
+        ; PIA1 PA7 must be an input (already set; VIA drives CB1).
+        ; --------------------------------------------------------
+        lda #<msg_grp14
+        ldx #>msg_grp14
+        jsr print_str
+
+        lda #<msg_t14a
+        ldx #>msg_t14a
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$1c
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr test_sr_mode4_cb1
+        jsr print_result
+
+        lda #<msg_t14b
+        ldx #>msg_t14b
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr test_sr_mode4_cb1
+        jsr print_result
+
+        lda #<msg_t14c
+        ldx #>msg_t14c
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr test_sr_mode4_cb1
+        jsr print_result
+
+        lda #<msg_t14d
+        ldx #>msg_t14d
+        jsr print_str
+        lda #$55
+        sta SR_INIT
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr test_sr_mode4_cb1
+        jsr print_result
+
+        ; --------------------------------------------------------
+        ; Group 15 - SR mode 4 CB1 poll (shift out under free-running T2 control), SR init = $AA
+        ;
+        ; Identical to Group 14 but SR is armed with $AA.
+        ; --------------------------------------------------------
+        lda #<msg_grp15
+        ldx #>msg_grp15
+        jsr print_str
+
+        lda #<msg_t15a
+        ldx #>msg_t15a
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$1c
+        sta SR_T2_LO
+        lda #$01
+        sta SR_T2_HI
+        jsr test_sr_mode4_cb1
+        jsr print_result
+
+        lda #<msg_t15b
+        ldx #>msg_t15b
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+        jsr test_sr_mode4_cb1
+        jsr print_result
+
+        lda #<msg_t15c
+        ldx #>msg_t15c
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$30
+        sta SR_T2_LO
+        lda #$03
+        sta SR_T2_HI
+        jsr test_sr_mode4_cb1
+        jsr print_result
+
+        lda #<msg_t15d
+        ldx #>msg_t15d
+        jsr print_str
+        lda #$aa
+        sta SR_INIT
+        lda #$40
+        sta SR_T2_LO
+        lda #$04
+        sta SR_T2_HI
+        jsr test_sr_mode4_cb1
         jsr print_result
 
         ; --------------------------------------------------------
@@ -1199,6 +1500,30 @@ msg_t11b:      .byte "  11B SR MODE7 DATA=$AA: ", 0
 msg_t11c:      .byte "  11C SR MODE7 DATA=$5A: ", 0
 msg_t11d:      .byte "  11D SR MODE7 DATA=$A5: ", 0
 
+msg_grp12:     .byte "GRP12: SR MODE 4 (OUT FREE T2) SR=$55", $0d, 0
+msg_t12a:      .byte "  12A SR MODE4 SR=$55 T2=$0110: ", 0
+msg_t12b:      .byte "  12B SR MODE4 SR=$55 T2=$0220: ", 0
+msg_t12c:      .byte "  12C SR MODE4 SR=$55 T2=$0330: ", 0
+msg_t12d:      .byte "  12D SR MODE4 SR=$55 T2=$0440: ", 0
+
+msg_grp13:     .byte "GRP13: SR MODE 4 (OUT FREE T2) SR=$AA", $0d, 0
+msg_t13a:      .byte "  13A SR MODE4 SR=$AA T2=$0110: ", 0
+msg_t13b:      .byte "  13B SR MODE4 SR=$AA T2=$0220: ", 0
+msg_t13c:      .byte "  13C SR MODE4 SR=$AA T2=$0330: ", 0
+msg_t13d:      .byte "  13D SR MODE4 SR=$AA T2=$0440: ", 0
+
+msg_grp14:     .byte "GRP14: SR MODE 4 CB1 POLL SR=$55", $0d, 0
+msg_t14a:      .byte "  14A SR M4CB1 SR=$55 T2=$011C: ", 0
+msg_t14b:      .byte "  14B SR M4CB1 SR=$55 T2=$0220: ", 0
+msg_t14c:      .byte "  14C SR M4CB1 SR=$55 T2=$0330: ", 0
+msg_t14d:      .byte "  14D SR M4CB1 SR=$55 T2=$0440: ", 0
+
+msg_grp15:     .byte "GRP15: SR MODE 4 CB1 POLL SR=$AA", $0d, 0
+msg_t15a:      .byte "  15A SR M4CB1 SR=$AA T2=$011C: ", 0
+msg_t15b:      .byte "  15B SR M4CB1 SR=$AA T2=$0220: ", 0
+msg_t15c:      .byte "  15C SR M4CB1 SR=$AA T2=$0330: ", 0
+msg_t15d:      .byte "  15D SR M4CB1 SR=$AA T2=$0440: ", 0
+
 msg_ok:        .byte "OK", $0d, 0
 msg_ok_cnt:    .byte "OK @", 0
 msg_fail:      .byte "FAIL @", 0
@@ -1210,35 +1535,51 @@ msg_some_fail: .byte "SOME TESTS FAILED", $0d, 0
 ; ============================================================
 ; Read-side filename strings
 ; ============================================================
-fn_sr_m1a:    .byte "VIA.SR.M1.A"
+fn_sr_m1a:    .byte "V.SR.M1G2.A"
 fn_sr_m1a_end:
-fn_sr_m1b:    .byte "VIA.SR.M1.B"
+fn_sr_m1b:    .byte "V.SR.M1G2.B"
 fn_sr_m1b_end:
-fn_sr_m1c:    .byte "VIA.SR.M1.C"
+fn_sr_m1c:    .byte "V.SR.M1G2.C"
 fn_sr_m1c_end:
-fn_sr_m1d:    .byte "VIA.SR.M1.D"
+fn_sr_m1d:    .byte "V.SR.M1G2.D"
 fn_sr_m1d_end:
-fn_sr_m1na:   .byte "VIA.SR.M1N.A"
+fn_sr_m1na:   .byte "V.SR.M1NG3.A"
 fn_sr_m1na_end:
-fn_sr_m1nb:   .byte "VIA.SR.M1N.B"
+fn_sr_m1nb:   .byte "V.SR.M1NG3.B"
 fn_sr_m1nb_end:
-fn_sr_m1nc:   .byte "VIA.SR.M1N.C"
+fn_sr_m1nc:   .byte "V.SR.M1NG3.C"
 fn_sr_m1nc_end:
-fn_sr_m1nd:   .byte "VIA.SR.M1N.D"
+fn_sr_m1nd:   .byte "V.SR.M1NG3.D"
 fn_sr_m1nd_end:
-fn_sr_m5a:    .byte "VIA.SR.M5.55.A"
+fn_sr_m4a:    .byte "V.SR.M4G12.55.A"
+fn_sr_m4a_end:
+fn_sr_m4b:    .byte "V.SR.M4G12.55.B"
+fn_sr_m4b_end:
+fn_sr_m4c:    .byte "V.SR.M4G12.55.C"
+fn_sr_m4c_end:
+fn_sr_m4d:    .byte "V.SR.M4G12.55.D"
+fn_sr_m4d_end:
+fn_sr_m4aaa:  .byte "V.SR.M4G13.AA.A"
+fn_sr_m4aaa_end:
+fn_sr_m4aab:  .byte "V.SR.M4G13.AA.B"
+fn_sr_m4aab_end:
+fn_sr_m4aac:  .byte "V.SR.M4G13.AA.C"
+fn_sr_m4aac_end:
+fn_sr_m4aad:  .byte "V.SR.M4G13.AA.D"
+fn_sr_m4aad_end:
+fn_sr_m5a:    .byte "V.SR.M5G7.55.A"
 fn_sr_m5a_end:
-fn_sr_m5b:    .byte "VIA.SR.M5.55.B"
+fn_sr_m5b:    .byte "V.SR.M5G7.55.B"
 fn_sr_m5b_end:
-fn_sr_m5c:    .byte "VIA.SR.M5.55.C"
+fn_sr_m5c:    .byte "V.SR.M5G7.55.C"
 fn_sr_m5c_end:
-fn_sr_m5d:    .byte "VIA.SR.M5.55.D"
+fn_sr_m5d:    .byte "V.SR.M5G7.55.D"
 fn_sr_m5d_end:
-fn_sr_m5aaa:  .byte "VIA.SR.M5.AA.A"
+fn_sr_m5aaa:  .byte "V.SR.M5G8.AA.A"
 fn_sr_m5aaa_end:
-fn_sr_m5aab:  .byte "VIA.SR.M5.AA.B"
+fn_sr_m5aab:  .byte "V.SR.M5G8.AA.B"
 fn_sr_m5aab_end:
-fn_sr_m5aac:  .byte "VIA.SR.M5.AA.C"
+fn_sr_m5aac:  .byte "V.SR.M5G8.AA.C"
 fn_sr_m5aac_end:
-fn_sr_m5aad:  .byte "VIA.SR.M5.AA.D"
+fn_sr_m5aad:  .byte "V.SR.M5G8.AA.D"
 fn_sr_m5aad_end:

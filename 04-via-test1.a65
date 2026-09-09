@@ -22,34 +22,34 @@
 ;     2c: Same as 2b but IFR5 cleared by writing IFR_T2 to VIA_IFR
 ;
 ;   Group 3 - Timer 1 single-shot timing (vs. reference files)
-;     3a: T1 single-shot, latch=$00  (file: VIA.T1.SS.0)
-;     3b: T1 single-shot, latch=$01  (file: VIA.T1.SS.1)
-;     3c: T1 single-shot, latch=$02  (file: VIA.T1.SS.2)
-;     3d: T1 single-shot, latch=$FF  (file: VIA.T1.SS.FF)
+;     3a: T1 single-shot, latch=$00  (file: V.T1.SS.0)
+;     3b: T1 single-shot, latch=$01  (file: V.T1.SS.1)
+;     3c: T1 single-shot, latch=$02  (file: V.T1.SS.2)
+;     3d: T1 single-shot, latch=$FF  (file: V.T1.SS.FF)
 ;
 ;   Group 4 - Timer 1 free-run timing (vs. reference files)
-;     4a: T1 free-run, latch=$00     (file: VIA.T1.FR.0)
-;     4b: T1 free-run, latch=$01     (file: VIA.T1.FR.1)
-;     4c: T1 free-run, latch=$02     (file: VIA.T1.FR.2)
-;     4d: T1 free-run, latch=$FF     (file: VIA.T1.FR.FF)
+;     4a: T1 free-run, latch=$00     (file: V.T1.FR.0)
+;     4b: T1 free-run, latch=$01     (file: V.T1.FR.1)
+;     4c: T1 free-run, latch=$02     (file: V.T1.FR.2)
+;     4d: T1 free-run, latch=$FF     (file: V.T1.FR.FF)
 ;
 ;   Group 5 - Timer 1 reset mid-count (vs. reference file)
-;     5:  T1 single-shot, $FF -> $80 reset   (file: VIA.T1.RST)
+;     5:  T1 single-shot, $FF -> $80 reset   (file: V.T1.RST)
 ;
 ;   Group 6 - Timer 2 one-shot timing (vs. reference files)
-;     6a: T2, latch=$00              (file: VIA.T2.0)
-;     6b: T2, latch=$01              (file: VIA.T2.1)
-;     6c: T2, latch=$02              (file: VIA.T2.2)
-;     6d: T2, latch=$FF              (file: VIA.T2.FF)
+;     6a: T2, latch=$00              (file: V.T2.0)
+;     6b: T2, latch=$01              (file: V.T2.1)
+;     6c: T2, latch=$02              (file: V.T2.2)
+;     6d: T2, latch=$FF              (file: V.T2.FF)
 ;
 ;   Group 7 - Shift register - shift in under T2 control
 ;     NOTE: CB1 must not be hard-wired as input (bus conflict risk)
-;     7a: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (file: VIA.SR.IT2.A.H)
-;     7b: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (file: VIA.SR.IT2.A.L)
-;     7c: SR shift-in via T2, T2=$0210 direct, T2CH              (file: VIA.SR.IT2.B.H)
-;     7d: SR shift-in via T2, T2=$0210 direct, T2CL              (file: VIA.SR.IT2.B.L)
-;     7e: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH (file: VIA.SR.IT2.C.H)
-;     7f: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL (file: VIA.SR.IT2.C.L)
+;     7a: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (file: V.SR.IT2G7.A.H)
+;     7b: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (file: V.SR.IT2G7.A.L)
+;     7c: SR shift-in via T2, T2=$0210 direct, T2CH              (file: V.SR.IT2G7.B.H)
+;     7d: SR shift-in via T2, T2=$0210 direct, T2CL              (file: V.SR.IT2G7.B.L)
+;     7e: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH (file: V.SR.IT2G7.C.H)
+;     7f: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL (file: V.SR.IT2G7.C.L)
 ;
 ; The timing measurement subroutines (meas_t1, meas_t1_rst,
 ; meas_t2, meas_sr_it2_ah/al/bh/bl/ch/cl) are byte-for-byte
@@ -717,16 +717,16 @@ msg_banner:   .byte "VIA TEST MODULE 1", $0d
               .byte "-----------------", $0d, 0
 
 msg_grp1:     .byte "GRP1: T1 LATCH/COUNTER REGS", $0d, 0
-msg_t1a:      .byte "  1A T1LL/T1LH RD/WR: ", 0
-msg_t1b:      .byte "  1B T1LL/T1LH NO-START: ", 0
-msg_t1c:      .byte "  1C T1LH CLEARS IFR6: ", 0
-msg_t1d:      .byte "  1D T1CH LOADS+STARTS: ", 0
-msg_t1e:      .byte "  1E T1CH STARTS IFR.T1: ", 0
-msg_t1f:      .byte "  1F IFR WRITE CLEARS IFR6: ", 0
+msg_t1a:      .byte "  1A T1LL/T1LH RD/WR           : ", 0
+msg_t1b:      .byte "  1B T1LL/T1LH NO-START        : ", 0
+msg_t1c:      .byte "  1C T1LH CLEARS IFR6          : ", 0
+msg_t1d:      .byte "  1D T1CH LOADS+STARTS         : ", 0
+msg_t1e:      .byte "  1E T1CH STARTS IFR.T1        : ", 0
+msg_t1f:      .byte "  1F IFR WRITE CLEARS IFR6     : ", 0
 
 msg_grp2:     .byte "GRP2: T2 LATCH/COUNTER REGS", $0d, 0
-msg_t2a:      .byte "  2A T2CL NO-START: ", 0
-msg_t2b:      .byte "  2B T2CH STARTS: ", 0
+msg_t2a:      .byte "  2A T2CL NO-START             : ", 0
+msg_t2b:      .byte "  2B T2CH STARTS               : ", 0
 msg_t2c:      .byte "  2C T2CH STARTS (IFR WR CLEAR): ", 0
 
 msg_grp3:     .byte "GRP3: T1 SINGLE-SHOT", $0d, 0
@@ -768,41 +768,41 @@ msg_some_fail:.byte "SOME TESTS FAILED", $0d, 0
 ; ============================================================
 ; Read-side filename strings (no type suffix needed for read)
 ; ============================================================
-fn_t1ss0:   .byte "VIA.T1.SS.0"
+fn_t1ss0:   .byte "V.T1.SS.0"
 fn_t1ss0_end:
-fn_t1ss1:   .byte "VIA.T1.SS.1"
+fn_t1ss1:   .byte "V.T1.SS.1"
 fn_t1ss1_end:
-fn_t1ss2:   .byte "VIA.T1.SS.2"
+fn_t1ss2:   .byte "V.T1.SS.2"
 fn_t1ss2_end:
-fn_t1ssff:  .byte "VIA.T1.SS.FF"
+fn_t1ssff:  .byte "V.T1.SS.FF"
 fn_t1ssff_end:
-fn_t1fr0:   .byte "VIA.T1.FR.0"
+fn_t1fr0:   .byte "V.T1.FR.0"
 fn_t1fr0_end:
-fn_t1fr1:   .byte "VIA.T1.FR.1"
+fn_t1fr1:   .byte "V.T1.FR.1"
 fn_t1fr1_end:
-fn_t1fr2:   .byte "VIA.T1.FR.2"
+fn_t1fr2:   .byte "V.T1.FR.2"
 fn_t1fr2_end:
-fn_t1frff:  .byte "VIA.T1.FR.FF"
+fn_t1frff:  .byte "V.T1.FR.FF"
 fn_t1frff_end:
-fn_t1rst:   .byte "VIA.T1.RST"
+fn_t1rst:   .byte "V.T1.RST"
 fn_t1rst_end:
-fn_t20:     .byte "VIA.T2.0"
+fn_t20:     .byte "V.T2.0"
 fn_t20_end:
-fn_t21:     .byte "VIA.T2.1"
+fn_t21:     .byte "V.T2.1"
 fn_t21_end:
-fn_t22:     .byte "VIA.T2.2"
+fn_t22:     .byte "V.T2.2"
 fn_t22_end:
-fn_t2ff:    .byte "VIA.T2.FF"
+fn_t2ff:    .byte "V.T2.FF"
 fn_t2ff_end:
-fn_srit2ah: .byte "VIA.SR.IT2.A.H"
+fn_srit2ah: .byte "V.SR.IT2G7.A.H"
 fn_srit2ah_end:
-fn_srit2al: .byte "VIA.SR.IT2.A.L"
+fn_srit2al: .byte "V.SR.IT2G7.A.L"
 fn_srit2al_end:
-fn_srit2bh: .byte "VIA.SR.IT2.B.H"
+fn_srit2bh: .byte "V.SR.IT2G7.B.H"
 fn_srit2bh_end:
-fn_srit2bl: .byte "VIA.SR.IT2.B.L"
+fn_srit2bl: .byte "V.SR.IT2G7.B.L"
 fn_srit2bl_end:
-fn_srit2ch: .byte "VIA.SR.IT2.C.H"
+fn_srit2ch: .byte "V.SR.IT2G7.C.H"
 fn_srit2ch_end:
-fn_srit2cl: .byte "VIA.SR.IT2.C.L"
+fn_srit2cl: .byte "V.SR.IT2G7.C.L"
 fn_srit2cl_end:

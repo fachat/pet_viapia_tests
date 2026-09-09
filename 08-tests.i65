@@ -561,13 +561,136 @@ tsm1ni_fail:
         rts
 
 ; ============================================================
+; Subroutine: test_sr_mode4_cb1
+;
+; Tests SR mode 4 (shift out under free-running T2 control) by
+; bit-banging. The setup and checks match test_sr_mode5_cb1; only
+; the SR mode programmed into ACR differs.
+; IFR.SR must remain clear after the eighth bit in this mode.
+;
+; Returns: A = 0 (pass), A = 1 (fail)
+; Clobbers: A, X
+; ============================================================
+test_sr_mode4_cb1:
+        sei
+        ; Disable SR and clear SR register
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        sta VIA_BASE+VIA_ACR
+        lda #0
+        sta VIA_BASE+VIA_SR
+        ; Set CB2 as input (PCR bits 7:5 = 000)
+        lda VIA_BASE+VIA_PCR
+        and #$1F
+        sta VIA_BASE+VIA_PCR
+        ; Set all VIA PA as inputs (DDRA = $00); PA7 reads CB2 via loopback
+        lda #0
+        sta VIA_BASE+VIA_DDRA
+        ; Load T2 and start counting
+        lda SR_T2_LO
+        sta VIA_BASE+VIA_T2CL
+        lda SR_T2_HI
+        sta VIA_BASE+VIA_T2CH
+        ; Set SR to mode 4: shift out under free-running T2 control
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_FRT2
+        sta VIA_BASE+VIA_ACR
+        ; Write SR_INIT to SR to arm the shift-out sequence
+        lda SR_INIT
+        sta VIA_BASE+VIA_SR
+        ; Initialise result accumulator and bit counter
+        lda #0
+        sta SR_M5_RESULT
+        lda #1
+        sta SR_M5_BITNO
+tsm4_bit_loop:
+        ; -- Check IFR.SR is still clear --
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        bne tsm4_err_ifr
+        ; -- Poll CB1 low (up to 256 iterations) --
+        ldx #0
+tsm4_wait_lo:
+        lda PIA1_BASE+PIA_ORA
+        bpl tsm4_cb1_low        ; bit 7 = 0 -> CB1 low
+        inx
+        bne tsm4_wait_lo
+        jmp tsm4_err_lo
+tsm4_cb1_low:
+        ; -- Poll CB1 high (up to 256 iterations) --
+        ldx #0
+tsm4_wait_hi:
+        lda PIA1_BASE+PIA_ORA
+        bmi tsm4_cb1_high       ; bit 7 = 1 -> CB1 high
+        inx
+        bne tsm4_wait_hi
+        jmp tsm4_err_hi
+tsm4_cb1_high:
+        ; -- Sample CB2 and shift into result --
+        lda VIA_BASE+VIA_ORA_NH ; read VIA PA7 (CB2 via loopback)
+        asl                     ; CB2 bit 7 -> carry
+        rol SR_M5_RESULT        ; carry -> bit 0, previous bits shift left
+        ; Advance bit counter; loop until 8 bits processed
+        inc SR_M5_BITNO
+        lda SR_M5_BITNO
+        cmp #9
+        bne tsm4_bit_loop
+        ; -- Verify IFR.SR is still clear after 8 bits --
+        lda VIA_BASE+VIA_IFR
+        and #IFR_SR
+        beq tsm4_check_val
+        lda #$09
+        sta FAIL_IDX
+        jmp tsm4_fail
+tsm4_check_val:
+        ; -- Verify reconstructed byte == SR_INIT --
+        lda SR_M5_RESULT
+        cmp SR_INIT
+        beq tsm4_pass
+        lda #$0A
+        sta FAIL_IDX
+        ; fall through to tsm4_fail
+tsm4_fail:
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        lda #1
+        rts
+tsm4_pass:
+        lda VIA_BASE+VIA_ACR
+        and #ACR_SR_NMASK
+        ora #ACR_SR_OFF
+        sta VIA_BASE+VIA_ACR
+        cli
+        lda #0
+        rts
+        ; -- Per-bit error handlers (branched/jumped to from the loop) --
+tsm4_err_ifr:
+        lda SR_M5_BITNO
+        sta FAIL_IDX
+        jmp tsm4_fail
+tsm4_err_lo:
+        lda SR_M5_BITNO
+        ora #$10
+        sta FAIL_IDX
+        jmp tsm4_fail
+tsm4_err_hi:
+        lda SR_M5_BITNO
+        ora #$20
+        sta FAIL_IDX
+        jmp tsm4_fail
+
+; ============================================================
 ; Subroutine: test_sr_mode5_cb1
 ;
 ; Tests SR mode 5 (shift out under T2 control) by bit-banging:
 ; for each of 8 output bits, polls CB1 low then CB1 high, samples
 ; CB2 at the rising CB1 edge, and accumulates the result byte.
 ; Verifies IFR.SR remains clear during shifting and is set after
-; all 8 bits.  Verifies the reconstructed byte == SR_INIT.
+; all 8 bits. Verifies the reconstructed byte == SR_INIT.
 ;
 ; Hardware connections required:
 ;   CB1 -> Pin 6 -> Pin 5 -> PIA1 PA7 (input): reads VIA output clock

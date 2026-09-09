@@ -13,25 +13,25 @@
 ;       as an output clock in SR shift-in modes (bus conflict risk).
 ;
 ; Files written (CBM PRG, 256 bytes + 2-byte load address header):
-;   VIA.T1.SS.0   T1 single-shot, latch=$00
-;   VIA.T1.SS.1   T1 single-shot, latch=$01
-;   VIA.T1.SS.2   T1 single-shot, latch=$02
-;   VIA.T1.SS.FF  T1 single-shot, latch=$FF
-;   VIA.T1.FR.0   T1 free-run,    latch=$00
-;   VIA.T1.FR.1   T1 free-run,    latch=$01
-;   VIA.T1.FR.2   T1 free-run,    latch=$02
-;   VIA.T1.FR.FF  T1 free-run,    latch=$FF
-;   VIA.T1.RST    T1 single-shot, reset mid-count ($FF -> $80)
-;   VIA.T2.0      T2 one-shot,    latch=$00
-;   VIA.T2.1      T2 one-shot,    latch=$01
-;   VIA.T2.2      T2 one-shot,    latch=$02
-;   VIA.T2.FF     T2 one-shot,    latch=$FF
-;   VIA.SR.IT2.A.H  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH samples
-;   VIA.SR.IT2.A.L  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL samples
-;   VIA.SR.IT2.B.H  SR shift-in via T2, T2=$0210 direct, T2CH samples
-;   VIA.SR.IT2.B.L  SR shift-in via T2, T2=$0210 direct, T2CL samples
-;   VIA.SR.IT2.C.H  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH samples
-;   VIA.SR.IT2.C.L  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL samples
+;   V.T1.SS.0   T1 single-shot, latch=$00
+;   V.T1.SS.1   T1 single-shot, latch=$01
+;   V.T1.SS.2   T1 single-shot, latch=$02
+;   V.T1.SS.FF  T1 single-shot, latch=$FF
+;   V.T1.FR.0   T1 free-run,    latch=$00
+;   V.T1.FR.1   T1 free-run,    latch=$01
+;   V.T1.FR.2   T1 free-run,    latch=$02
+;   V.T1.FR.FF  T1 free-run,    latch=$FF
+;   V.T1.RST    T1 single-shot, reset mid-count ($FF -> $80)
+;   V.T2.0      T2 one-shot,    latch=$00
+;   V.T2.1      T2 one-shot,    latch=$01
+;   V.T2.2      T2 one-shot,    latch=$02
+;   V.T2.FF     T2 one-shot,    latch=$FF
+;   V.SR.IT2G7.A.H  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH samples
+;   V.SR.IT2G7.A.L  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL samples
+;   V.SR.IT2G7.B.H  SR shift-in via T2, T2=$0210 direct, T2CH samples
+;   V.SR.IT2G7.B.L  SR shift-in via T2, T2=$0210 direct, T2CL samples
+;   V.SR.IT2G7.C.H  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH samples
+;   V.SR.IT2G7.C.L  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL samples
 ;
 ; Files are written using the PET-compatible PET_SAVE routine
 ; (JMP $f6e3), bypassing the $FFD8 KERNAL entry which includes
@@ -46,9 +46,6 @@
 ; Common hardware and zero-page definitions
 ; ============================================================
 #include "hw.inc"
-
-; ACR SR free-running T2 mode (only used in this generator)
-ACR_SR_FRT2  = $10          ; 100 -> shift out, T2 free-running
 
 ; ============================================================
 ; Zero-page ($02-$13 - safe for standalone ML on PET)
@@ -457,41 +454,41 @@ msg_err:    .byte "E", 0
 ; No type suffix: CBM DOS writes a PRG file (2-byte load
 ; address header), compatible with PET_SAVE / PET_LOAD.
 ; ============================================================
-fn_t1ss0:   .byte "VIA.T1.SS.0"
+fn_t1ss0:   .byte "V.T1.SS.0"
 fn_t1ss0_end:
-fn_t1ss1:   .byte "VIA.T1.SS.1"
+fn_t1ss1:   .byte "V.T1.SS.1"
 fn_t1ss1_end:
-fn_t1ss2:   .byte "VIA.T1.SS.2"
+fn_t1ss2:   .byte "V.T1.SS.2"
 fn_t1ss2_end:
-fn_t1ssff:  .byte "VIA.T1.SS.FF"
+fn_t1ssff:  .byte "V.T1.SS.FF"
 fn_t1ssff_end:
-fn_t1fr0:   .byte "VIA.T1.FR.0"
+fn_t1fr0:   .byte "V.T1.FR.0"
 fn_t1fr0_end:
-fn_t1fr1:   .byte "VIA.T1.FR.1"
+fn_t1fr1:   .byte "V.T1.FR.1"
 fn_t1fr1_end:
-fn_t1fr2:   .byte "VIA.T1.FR.2"
+fn_t1fr2:   .byte "V.T1.FR.2"
 fn_t1fr2_end:
-fn_t1frff:  .byte "VIA.T1.FR.FF"
+fn_t1frff:  .byte "V.T1.FR.FF"
 fn_t1frff_end:
-fn_t1rst:   .byte "VIA.T1.RST"
+fn_t1rst:   .byte "V.T1.RST"
 fn_t1rst_end:
-fn_t20:     .byte "VIA.T2.0"
+fn_t20:     .byte "V.T2.0"
 fn_t20_end:
-fn_t21:     .byte "VIA.T2.1"
+fn_t21:     .byte "V.T2.1"
 fn_t21_end:
-fn_t22:     .byte "VIA.T2.2"
+fn_t22:     .byte "V.T2.2"
 fn_t22_end:
-fn_t2ff:    .byte "VIA.T2.FF"
+fn_t2ff:    .byte "V.T2.FF"
 fn_t2ff_end:
-fn_srit2ah: .byte "VIA.SR.IT2.A.H"
+fn_srit2ah: .byte "V.SR.IT2G7.A.H"
 fn_srit2ah_end:
-fn_srit2al: .byte "VIA.SR.IT2.A.L"
+fn_srit2al: .byte "V.SR.IT2G7.A.L"
 fn_srit2al_end:
-fn_srit2bh: .byte "VIA.SR.IT2.B.H"
+fn_srit2bh: .byte "V.SR.IT2G7.B.H"
 fn_srit2bh_end:
-fn_srit2bl: .byte "VIA.SR.IT2.B.L"
+fn_srit2bl: .byte "V.SR.IT2G7.B.L"
 fn_srit2bl_end:
-fn_srit2ch: .byte "VIA.SR.IT2.C.H"
+fn_srit2ch: .byte "V.SR.IT2G7.C.H"
 fn_srit2ch_end:
-fn_srit2cl: .byte "VIA.SR.IT2.C.L"
+fn_srit2cl: .byte "V.SR.IT2G7.C.L"
 fn_srit2cl_end:
