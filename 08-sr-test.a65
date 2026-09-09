@@ -118,10 +118,10 @@
 ;   Group 10 - SR mode 4 CB1 poll, SR init = $AA
 ;     Identical to Group 9 but SR is armed with $AA.
 ;
-;     10A: SR mode 5 CB1 poll SR=$AA T2=$011c
-;     10B: SR mode 5 CB1 poll SR=$AA T2=$0220
-;     10C: SR mode 5 CB1 poll SR=$AA T2=$0330
-;     10D: SR mode 5 CB1 poll SR=$AA T2=$0440
+;     10A: SR mode 4 CB1 poll SR=$AA T2=$011c
+;     10B: SR mode 4 CB1 poll SR=$AA T2=$0220
+;     10C: SR mode 4 CB1 poll SR=$AA T2=$0330
+;     10D: SR mode 4 CB1 poll SR=$AA T2=$0440
 ;
 ;   Group 11 - SR mode 7: shift out under external CB1 control
 ;     In mode 7 (ACR SR = 111) CB1 is an external clock input driven
