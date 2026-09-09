@@ -47,9 +47,6 @@
 ; ============================================================
 #include "hw.inc"
 
-; ACR SR free-running T2 mode (only used in this generator)
-ACR_SR_FRT2  = $10          ; 100 -> shift out, T2 free-running
-
 ; ============================================================
 ; Zero-page ($02-$13 - safe for standalone ML on PET)
 ; ============================================================
