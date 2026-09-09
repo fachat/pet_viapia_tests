@@ -564,9 +564,28 @@ tsm1ni_fail:
 ; Subroutine: test_sr_mode4_cb1
 ;
 ; Tests SR mode 4 (shift out under free-running T2 control) by
-; bit-banging. The setup and checks match test_sr_mode5_cb1; only
-; the SR mode programmed into ACR differs.
-; IFR.SR must remain clear after the eighth bit in this mode.
+; bit-banging. The setup and checks mostly match test_sr_mode5_cb1;
+; only the SR mode programmed into ACR differs.
+;
+; Reconstructs four successive bytes without re-arming SR.  The first
+; byte must equal SR_INIT; bytes 2-4 must match byte 1.  IFR.SR must
+; remain clear during shifting and after each completed byte.
+;
+; FAIL_IDX encoding on failure:
+;   $01-$08 : IFR.SR set early while reconstructing byte 1, bit 1..8
+;   $09     : IFR.SR set after byte 1
+;   $0A     : byte 1 != SR_INIT
+;   $0B-$12 : IFR.SR set early while reconstructing byte 2, bit 1..8
+;   $13     : IFR.SR set after byte 2
+;   $14     : byte 2 != byte 1
+;   $15-$1C : IFR.SR set early while reconstructing byte 3, bit 1..8
+;   $1D     : IFR.SR set after byte 3
+;   $1E     : byte 3 != byte 1
+;   $1F-$26 : IFR.SR set early while reconstructing byte 4, bit 1..8
+;   $27     : IFR.SR set after byte 4
+;   $28     : byte 4 != byte 1
+;   $FF     : CB1 stopped toggling before byte 4 completed; SR_M4_BYTES
+;             contains the number of fully reconstructed bytes
 ;
 ; Returns: A = 0 (pass), A = 1 (fail)
 ; Clobbers: A, X
@@ -599,6 +618,12 @@ test_sr_mode4_cb1:
         ; Write SR_INIT to SR to arm the shift-out sequence
         lda SR_INIT
         sta VIA_BASE+VIA_SR
+        ; Initialise per-byte tracking
+        lda #0
+        sta SR_M4_REF
+        sta SR_M4_BYTES
+        sta SR_M4_ERRBASE
+tsm4_next_byte:
         ; Initialise result accumulator and bit counter
         lda #0
         sta SR_M5_RESULT
@@ -616,7 +641,7 @@ tsm4_wait_lo:
         bpl tsm4_cb1_low        ; bit 7 = 0 -> CB1 low
         inx
         bne tsm4_wait_lo
-        jmp tsm4_err_lo
+        jmp tsm4_timeout
 tsm4_cb1_low:
         ; -- Poll CB1 high (up to 256 iterations) --
         ldx #0
@@ -625,7 +650,7 @@ tsm4_wait_hi:
         bmi tsm4_cb1_high       ; bit 7 = 1 -> CB1 high
         inx
         bne tsm4_wait_hi
-        jmp tsm4_err_hi
+        jmp tsm4_timeout
 tsm4_cb1_high:
         ; -- Sample CB2 and shift into result --
         lda VIA_BASE+VIA_ORA_NH ; read VIA PA7 (CB2 via loopback)
@@ -636,21 +661,34 @@ tsm4_cb1_high:
         lda SR_M5_BITNO
         cmp #9
         bne tsm4_bit_loop
-        ; -- Verify IFR.SR is still clear after 8 bits --
+        ; -- Verify IFR.SR is still clear after this byte --
         lda VIA_BASE+VIA_IFR
         and #IFR_SR
-        beq tsm4_check_val
-        lda #$09
-        sta FAIL_IDX
-        jmp tsm4_fail
+        bne tsm4_err_ifr_post
 tsm4_check_val:
-        ; -- Verify reconstructed byte == SR_INIT --
+        ; -- Verify reconstructed byte --
+        lda SR_M4_BYTES
+        bne tsm4_check_ref
         lda SR_M5_RESULT
         cmp SR_INIT
+        bne tsm4_err_mismatch
+        lda SR_M5_RESULT
+        sta SR_M4_REF
+        jmp tsm4_byte_ok
+tsm4_check_ref:
+        lda SR_M5_RESULT
+        cmp SR_M4_REF
+        bne tsm4_err_mismatch
+tsm4_byte_ok:
+        inc SR_M4_BYTES
+        lda SR_M4_BYTES
+        cmp #4
         beq tsm4_pass
-        lda #$0A
-        sta FAIL_IDX
-        ; fall through to tsm4_fail
+        lda SR_M4_ERRBASE
+        clc
+        adc #$0a
+        sta SR_M4_ERRBASE
+        jmp tsm4_next_byte
 tsm4_fail:
         lda VIA_BASE+VIA_ACR
         and #ACR_SR_NMASK
@@ -669,17 +707,25 @@ tsm4_pass:
         rts
         ; -- Per-bit error handlers (branched/jumped to from the loop) --
 tsm4_err_ifr:
-        lda SR_M5_BITNO
+        clc
+        lda SR_M4_ERRBASE
+        adc SR_M5_BITNO
         sta FAIL_IDX
         jmp tsm4_fail
-tsm4_err_lo:
-        lda SR_M5_BITNO
-        ora #$10
+tsm4_err_ifr_post:
+        clc
+        lda SR_M4_ERRBASE
+        adc #$09
         sta FAIL_IDX
         jmp tsm4_fail
-tsm4_err_hi:
-        lda SR_M5_BITNO
-        ora #$20
+tsm4_err_mismatch:
+        clc
+        lda SR_M4_ERRBASE
+        adc #$0a
+        sta FAIL_IDX
+        jmp tsm4_fail
+tsm4_timeout:
+        lda #$ff
         sta FAIL_IDX
         jmp tsm4_fail
 

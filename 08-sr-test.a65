@@ -217,6 +217,9 @@ SR_M5_BITNO    = $1B        ; current bit number (1..8) in test_sr_mode4_cb1 / t
 SR_M7_DATA     = $1C        ; payload byte for test_sr_mode7_cb1
 SR_M7_RESULT   = $1D        ; reconstructed byte in test_sr_mode7_cb1
 SR_M7_BITNO    = $1E        ; current bit number (1..8) in test_sr_mode7_cb1
+SR_M4_REF      = $1F        ; first reconstructed byte in test_sr_mode4_cb1
+SR_M4_BYTES    = $20        ; fully reconstructed bytes in test_sr_mode4_cb1
+SR_M4_ERRBASE  = $21        ; per-byte error-code base in test_sr_mode4_cb1
 
 ; ============================================================
 ; Memory buffers
@@ -1084,9 +1087,12 @@ t3d_done:
         ; Group 14 - SR mode 4 CB1 poll (shift out under free-running T2 control), SR init = $55
         ;
         ; Same setup as Group 12 (mode 4, SR=$55) but instead of sampling
-        ; CB1/CB2 into MEAS_BUF, reconstructs the shifted-out byte by
-        ; polling CB1 low/high for each of 8 bits and sampling CB2.
-        ; PIA1 PA7 must be an input (already set; VIA drives CB1).
+        ;     CB1/CB2 into MEAS_BUF, reconstructs four shifted-out bytes by
+        ;     polling CB1 low/high for each bit and sampling CB2.  Byte 1
+        ;     must equal SR_INIT and bytes 2-4 must match byte 1.  IFR.SR
+        ;     must remain clear after each byte.  If shifting stops before
+        ;     byte 4 completes, FAIL @FF <completed-byte-count> is printed.
+        ;     PIA1 PA7 must be an input (already set; VIA drives CB1).
         ; --------------------------------------------------------
         lda #<msg_grp14
         ldx #>msg_grp14
@@ -1102,7 +1108,7 @@ t3d_done:
         lda #$01
         sta SR_T2_HI
         jsr test_sr_mode4_cb1
-        jsr print_result
+        jsr print_result_m4_cb1
 
         lda #<msg_t14b
         ldx #>msg_t14b
@@ -1114,7 +1120,7 @@ t3d_done:
         lda #$02
         sta SR_T2_HI
         jsr test_sr_mode4_cb1
-        jsr print_result
+        jsr print_result_m4_cb1
 
         lda #<msg_t14c
         ldx #>msg_t14c
@@ -1126,7 +1132,7 @@ t3d_done:
         lda #$03
         sta SR_T2_HI
         jsr test_sr_mode4_cb1
-        jsr print_result
+        jsr print_result_m4_cb1
 
         lda #<msg_t14d
         ldx #>msg_t14d
@@ -1138,7 +1144,7 @@ t3d_done:
         lda #$04
         sta SR_T2_HI
         jsr test_sr_mode4_cb1
-        jsr print_result
+        jsr print_result_m4_cb1
 
         ; --------------------------------------------------------
         ; Group 15 - SR mode 4 CB1 poll (shift out under free-running T2 control), SR init = $AA
@@ -1159,7 +1165,7 @@ t3d_done:
         lda #$01
         sta SR_T2_HI
         jsr test_sr_mode4_cb1
-        jsr print_result
+        jsr print_result_m4_cb1
 
         lda #<msg_t15b
         ldx #>msg_t15b
@@ -1171,7 +1177,7 @@ t3d_done:
         lda #$02
         sta SR_T2_HI
         jsr test_sr_mode4_cb1
-        jsr print_result
+        jsr print_result_m4_cb1
 
         lda #<msg_t15c
         ldx #>msg_t15c
@@ -1183,7 +1189,7 @@ t3d_done:
         lda #$03
         sta SR_T2_HI
         jsr test_sr_mode4_cb1
-        jsr print_result
+        jsr print_result_m4_cb1
 
         lda #<msg_t15d
         ldx #>msg_t15d
@@ -1195,7 +1201,7 @@ t3d_done:
         lda #$04
         sta SR_T2_HI
         jsr test_sr_mode4_cb1
-        jsr print_result
+        jsr print_result_m4_cb1
 
         ; --------------------------------------------------------
         ; Restore VIA state and print summary
@@ -1376,6 +1382,41 @@ prc_fail:
         jsr print_str
         lda FAIL_IDX
         jsr print_hex
+        lda #$0d
+        jsr CHROUT
+        rts
+
+; ============================================================
+; Subroutine: print_result_m4_cb1
+;
+; Like print_result but for mode 4 CB1-poll timeouts appends the
+; number of fully reconstructed bytes after FAIL @FF.
+; Input: A = 0 -> pass, A != 0 -> fail
+; ============================================================
+print_result_m4_cb1:
+        cmp #0
+        bne prm4_fail
+        inc PASS_CNT
+        lda #<msg_ok
+        ldx #>msg_ok
+        jsr print_str
+        rts
+prm4_fail:
+        inc FAIL_CNT
+        lda #<msg_fail
+        ldx #>msg_fail
+        jsr print_str
+        lda FAIL_IDX
+        pha
+        jsr print_hex
+        pla
+        cmp #$ff
+        bne prm4_done
+        lda #' '
+        jsr CHROUT
+        lda SR_M4_BYTES
+        jsr print_hex
+prm4_done:
         lda #$0d
         jsr CHROUT
         rts

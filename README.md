@@ -285,7 +285,7 @@ Requires the userport test fixture:
 | 12A–12D | T2=$0110, $0220, $0330, $0440; files `V.SR.M4G12.55.A`–`.D`. |
 | **GRP13: SR MODE 4 SR=$AA — shift out under free-running T2 control** | Identical to Group 12 but SR armed with $AA. |
 | 13A–13D | T2=$0110, $0220, $0330, $0440; files `V.SR.M4G13.AA.A`–`.D`. |
-| **GRP14: SR MODE 4 CB1 POLL SR=$55** | Mode 4, SR=$55. Instead of sampling into a buffer, reconstructs the shifted-out byte bit by bit by polling CB1 low/high and sampling CB2 via PA7. Verifies IFR.SR remains clear after 8 bits and result == $55. |
+| **GRP14: SR MODE 4 CB1 POLL SR=$55** | Mode 4, SR=$55. Instead of sampling into a buffer, reconstructs 4 successive shifted-out bytes by polling CB1 low/high and sampling CB2 via PA7. Byte 1 must equal $55, bytes 2-4 must match byte 1, IFR.SR must stay clear after every byte, and a stalled shift reports `FAIL @FF <completed-byte-count>`. |
 | 14A–14D | T2=$011C, $0220, $0330, $0440. |
-| **GRP15: SR MODE 4 CB1 POLL SR=$AA** | Identical to Group 14 but SR armed with $AA; result verified == $AA. |
+| **GRP15: SR MODE 4 CB1 POLL SR=$AA** | Identical to Group 14 but SR armed with $AA; byte 1 must equal $AA and bytes 2-4 must match it. |
 | 15A–15D | T2=$011C, $0220, $0330, $0440. |
