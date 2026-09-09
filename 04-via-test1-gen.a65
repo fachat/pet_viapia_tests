@@ -26,12 +26,12 @@
 ;   VIA.T2.1      T2 one-shot,    latch=$01
 ;   VIA.T2.2      T2 one-shot,    latch=$02
 ;   VIA.T2.FF     T2 one-shot,    latch=$FF
-;   VIA.SR.IT2.G7.A.H  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH samples
-;   VIA.SR.IT2.G7.A.L  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL samples
-;   VIA.SR.IT2.G7.B.H  SR shift-in via T2, T2=$0210 direct, T2CH samples
-;   VIA.SR.IT2.G7.B.L  SR shift-in via T2, T2=$0210 direct, T2CL samples
-;   VIA.SR.IT2.G7.C.H  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH samples
-;   VIA.SR.IT2.G7.C.L  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL samples
+;   V.SR.IT2G7.A.H  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH samples
+;   V.SR.IT2G7.A.L  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL samples
+;   V.SR.IT2G7.B.H  SR shift-in via T2, T2=$0210 direct, T2CH samples
+;   V.SR.IT2G7.B.L  SR shift-in via T2, T2=$0210 direct, T2CL samples
+;   V.SR.IT2G7.C.H  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH samples
+;   V.SR.IT2G7.C.L  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL samples
 ;
 ; Files are written using the PET-compatible PET_SAVE routine
 ; (JMP $f6e3), bypassing the $FFD8 KERNAL entry which includes
@@ -480,15 +480,15 @@ fn_t22:     .byte "VIA.T2.2"
 fn_t22_end:
 fn_t2ff:    .byte "VIA.T2.FF"
 fn_t2ff_end:
-fn_srit2ah: .byte "VIA.SR.IT2.G7.A.H"
+fn_srit2ah: .byte "V.SR.IT2G7.A.H"
 fn_srit2ah_end:
-fn_srit2al: .byte "VIA.SR.IT2.G7.A.L"
+fn_srit2al: .byte "V.SR.IT2G7.A.L"
 fn_srit2al_end:
-fn_srit2bh: .byte "VIA.SR.IT2.G7.B.H"
+fn_srit2bh: .byte "V.SR.IT2G7.B.H"
 fn_srit2bh_end:
-fn_srit2bl: .byte "VIA.SR.IT2.G7.B.L"
+fn_srit2bl: .byte "V.SR.IT2G7.B.L"
 fn_srit2bl_end:
-fn_srit2ch: .byte "VIA.SR.IT2.G7.C.H"
+fn_srit2ch: .byte "V.SR.IT2G7.C.H"
 fn_srit2ch_end:
-fn_srit2cl: .byte "VIA.SR.IT2.G7.C.L"
+fn_srit2cl: .byte "V.SR.IT2G7.C.L"
 fn_srit2cl_end:

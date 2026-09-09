@@ -44,12 +44,12 @@
 ;
 ;   Group 7 - Shift register - shift in under T2 control
 ;     NOTE: CB1 must not be hard-wired as input (bus conflict risk)
-;     7a: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (file: VIA.SR.IT2.G7.A.H)
-;     7b: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (file: VIA.SR.IT2.G7.A.L)
-;     7c: SR shift-in via T2, T2=$0210 direct, T2CH              (file: VIA.SR.IT2.G7.B.H)
-;     7d: SR shift-in via T2, T2=$0210 direct, T2CL              (file: VIA.SR.IT2.G7.B.L)
-;     7e: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH (file: VIA.SR.IT2.G7.C.H)
-;     7f: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL (file: VIA.SR.IT2.G7.C.L)
+;     7a: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (file: V.SR.IT2G7.A.H)
+;     7b: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (file: V.SR.IT2G7.A.L)
+;     7c: SR shift-in via T2, T2=$0210 direct, T2CH              (file: V.SR.IT2G7.B.H)
+;     7d: SR shift-in via T2, T2=$0210 direct, T2CL              (file: V.SR.IT2G7.B.L)
+;     7e: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH (file: V.SR.IT2G7.C.H)
+;     7f: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL (file: V.SR.IT2G7.C.L)
 ;
 ; The timing measurement subroutines (meas_t1, meas_t1_rst,
 ; meas_t2, meas_sr_it2_ah/al/bh/bl/ch/cl) are byte-for-byte
@@ -794,15 +794,15 @@ fn_t22:     .byte "VIA.T2.2"
 fn_t22_end:
 fn_t2ff:    .byte "VIA.T2.FF"
 fn_t2ff_end:
-fn_srit2ah: .byte "VIA.SR.IT2.G7.A.H"
+fn_srit2ah: .byte "V.SR.IT2G7.A.H"
 fn_srit2ah_end:
-fn_srit2al: .byte "VIA.SR.IT2.G7.A.L"
+fn_srit2al: .byte "V.SR.IT2G7.A.L"
 fn_srit2al_end:
-fn_srit2bh: .byte "VIA.SR.IT2.G7.B.H"
+fn_srit2bh: .byte "V.SR.IT2G7.B.H"
 fn_srit2bh_end:
-fn_srit2bl: .byte "VIA.SR.IT2.G7.B.L"
+fn_srit2bl: .byte "V.SR.IT2G7.B.L"
 fn_srit2bl_end:
-fn_srit2ch: .byte "VIA.SR.IT2.G7.C.H"
+fn_srit2ch: .byte "V.SR.IT2G7.C.H"
 fn_srit2ch_end:
-fn_srit2cl: .byte "VIA.SR.IT2.G7.C.L"
+fn_srit2cl: .byte "V.SR.IT2G7.C.L"
 fn_srit2cl_end:
