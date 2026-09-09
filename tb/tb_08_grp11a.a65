@@ -21,11 +21,12 @@ SR_IFR_PRE     = $15        ; IFR & IFR_SR sampled before arming SR (expected: 0
 SR_M3_DATA     = $17        ; original data byte passed to test_sr_mode3
 SR_M3_SHIFT    = $18        ; working copy of data, shifted left each iteration
 SR_IFR_COUNT   = $19        ; iteration count from test_sr_mode1_ifr / _noarm_ifr
-SR_M5_RESULT   = $1A        ; reconstructed byte in test_sr_mode5_cb1
-SR_M5_BITNO    = $1B        ; current bit number (1..8) in test_sr_mode5_cb1
+SR_M5_RESULT   = $1A        ; reconstructed byte in test_sr_mode4_cb1
+SR_M5_BITNO    = $1B        ; current bit number (1..32) in test_sr_mode4_cb1
 SR_M7_DATA     = $1C        ; payload byte for test_sr_mode7_cb1
 SR_M7_RESULT   = $1D        ; reconstructed byte in test_sr_mode7_cb1
 SR_M7_BITNO    = $1E        ; current bit number (1..8) in test_sr_mode7_cb1
+SR_M4_EXPECT   = $1F        ; first reconstructed byte in test_sr_mode4_cb1
 
 #include "../hw.inc"
 #include "../08-tests.i65"

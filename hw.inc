@@ -83,6 +83,7 @@ ACR_SR_NMASK = $E3  ; inverse: clears SR mode bits
 ACR_SR_OFF   = $00  ; 000 -> SR disabled
 ACR_SR_IT2   = $04  ; 001 -> shift in under T2 control
 ACR_SR_IE1   = $0C  ; 011 -> shift in under external CB1 control
+ACR_SR_FRT2  = $10  ; 100 -> shift out under T2 free-running control
 ACR_SR_OT2   = $14  ; 101 -> shift out under T2 control
 ACR_SR_OCB1  = $1C  ; 111 -> shift out under external CB1 control
 

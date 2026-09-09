@@ -101,22 +101,21 @@
 ;     8C: SR mode 5 SR=$AA, T2 initial value = $0330  (file: VIA.SR.M5.AA.C)
 ;     8D: SR mode 5 SR=$AA, T2 initial value = $0440  (file: VIA.SR.M5.AA.D)
 ;
-;   Group 9 - SR mode 5 CB1 poll, SR init = $55
-;     Identical setup to Group 7 (mode 5, SR=$55, T2 driven) but
-;     instead of sampling CB1/CB2 into a buffer, reconstructs the
-;     shifted-out byte bit by bit by polling CB1 and sampling CB2.
-;     For each of 8 bits: verifies IFR.SR is still clear; polls
-;     CB1 low (up to 256 iterations); polls CB1 high (up to 256
-;     iterations); samples CB2 via VIA PA7 (ASL -> carry; ROL into
-;     result).  After 8 bits: verifies IFR.SR is set and result == SR_INIT.
-;     On timeout FAIL_IDX = (bit_num << 4) | step (1=lo, 2=hi).
+;   Group 9 - SR mode 4 CB1 poll, SR init = $55
+;     Mode 4 (free-running T2 shift-out) continuously repeats the
+;     shifted byte.  This group reconstructs 4 consecutive bytes by
+;     polling CB1 low/high and sampling CB2 via VIA PA7.  The first
+;     reconstructed byte becomes the reference; bytes 2-4 must match
+;     it.  IFR.SR must stay clear before every bit and after every
+;     byte.  On timeout FAIL_IDX = $FF and SR_IFR_COUNT reports the
+;     number of successfully reconstructed bytes.
 ;
-;     9A: SR mode 5 CB1 poll SR=$55 T2=$011c
-;     9B: SR mode 5 CB1 poll SR=$55 T2=$0220
-;     9C: SR mode 5 CB1 poll SR=$55 T2=$0330
-;     9D: SR mode 5 CB1 poll SR=$55 T2=$0440
+;     9A: SR mode 4 CB1 poll SR=$55 T2=$011c
+;     9B: SR mode 4 CB1 poll SR=$55 T2=$0220
+;     9C: SR mode 4 CB1 poll SR=$55 T2=$0330
+;     9D: SR mode 4 CB1 poll SR=$55 T2=$0440
 ;
-;   Group 10 - SR mode 5 CB1 poll, SR init = $AA
+;   Group 10 - SR mode 4 CB1 poll, SR init = $AA
 ;     Identical to Group 9 but SR is armed with $AA.
 ;
 ;     10A: SR mode 5 CB1 poll SR=$AA T2=$011c
@@ -178,11 +177,12 @@ SR_IFR_POST    = $16        ; IFR & IFR_SR sampled after sample loop (expected: 
 SR_M3_DATA     = $17        ; original data byte passed to test_sr_mode3
 SR_M3_SHIFT    = $18        ; working copy of data, shifted left each iteration
 SR_IFR_COUNT   = $19        ; iteration count from test_sr_mode1_ifr / _noarm_ifr
-SR_M5_RESULT   = $1A        ; reconstructed byte in test_sr_mode5_cb1
-SR_M5_BITNO    = $1B        ; current bit number (1..8) in test_sr_mode5_cb1
+SR_M5_RESULT   = $1A        ; reconstructed byte in test_sr_mode4_cb1
+SR_M5_BITNO    = $1B        ; current bit number (1..32) in test_sr_mode4_cb1
 SR_M7_DATA     = $1C        ; payload byte for test_sr_mode7_cb1
 SR_M7_RESULT   = $1D        ; reconstructed byte in test_sr_mode7_cb1
 SR_M7_BITNO    = $1E        ; current bit number (1..8) in test_sr_mode7_cb1
+SR_M4_EXPECT   = $1F        ; first reconstructed byte in test_sr_mode4_cb1
 
 ; ============================================================
 ; Memory buffers
@@ -738,11 +738,11 @@ t3d_done:
         jsr print_result
 
         ; --------------------------------------------------------
-        ; Group 9 - SR mode 5 CB1 poll (shift out under T2 control), SR init = $55
+        ; Group 9 - SR mode 4 CB1 poll (free-running shift out via T2), SR init = $55
         ;
-        ; Same setup as Group 7 (mode 5, SR=$55) but instead of sampling
-        ; CB1/CB2 into MEAS_BUF, reconstructs the shifted-out byte by
-        ; polling CB1 low/high for each of 8 bits and sampling CB2.
+        ; Reconstructs four consecutive bytes by polling CB1 low/high
+        ; and sampling CB2.  Byte 1 becomes the reference; bytes 2-4
+        ; must match it while IFR.SR stays clear throughout.
         ; PIA1 PA7 must be an input (already set; VIA drives CB1).
         ; --------------------------------------------------------
         lda #<msg_grp9
@@ -758,8 +758,8 @@ t3d_done:
         sta SR_T2_LO
         lda #$01
         sta SR_T2_HI
-        jsr test_sr_mode5_cb1
-        jsr print_result
+        jsr test_sr_mode4_cb1
+        jsr print_result_m4
 
         lda #<msg_t9b
         ldx #>msg_t9b
@@ -770,8 +770,8 @@ t3d_done:
         sta SR_T2_LO
         lda #$02
         sta SR_T2_HI
-        jsr test_sr_mode5_cb1
-        jsr print_result
+        jsr test_sr_mode4_cb1
+        jsr print_result_m4
 
         lda #<msg_t9c
         ldx #>msg_t9c
@@ -782,8 +782,8 @@ t3d_done:
         sta SR_T2_LO
         lda #$03
         sta SR_T2_HI
-        jsr test_sr_mode5_cb1
-        jsr print_result
+        jsr test_sr_mode4_cb1
+        jsr print_result_m4
 
         lda #<msg_t9d
         ldx #>msg_t9d
@@ -794,11 +794,11 @@ t3d_done:
         sta SR_T2_LO
         lda #$04
         sta SR_T2_HI
-        jsr test_sr_mode5_cb1
-        jsr print_result
+        jsr test_sr_mode4_cb1
+        jsr print_result_m4
 
         ; --------------------------------------------------------
-        ; Group 10 - SR mode 5 CB1 poll (shift out under T2 control), SR init = $AA
+        ; Group 10 - SR mode 4 CB1 poll (free-running shift out via T2), SR init = $AA
         ;
         ; Identical to Group 9 but SR is armed with $AA.
         ; --------------------------------------------------------
@@ -815,8 +815,8 @@ t3d_done:
         sta SR_T2_LO
         lda #$01
         sta SR_T2_HI
-        jsr test_sr_mode5_cb1
-        jsr print_result
+        jsr test_sr_mode4_cb1
+        jsr print_result_m4
 
         lda #<msg_t10b
         ldx #>msg_t10b
@@ -827,8 +827,8 @@ t3d_done:
         sta SR_T2_LO
         lda #$02
         sta SR_T2_HI
-        jsr test_sr_mode5_cb1
-        jsr print_result
+        jsr test_sr_mode4_cb1
+        jsr print_result_m4
 
         lda #<msg_t10c
         ldx #>msg_t10c
@@ -839,8 +839,8 @@ t3d_done:
         sta SR_T2_LO
         lda #$03
         sta SR_T2_HI
-        jsr test_sr_mode5_cb1
-        jsr print_result
+        jsr test_sr_mode4_cb1
+        jsr print_result_m4
 
         lda #<msg_t10d
         ldx #>msg_t10d
@@ -851,8 +851,8 @@ t3d_done:
         sta SR_T2_LO
         lda #$04
         sta SR_T2_HI
-        jsr test_sr_mode5_cb1
-        jsr print_result
+        jsr test_sr_mode4_cb1
+        jsr print_result_m4
 
         jsr wait_key
 
@@ -1080,6 +1080,40 @@ prc_fail:
         rts
 
 ; ============================================================
+; Subroutine: print_result_m4
+;
+; Like print_result, but for mode 4 CB1-poll failures a timeout
+; prints "FAIL @FF NN" where NN is SR_IFR_COUNT (successful bytes).
+; Input: A = 0 -> pass, A != 0 -> fail
+; ============================================================
+print_result_m4:
+        cmp #0
+        bne prm4_fail
+        inc PASS_CNT
+        lda #<msg_ok
+        ldx #>msg_ok
+        jsr print_str
+        rts
+prm4_fail:
+        inc FAIL_CNT
+        lda #<msg_fail
+        ldx #>msg_fail
+        jsr print_str
+        lda FAIL_IDX
+        jsr print_hex
+        lda FAIL_IDX
+        cmp #$ff
+        bne prm4_nl
+        lda #' '
+        jsr CHROUT
+        lda SR_IFR_COUNT
+        jsr print_hex
+prm4_nl:
+        lda #$0d
+        jsr CHROUT
+        rts
+
+; ============================================================
 ; Subroutine: print_hex
 ;
 ; Prints a byte as two uppercase hex digits via CHROUT.
@@ -1181,17 +1215,17 @@ msg_t8b:       .byte "  8B SR MODE5 SR=$AA T2=$0220: ", 0
 msg_t8c:       .byte "  8C SR MODE5 SR=$AA T2=$0330: ", 0
 msg_t8d:       .byte "  8D SR MODE5 SR=$AA T2=$0440: ", 0
 
-msg_grp9:      .byte "GRP9: SR MODE 5 CB1 POLL SR=$55", $0d, 0
-msg_t9a:       .byte "  9A SR M5CB1 SR=$55 T2=$011C: ", 0
-msg_t9b:       .byte "  9B SR M5CB1 SR=$55 T2=$0220: ", 0
-msg_t9c:       .byte "  9C SR M5CB1 SR=$55 T2=$0330: ", 0
-msg_t9d:       .byte "  9D SR M5CB1 SR=$55 T2=$0440: ", 0
+msg_grp9:      .byte "GRP9: SR MODE 4 CB1 POLL SR=$55", $0d, 0
+msg_t9a:       .byte "  9A SR M4CB1 SR=$55 T2=$011C: ", 0
+msg_t9b:       .byte "  9B SR M4CB1 SR=$55 T2=$0220: ", 0
+msg_t9c:       .byte "  9C SR M4CB1 SR=$55 T2=$0330: ", 0
+msg_t9d:       .byte "  9D SR M4CB1 SR=$55 T2=$0440: ", 0
 
-msg_grp10:     .byte "GRP10: SR MODE 5 CB1 POLL SR=$AA", $0d, 0
-msg_t10a:      .byte "  10A SR M5CB1 SR=$AA T2=$011C: ", 0
-msg_t10b:      .byte "  10B SR M5CB1 SR=$AA T2=$0220: ", 0
-msg_t10c:      .byte "  10C SR M5CB1 SR=$AA T2=$0330: ", 0
-msg_t10d:      .byte "  10D SR M5CB1 SR=$AA T2=$0440: ", 0
+msg_grp10:     .byte "GRP10: SR MODE 4 CB1 POLL SR=$AA", $0d, 0
+msg_t10a:      .byte "  10A SR M4CB1 SR=$AA T2=$011C: ", 0
+msg_t10b:      .byte "  10B SR M4CB1 SR=$AA T2=$0220: ", 0
+msg_t10c:      .byte "  10C SR M4CB1 SR=$AA T2=$0330: ", 0
+msg_t10d:      .byte "  10D SR M4CB1 SR=$AA T2=$0440: ", 0
 
 msg_grp11:     .byte "GRP11: SR MODE 7 (OUT EXT CB1)", $0d, 0
 msg_t11a:      .byte "  11A SR MODE7 DATA=$55: ", 0

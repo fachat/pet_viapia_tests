@@ -256,13 +256,12 @@ Requires the userport test fixture:
 | 7A–7D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M5.55.A`–`.D`. |
 | **GRP8: SR MODE 5 SR=$AA — shift out under T2 control** | Identical to Group 7 but SR armed with $AA. |
 | 8A–8D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M5.AA.A`–`.D`. |
-| **GRP9: SR MODE 5 CB1 POLL SR=$55** | Mode 5, SR=$55. Instead of sampling into a buffer, reconstructs the shifted-out byte bit by bit by polling CB1 low/high and sampling CB2 via PA7. Verifies IFR.SR set after 8 bits and result == $55. |
+| **GRP9: SR MODE 4 CB1 POLL SR=$55** | Mode 4 free-running shift-out, SR armed with $55. Reconstructs 4 consecutive bytes by polling CB1 low/high and sampling CB2 via PA7. Byte 1 becomes the reference; bytes 2-4 must match it. IFR.SR must stay clear before every bit and after every byte. On timeout, the failure prints `$FF` plus the number of successfully reconstructed bytes. |
 | 9A–9D | T2=$011C, $0220, $0330, $0440. |
-| **GRP10: SR MODE 5 CB1 POLL SR=$AA** | Identical to Group 9 but SR armed with $AA; result verified == $AA. |
+| **GRP10: SR MODE 4 CB1 POLL SR=$AA** | Identical to Group 9 but SR armed with $AA. |
 | 10A–10D | T2=$011C, $0220, $0330, $0440. |
 | **GRP11: SR MODE 7 — shift out under external CB1 control** | ACR SR = 111. CB1 is an external clock input driven via PIA1 PA7 loopback. Each falling edge of CB1 causes the VIA to present the next output bit (MSB first) on CB2. CB2 is read back via VIA PA7 (DDRA=$00). After 8 edges IFR.SR is set. The reconstructed byte is compared to the original payload. |
 | 11A — M7 DATA=$55 | Shifts $55 out; verifies IFR.SR=0 before each falling CB1 edge; verifies IFR.SR=1 after 8 bits; result == $55. |
 | 11B — M7 DATA=$AA | Same for $AA. |
 | 11C — M7 DATA=$5A | Same for $5A. |
 | 11D — M7 DATA=$A5 | Same for $A5. |
-
