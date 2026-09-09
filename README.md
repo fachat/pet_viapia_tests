@@ -203,7 +203,7 @@ PA input latch behaviour: IRA is transparent when IFR.CA1=0; it latches on the C
 
 ### `08-sr-test-gen.a65` — VIA Shift Register Test: Reference Data Generator (GEN 8)
 
-Runs the SR mode 1 and mode 5 measurement loops used by `08-sr-test.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
+Runs the SR mode 1, mode 4, and mode 5 measurement loops used by `08-sr-test.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
 Run this **once** on a known-good machine or in VICE (`make gen8`) to produce the reference files that `08-sr-test.a65` compares against.
 
 Requires the userport test fixture (PIA1 PA7 must be an input to avoid bus conflict on CB1 in SR mode 1).
@@ -214,10 +214,22 @@ Requires the userport test fixture (PIA1 PA7 must be an input to avoid bus confl
 | `VIA.SR.M1.B` | SR mode 1, T2=$0220 |
 | `VIA.SR.M1.C` | SR mode 1, T2=$0330 |
 | `VIA.SR.M1.D` | SR mode 1, T2=$0440 |
-| `VIA.SR.M5.A` | SR mode 5 (shift out under T2), T2=$0110 |
-| `VIA.SR.M5.B` | SR mode 5, T2=$0220 |
-| `VIA.SR.M5.C` | SR mode 5, T2=$0330 |
-| `VIA.SR.M5.D` | SR mode 5, T2=$0440 |
+| `VIA.SR.M4.55.A` | SR mode 4 (shift out under free-running T2), SR=$55, T2=$0110 |
+| `VIA.SR.M4.55.B` | SR mode 4, SR=$55, T2=$0220 |
+| `VIA.SR.M4.55.C` | SR mode 4, SR=$55, T2=$0330 |
+| `VIA.SR.M4.55.D` | SR mode 4, SR=$55, T2=$0440 |
+| `VIA.SR.M4.AA.A` | SR mode 4, SR=$AA, T2=$0110 |
+| `VIA.SR.M4.AA.B` | SR mode 4, SR=$AA, T2=$0220 |
+| `VIA.SR.M4.AA.C` | SR mode 4, SR=$AA, T2=$0330 |
+| `VIA.SR.M4.AA.D` | SR mode 4, SR=$AA, T2=$0440 |
+| `VIA.SR.M5.55.A` | SR mode 5 (shift out under T2), SR=$55, T2=$0110 |
+| `VIA.SR.M5.55.B` | SR mode 5, SR=$55, T2=$0220 |
+| `VIA.SR.M5.55.C` | SR mode 5, SR=$55, T2=$0330 |
+| `VIA.SR.M5.55.D` | SR mode 5, SR=$55, T2=$0440 |
+| `VIA.SR.M5.AA.A` | SR mode 5, SR=$AA, T2=$0110 |
+| `VIA.SR.M5.AA.B` | SR mode 5, SR=$AA, T2=$0220 |
+| `VIA.SR.M5.AA.C` | SR mode 5, SR=$AA, T2=$0330 |
+| `VIA.SR.M5.AA.D` | SR mode 5, SR=$AA, T2=$0440 |
 
 ---
 
@@ -265,4 +277,11 @@ Requires the userport test fixture:
 | 11B — M7 DATA=$AA | Same for $AA. |
 | 11C — M7 DATA=$5A | Same for $5A. |
 | 11D — M7 DATA=$A5 | Same for $A5. |
-
+| **GRP12: SR MODE 4 SR=$55 — shift out under free-running T2 control** | ACR SR = 100. VIA drives CB1 (clock) and CB2 (data). 256 combined CB1/CB2 samples compared against reference files. SR armed with $55. |
+| 12A–12D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M4.55.A`–`.D`. |
+| **GRP13: SR MODE 4 SR=$AA — shift out under free-running T2 control** | Identical to Group 12 but SR armed with $AA. |
+| 13A–13D | T2=$0110, $0220, $0330, $0440; files `VIA.SR.M4.AA.A`–`.D`. |
+| **GRP14: SR MODE 4 CB1 POLL SR=$55** | Mode 4, SR=$55. Instead of sampling into a buffer, reconstructs the shifted-out byte bit by bit by polling CB1 low/high and sampling CB2 via PA7. Verifies IFR.SR set after 8 bits and result == $55. |
+| 14A–14D | T2=$011C, $0220, $0330, $0440. |
+| **GRP15: SR MODE 4 CB1 POLL SR=$AA** | Identical to Group 14 but SR armed with $AA; result verified == $AA. |
+| 15A–15D | T2=$011C, $0220, $0330, $0440. |
