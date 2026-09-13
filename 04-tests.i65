@@ -847,11 +847,13 @@ t2pb6_restore:
         pla
         sta ORB_HIGH
         pla
+        sta T2_DDRB
+        pla
+        sta VIA_BASE+VIA_ACR
+        lda T2_DDRB
         sta VIA_BASE+VIA_DDRB
         lda ORB_HIGH
         sta VIA_BASE+VIA_ORB
-        pla
-        sta VIA_BASE+VIA_ACR
         cli
         lda TMP
         rts
