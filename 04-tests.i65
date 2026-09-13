@@ -661,14 +661,17 @@ test_t2_pb6_count_common:
         sta VIA_BASE+VIA_ORB
         lda VIA_BASE+VIA_ORB
         and #VIA_NRFD_IN
-        bne t2pb6_fail01
+        beq t2pb6_init_low_ok
+        jmp t2pb6_fail01
+t2pb6_init_low_ok:
         jmp t2pb6_init_done
 
 t2pb6_init_high:
         lda VIA_BASE+VIA_ORB
         and #VIA_NRFD_IN
         cmp #VIA_NRFD_IN
-        bne t2pb6_fail01
+        beq t2pb6_init_done
+        jmp t2pb6_fail01
 
 t2pb6_init_done:
         lda VIA_BASE+VIA_ACR
@@ -682,7 +685,9 @@ t2pb6_init_done:
 
         lda VIA_BASE+VIA_IFR
         and #IFR_T2
-        bne t2pb6_fail02
+        beq t2pb6_ifr_ok
+        jmp t2pb6_fail02
+t2pb6_ifr_ok:
 
         lda T2_MODE
         beq t2pb6_run_main
@@ -692,13 +697,16 @@ t2pb6_init_done:
         sta VIA_BASE+VIA_ORB
         lda VIA_BASE+VIA_T2CL
         cmp #$05
-        bne t2pb6_fail05
+        beq t2pb6_first_low_ok
+        jmp t2pb6_fail05
+t2pb6_first_low_ok:
 
         lda ORB_HIGH
         sta VIA_BASE+VIA_ORB
         lda VIA_BASE+VIA_T2CL
         cmp #$05
-        bne t2pb6_fail85
+        beq t2pb6_run_main
+        jmp t2pb6_fail85
 
 t2pb6_run_main:
         lda #$05
@@ -732,14 +740,18 @@ t2pb6_main_lp:
 
         lda VIA_BASE+VIA_T2CL
         cmp #$ff
-        bne t2pb6_fail_ff
+        beq t2pb6_got_ff
+        jmp t2pb6_fail_ff
+t2pb6_got_ff:
         sta T2_LAST
 
         lda ORB_HIGH
         sta VIA_BASE+VIA_ORB
         lda VIA_BASE+VIA_T2CL
         cmp T2_LAST
-        bne t2pb6_fail7f
+        beq t2pb6_post_setup_ok
+        jmp t2pb6_fail7f
+t2pb6_post_setup_ok:
 
         ldx #5
 t2pb6_post_lp:
