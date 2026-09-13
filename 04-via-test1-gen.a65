@@ -8,10 +8,6 @@
 ; a known-good machine or in the VICE emulator to produce the
 ; reference data that 04-via-test1.a65 will compare against.
 ;
-; The SR tests use SR shift-in-under-T2 mode.
-; NOTE: CB1 must not be hard-wired as input; the VIA drives CB1
-;       as an output clock in SR shift-in modes (bus conflict risk).
-;
 ; Files written (CBM PRG, 256 bytes + 2-byte load address header):
 ;   V.T1.SS.0   T1 single-shot, latch=$00
 ;   V.T1.SS.1   T1 single-shot, latch=$01
@@ -26,12 +22,6 @@
 ;   V.T2.1      T2 one-shot,    latch=$01
 ;   V.T2.2      T2 one-shot,    latch=$02
 ;   V.T2.FF     T2 one-shot,    latch=$FF
-;   V.SR.IT2G7.A.H  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH samples
-;   V.SR.IT2G7.A.L  SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL samples
-;   V.SR.IT2G7.B.H  SR shift-in via T2, T2=$0210 direct, T2CH samples
-;   V.SR.IT2G7.B.L  SR shift-in via T2, T2=$0210 direct, T2CL samples
-;   V.SR.IT2G7.C.H  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH samples
-;   V.SR.IT2G7.C.L  SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL samples
 ;
 ; Files are written using the PET-compatible PET_SAVE routine
 ; (JMP $f6e3), bypassing the $FFD8 KERNAL entry which includes
@@ -265,50 +255,6 @@ main:
         jsr write_file
 
         ; --------------------------------------------------------
-        ; Shift register - shift in under T2 control
-        ; (6 reference files: 3 scenarios x 2 byte lanes)
-        ; --------------------------------------------------------
-        lda #<msg_sr
-        ldx #>msg_sr
-        jsr print_str
-
-        jsr meas_sr_it2_ah
-        lda #fn_srit2ah_end - fn_srit2ah
-        ldx #<fn_srit2ah
-        ldy #>fn_srit2ah
-        jsr write_file
-
-        jsr meas_sr_it2_al
-        lda #fn_srit2al_end - fn_srit2al
-        ldx #<fn_srit2al
-        ldy #>fn_srit2al
-        jsr write_file
-
-        jsr meas_sr_it2_bh
-        lda #fn_srit2bh_end - fn_srit2bh
-        ldx #<fn_srit2bh
-        ldy #>fn_srit2bh
-        jsr write_file
-
-        jsr meas_sr_it2_bl
-        lda #fn_srit2bl_end - fn_srit2bl
-        ldx #<fn_srit2bl
-        ldy #>fn_srit2bl
-        jsr write_file
-
-        jsr meas_sr_it2_ch
-        lda #fn_srit2ch_end - fn_srit2ch
-        ldx #<fn_srit2ch
-        ldy #>fn_srit2ch
-        jsr write_file
-
-        jsr meas_sr_it2_cl
-        lda #fn_srit2cl_end - fn_srit2cl
-        ldx #<fn_srit2cl
-        ldy #>fn_srit2cl
-        jsr write_file
-
-        ; --------------------------------------------------------
         ; Restore VIA state
         ; --------------------------------------------------------
         sei
@@ -444,7 +390,6 @@ msg_t1ss:   .byte "T1 SINGLE-SHOT...", 0
 msg_t1fr:   .byte $0d, "T1 FREE-RUN...", 0
 msg_t1rst:  .byte $0d, "T1 RESET MID-COUNT...", 0
 msg_t2:     .byte $0d, "T2 ONE-SHOT...", 0
-msg_sr:     .byte $0d, "SR SHIFT-IN VIA T2...", 0
 msg_done:   .byte $0d, "DONE.", $0d, 0
 msg_ok:     .byte ".", 0
 msg_err:    .byte "E", 0
@@ -480,15 +425,3 @@ fn_t22:     .byte "V.T2.2"
 fn_t22_end:
 fn_t2ff:    .byte "V.T2.FF"
 fn_t2ff_end:
-fn_srit2ah: .byte "V.SR.IT2G7.A.H"
-fn_srit2ah_end:
-fn_srit2al: .byte "V.SR.IT2G7.A.L"
-fn_srit2al_end:
-fn_srit2bh: .byte "V.SR.IT2G7.B.H"
-fn_srit2bh_end:
-fn_srit2bl: .byte "V.SR.IT2G7.B.L"
-fn_srit2bl_end:
-fn_srit2ch: .byte "V.SR.IT2G7.C.H"
-fn_srit2ch_end:
-fn_srit2cl: .byte "V.SR.IT2G7.C.L"
-fn_srit2cl_end:

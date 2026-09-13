@@ -74,18 +74,11 @@ Run this **once** on a known-good machine or in VICE (`make gen4`) to produce th
 | `V.T2.1` | T2 one-shot, latch=$01 |
 | `V.T2.2` | T2 one-shot, latch=$02 |
 | `V.T2.FF` | T2 one-shot, latch=$FF |
-| `V.SR.IT2G7.A.H` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (high byte) samples |
-| `V.SR.IT2G7.A.L` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (low byte) samples |
-| `V.SR.IT2G7.B.H` | SR shift-in via T2, T2=$0210 direct, T2CH samples |
-| `V.SR.IT2G7.B.L` | SR shift-in via T2, T2=$0210 direct, T2CL samples |
-| `V.SR.IT2G7.C.H` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CH samples |
-| `V.SR.IT2G7.C.L` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CL samples |
-
 ---
 
 ### `04-via-test1.a65` — VIA Test Module 1: Generic 6522 VIA Tests (Test 4)
 
-Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Groups 3–7 compare a live 256-byte timing capture against the reference files produced by `via_test1_gen.prg`.  On a mismatch the output shows `FAIL @xx` where `xx` is the hex index of the first differing byte.
+Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Groups 3–6 compare a live 256-byte timing capture against the reference files produced by `via_test1_gen.prg`.  On a mismatch the output shows `FAIL @xx` where `xx` is the hex index of the first differing byte.
 
 | Test | ACR setup | Description |
 |------|-----------|-------------|
@@ -116,14 +109,6 @@ Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Gr
 | 6B — T2 LATCH=01 | | Same test with latch=$01; compares against `V.T2.1`. |
 | 6C — T2 LATCH=02 | | Same test with latch=$02; compares against `V.T2.2`. |
 | 6D — T2 LATCH=FF | | Same test with latch=$FF; compares against `V.T2.FF`. |
-| **GRP7: SR SHIFT-IN VIA T2** | bits 4–2 = `$04` (SR shift-in under T2 clock); bit 5 = `0` (T2 timer mode) | NOTE: CB1 must not be hard-wired as input — the VIA drives CB1 as output clock in this mode. |
-| 7A — SR-IN T2 SETUP HI | | Scenario A (T2 pre-set $04FF then $0210): captures 256 T2CH samples while SR shifts in under T2; compares against `V.SR.IT2G7.A.H`. |
-| 7B — SR-IN T2 SETUP LO | | Same scenario A setup; captures 256 T2CL samples; compares against `V.SR.IT2G7.A.L`. |
-| 7C — SR-IN T2 DIRECT HI | | Scenario B (T2 set directly to $0210): captures 256 T2CH samples; compares against `V.SR.IT2G7.B.H`. |
-| 7D — SR-IN T2 DIRECT LO | | Same scenario B setup; captures 256 T2CL samples; compares against `V.SR.IT2G7.B.L`. |
-| 7E — SR-IN T2 LATCH HI | | Scenario C (T2=$0210, 16-cycle wait, then T2CL latch overridden to $20): captures 256 T2CH samples; compares against `V.SR.IT2G7.C.H`. |
-| 7F — SR-IN T2 LATCH LO | | Same scenario C setup; captures 256 T2CL samples; compares against `V.SR.IT2G7.C.L`. |
-
 ---
 
 ### `05-pia-test2.a65` — PIA Test Module 5: CB1 Vertical Blank Signal Tests
@@ -203,7 +188,7 @@ PA input latch behaviour: IRA is transparent when IFR.CA1=0; it latches on the C
 
 ### `08-sr-test-gen.a65` — VIA Shift Register Test: Reference Data Generator (GEN 8)
 
-Runs the SR mode 1, mode 4, and mode 5 measurement loops used by `08-sr-test.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
+Runs the SR measurement loops used by `08-sr-test.a65` and saves the raw 256-byte results to CBM sequential files on device 8 (IEEE-488 disk drive).
 Run this **once** on a known-good machine or in VICE (`make gen8`) to produce the reference files that `08-sr-test.a65` compares against.
 
 Requires the userport test fixture (PIA1 PA7 must be an input to avoid bus conflict on CB1 in SR mode 1).
@@ -218,6 +203,12 @@ Requires the userport test fixture (PIA1 PA7 must be an input to avoid bus confl
 | `V.SR.M1NG3.B` | SR mode 1 no-arm, T2=$0220 |
 | `V.SR.M1NG3.C` | SR mode 1 no-arm, T2=$0330 |
 | `V.SR.M1NG3.D` | SR mode 1 no-arm, T2=$0440 |
+| `V.SR.IT2G16.A.H` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH samples |
+| `V.SR.IT2G16.A.L` | SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL samples |
+| `V.SR.IT2G16.B.H` | SR shift-in via T2, T2=$0210 direct, T2CH samples |
+| `V.SR.IT2G16.B.L` | SR shift-in via T2, T2=$0210 direct, T2CL samples |
+| `V.SR.IT2G16.C.H` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CH samples |
+| `V.SR.IT2G16.C.L` | SR shift-in via T2, T2=$0210 + 16-cycle wait + latch low=$20, T2CL samples |
 | `V.SR.M4G12.55.A` | SR mode 4 (shift out under free-running T2), SR=$55, T2=$0110 |
 | `V.SR.M4G12.55.B` | SR mode 4, SR=$55, T2=$0220 |
 | `V.SR.M4G12.55.C` | SR mode 4, SR=$55, T2=$0330 |
@@ -239,7 +230,7 @@ Requires the userport test fixture (PIA1 PA7 must be an input to avoid bus confl
 
 ### `08-sr-test.a65` — VIA Shift Register Tests (Test 8)
 
-Tests the 6522 VIA shift register at $E840.  Reference files (produced by `via_sr_test_gen.prg`) must be present on device 8 before running Groups 2 and 3.
+Tests the 6522 VIA shift register at $E840.  Reference files (produced by `via_sr_test_gen.prg`) must be present on device 8 before running Groups 2, 3, 7, 8, 12, 13, and 16.
 
 Requires the userport test fixture:
 - Pin 5 (PIA1 PA7) → Pin 6 (CB1): PIA1 PA7 drives the CB1 clock
@@ -289,3 +280,10 @@ Requires the userport test fixture:
 | 14A–14D | T2=$0440, $0550, $0660, $0770. |
 | **GRP15: SR MODE 4 CB1 POLL SR=$AA** | Identical to Group 14 but SR armed with $AA; byte 1 must equal $AA and bytes 2-4 must match it. |
 | 15A–15D | T2=$0440, $0550, $0660, $0770. |
+| **GRP16: SR SHIFT-IN VIA T2** | Legacy shift-in-via-T2 scenarios moved from Test 4. NOTE: CB1 must not be hard-wired as input, because the VIA drives CB1 as output clock in this mode. |
+| 16A — SR-IN T2 SETUP HI | Scenario A (T2 pre-set $04FF then $0210): captures 256 T2CH samples and compares against `V.SR.IT2G16.A.H`. |
+| 16B — SR-IN T2 SETUP LO | Same scenario A setup; captures 256 T2CL samples; compares against `V.SR.IT2G16.A.L`. |
+| 16C — SR-IN T2 DIRECT HI | Scenario B (T2 set directly to $0210): captures 256 T2CH samples; compares against `V.SR.IT2G16.B.H`. |
+| 16D — SR-IN T2 DIRECT LO | Same scenario B setup; captures 256 T2CL samples; compares against `V.SR.IT2G16.B.L`. |
+| 16E — SR-IN T2 LATCH HI | Scenario C (T2=$0210, 16-cycle wait, then T2CL latch overridden to $20): captures 256 T2CH samples; compares against `V.SR.IT2G16.C.H`. |
+| 16F — SR-IN T2 LATCH LO | Same scenario C setup; captures 256 T2CL samples; compares against `V.SR.IT2G16.C.L`. |

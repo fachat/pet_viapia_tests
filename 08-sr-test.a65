@@ -172,6 +172,15 @@
 ;     15C: SR mode 4 CB1 poll SR=$AA T2=$0660
 ;     15D: SR mode 4 CB1 poll SR=$AA T2=$0770
 ;
+;   Group 16 - Shift register - shift in under T2 control
+;     NOTE: CB1 must not be hard-wired as input (bus conflict risk)
+;     16A: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (file: V.SR.IT2G16.A.H)
+;     16B: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (file: V.SR.IT2G16.A.L)
+;     16C: SR shift-in via T2, T2=$0210 direct, T2CH              (file: V.SR.IT2G16.B.H)
+;     16D: SR shift-in via T2, T2=$0210 direct, T2CL              (file: V.SR.IT2G16.B.L)
+;     16E: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH (file: V.SR.IT2G16.C.H)
+;     16F: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL (file: V.SR.IT2G16.C.L)
+;
 ; For Groups 2 and 3 only SR_IFR_PRE (expected: 0) is verified after
 ; each run; a mismatch is reported as a FAIL and the file comparison
 ; is skipped for that test.  SR_IFR_POST is NOT checked: the
@@ -1204,6 +1213,76 @@ t3d_done:
         jsr print_result_m4_cb1
 
         ; --------------------------------------------------------
+        ; Group 16 - Shift register: shift in under T2 control
+        ; NOTE: CB1 must not be hard-wired as input on the board;
+        ;       in SR shift-in modes the VIA drives CB1 as an
+        ;       output clock, which would cause a bus conflict.
+        ; --------------------------------------------------------
+        lda #<msg_grp16
+        ldx #>msg_grp16
+        jsr print_str
+
+        lda #<msg_t16a
+        ldx #>msg_t16a
+        jsr print_str
+        jsr meas_sr_it2_ah
+        lda #fn_sr_it2ah_end - fn_sr_it2ah
+        ldx #<fn_sr_it2ah
+        ldy #>fn_sr_it2ah
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t16b
+        ldx #>msg_t16b
+        jsr print_str
+        jsr meas_sr_it2_al
+        lda #fn_sr_it2al_end - fn_sr_it2al
+        ldx #<fn_sr_it2al
+        ldy #>fn_sr_it2al
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t16c
+        ldx #>msg_t16c
+        jsr print_str
+        jsr meas_sr_it2_bh
+        lda #fn_sr_it2bh_end - fn_sr_it2bh
+        ldx #<fn_sr_it2bh
+        ldy #>fn_sr_it2bh
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t16d
+        ldx #>msg_t16d
+        jsr print_str
+        jsr meas_sr_it2_bl
+        lda #fn_sr_it2bl_end - fn_sr_it2bl
+        ldx #<fn_sr_it2bl
+        ldy #>fn_sr_it2bl
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t16e
+        ldx #>msg_t16e
+        jsr print_str
+        jsr meas_sr_it2_ch
+        lda #fn_sr_it2ch_end - fn_sr_it2ch
+        ldx #<fn_sr_it2ch
+        ldy #>fn_sr_it2ch
+        jsr compare_file
+        jsr print_result
+
+        lda #<msg_t16f
+        ldx #>msg_t16f
+        jsr print_str
+        jsr meas_sr_it2_cl
+        lda #fn_sr_it2cl_end - fn_sr_it2cl
+        ldx #<fn_sr_it2cl
+        ldy #>fn_sr_it2cl
+        jsr compare_file
+        jsr print_result
+
+        ; --------------------------------------------------------
         ; Restore VIA state and print summary
         ; --------------------------------------------------------
         sei
@@ -1565,6 +1644,14 @@ msg_t15b:      .byte "  15B SR M4CB1 SR=$AA T2=$0550: ", 0
 msg_t15c:      .byte "  15C SR M4CB1 SR=$AA T2=$0660: ", 0
 msg_t15d:      .byte "  15D SR M4CB1 SR=$AA T2=$0770: ", 0
 
+msg_grp16:     .byte "GRP16: SR SHIFT-IN VIA T2", $0d, 0
+msg_t16a:      .byte "  16A SR-IN T2 SETUP HI: ", 0
+msg_t16b:      .byte "  16B SR-IN T2 SETUP LO: ", 0
+msg_t16c:      .byte "  16C SR-IN T2 DIRECT HI: ", 0
+msg_t16d:      .byte "  16D SR-IN T2 DIRECT LO: ", 0
+msg_t16e:      .byte "  16E SR-IN T2 LATCH HI: ", 0
+msg_t16f:      .byte "  16F SR-IN T2 LATCH LO: ", 0
+
 msg_ok:        .byte "OK", $0d, 0
 msg_ok_cnt:    .byte "OK @", 0
 msg_fail:      .byte "FAIL @", 0
@@ -1624,3 +1711,15 @@ fn_sr_m5aac:  .byte "V.SR.M5G8.AA.C"
 fn_sr_m5aac_end:
 fn_sr_m5aad:  .byte "V.SR.M5G8.AA.D"
 fn_sr_m5aad_end:
+fn_sr_it2ah:  .byte "V.SR.IT2G16.A.H"
+fn_sr_it2ah_end:
+fn_sr_it2al:  .byte "V.SR.IT2G16.A.L"
+fn_sr_it2al_end:
+fn_sr_it2bh:  .byte "V.SR.IT2G16.B.H"
+fn_sr_it2bh_end:
+fn_sr_it2bl:  .byte "V.SR.IT2G16.B.L"
+fn_sr_it2bl_end:
+fn_sr_it2ch:  .byte "V.SR.IT2G16.C.H"
+fn_sr_it2ch_end:
+fn_sr_it2cl:  .byte "V.SR.IT2G16.C.L"
+fn_sr_it2cl_end:
