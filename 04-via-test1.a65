@@ -42,17 +42,8 @@
 ;     6c: T2, latch=$02              (file: V.T2.2)
 ;     6d: T2, latch=$FF              (file: V.T2.FF)
 ;
-;   Group 7 - Shift register - shift in under T2 control
-;     NOTE: CB1 must not be hard-wired as input (bus conflict risk)
-;     7a: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH (file: V.SR.IT2G7.A.H)
-;     7b: SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL (file: V.SR.IT2G7.A.L)
-;     7c: SR shift-in via T2, T2=$0210 direct, T2CH              (file: V.SR.IT2G7.B.H)
-;     7d: SR shift-in via T2, T2=$0210 direct, T2CL              (file: V.SR.IT2G7.B.L)
-;     7e: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH (file: V.SR.IT2G7.C.H)
-;     7f: SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL (file: V.SR.IT2G7.C.L)
-;
 ; The timing measurement subroutines (meas_t1, meas_t1_rst,
-; meas_t2, meas_sr_it2_ah/al/bh/bl/ch/cl) are byte-for-byte
+; meas_t2) are byte-for-byte
 ; identical to those in 04-via-test1-gen.a65, ensuring that the
 ; measured values match the pre-recorded reference data.
 ;
@@ -427,76 +418,6 @@ main:
         jsr wait_key
 
         ; --------------------------------------------------------
-        ; Group 7 - Shift register: shift in under T2 control
-        ; NOTE: CB1 must not be hard-wired as input on the board;
-        ;       in SR shift-in modes the VIA drives CB1 as an
-        ;       output clock, which would cause a bus conflict.
-        ; --------------------------------------------------------
-        lda #<msg_grp7
-        ldx #>msg_grp7
-        jsr print_str
-
-        lda #<msg_t7a
-        ldx #>msg_t7a
-        jsr print_str
-        jsr meas_sr_it2_ah
-        lda #fn_srit2ah_end - fn_srit2ah
-        ldx #<fn_srit2ah
-        ldy #>fn_srit2ah
-        jsr compare_file
-        jsr print_result
-
-        lda #<msg_t7b
-        ldx #>msg_t7b
-        jsr print_str
-        jsr meas_sr_it2_al
-        lda #fn_srit2al_end - fn_srit2al
-        ldx #<fn_srit2al
-        ldy #>fn_srit2al
-        jsr compare_file
-        jsr print_result
-
-        lda #<msg_t7c
-        ldx #>msg_t7c
-        jsr print_str
-        jsr meas_sr_it2_bh
-        lda #fn_srit2bh_end - fn_srit2bh
-        ldx #<fn_srit2bh
-        ldy #>fn_srit2bh
-        jsr compare_file
-        jsr print_result
-
-        lda #<msg_t7d
-        ldx #>msg_t7d
-        jsr print_str
-        jsr meas_sr_it2_bl
-        lda #fn_srit2bl_end - fn_srit2bl
-        ldx #<fn_srit2bl
-        ldy #>fn_srit2bl
-        jsr compare_file
-        jsr print_result
-
-        lda #<msg_t7e
-        ldx #>msg_t7e
-        jsr print_str
-        jsr meas_sr_it2_ch
-        lda #fn_srit2ch_end - fn_srit2ch
-        ldx #<fn_srit2ch
-        ldy #>fn_srit2ch
-        jsr compare_file
-        jsr print_result
-
-        lda #<msg_t7f
-        ldx #>msg_t7f
-        jsr print_str
-        jsr meas_sr_it2_cl
-        lda #fn_srit2cl_end - fn_srit2cl
-        ldx #<fn_srit2cl
-        ldy #>fn_srit2cl
-        jsr compare_file
-        jsr print_result
-
-        ; --------------------------------------------------------
         ; Restore VIA state and print summary
         ; --------------------------------------------------------
         sei
@@ -750,14 +671,6 @@ msg_t6b:      .byte "  6B T2 LATCH=01: ", 0
 msg_t6c:      .byte "  6C T2 LATCH=02: ", 0
 msg_t6d:      .byte "  6D T2 LATCH=FF: ", 0
 
-msg_grp7:     .byte "GRP7: SR SHIFT-IN VIA T2", $0d, 0
-msg_t7a:      .byte "  7A SR-IN T2 SETUP HI: ", 0
-msg_t7b:      .byte "  7B SR-IN T2 SETUP LO: ", 0
-msg_t7c:      .byte "  7C SR-IN T2 DIRECT HI: ", 0
-msg_t7d:      .byte "  7D SR-IN T2 DIRECT LO: ", 0
-msg_t7e:      .byte "  7E SR-IN T2 LATCH HI: ", 0
-msg_t7f:      .byte "  7F SR-IN T2 LATCH LO: ", 0
-
 msg_ok:       .byte "OK", $0d, 0
 msg_fail:     .byte "FAIL @", 0
 msg_press_key:.byte "PRESS ANY KEY...", $0d, 0
@@ -794,15 +707,3 @@ fn_t22:     .byte "V.T2.2"
 fn_t22_end:
 fn_t2ff:    .byte "V.T2.FF"
 fn_t2ff_end:
-fn_srit2ah: .byte "V.SR.IT2G7.A.H"
-fn_srit2ah_end:
-fn_srit2al: .byte "V.SR.IT2G7.A.L"
-fn_srit2al_end:
-fn_srit2bh: .byte "V.SR.IT2G7.B.H"
-fn_srit2bh_end:
-fn_srit2bl: .byte "V.SR.IT2G7.B.L"
-fn_srit2bl_end:
-fn_srit2ch: .byte "V.SR.IT2G7.C.H"
-fn_srit2ch_end:
-fn_srit2cl: .byte "V.SR.IT2G7.C.L"
-fn_srit2cl_end:

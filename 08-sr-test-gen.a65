@@ -2,8 +2,7 @@
 ; 08-sr-test-gen.a65
 ; VIA Shift Register Test - Reference Data Generator
 ;
-; Runs the SR mode 1, mode 4, and mode 5 measurement loops used by
-; 08-sr-test.a65
+; Runs the SR measurement loops used by 08-sr-test.a65
 ; and saves the raw results (256 bytes each) to CBM sequential
 ; files on device 8 (IEEE-488 disk drive).  Run this once on a
 ; known-good machine or in the VICE emulator to produce the
@@ -25,6 +24,12 @@
 ;   V.SR.M1NG3.B    SR mode 1 no-arm, T2 initial value = $0220
 ;   V.SR.M1NG3.C    SR mode 1 no-arm, T2 initial value = $0330
 ;   V.SR.M1NG3.D    SR mode 1 no-arm, T2 initial value = $0440
+;   V.SR.IT2G16.A.H SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CH samples
+;   V.SR.IT2G16.A.L SR shift-in via T2, T2 pre-set ($04FF then $0210), T2CL samples
+;   V.SR.IT2G16.B.H SR shift-in via T2, T2=$0210 direct, T2CH samples
+;   V.SR.IT2G16.B.L SR shift-in via T2, T2=$0210 direct, T2CL samples
+;   V.SR.IT2G16.C.H SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CH samples
+;   V.SR.IT2G16.C.L SR shift-in via T2, T2=$0210+16cy wait+latch=$20, T2CL samples
 ;   V.SR.M4G12.55.A SR mode 4, SR=$55, T2 initial value = $0110
 ;   V.SR.M4G12.55.B SR mode 4, SR=$55, T2 initial value = $0220
 ;   V.SR.M4G12.55.C SR mode 4, SR=$55, T2 initial value = $0330
@@ -495,6 +500,53 @@ main:
         jsr print_str
 
         ; --------------------------------------------------------
+        ; SR shift-in via T2 (legacy IT2 scenarios from old test 04 group 7)
+        ; --------------------------------------------------------
+        lda #<msg_sr_it2
+        ldx #>msg_sr_it2
+        jsr print_str
+
+        jsr meas_sr_it2_ah
+        lda #fn_sr_it2ah_end - fn_sr_it2ah
+        ldx #<fn_sr_it2ah
+        ldy #>fn_sr_it2ah
+        jsr write_file
+
+        jsr meas_sr_it2_al
+        lda #fn_sr_it2al_end - fn_sr_it2al
+        ldx #<fn_sr_it2al
+        ldy #>fn_sr_it2al
+        jsr write_file
+
+        jsr meas_sr_it2_bh
+        lda #fn_sr_it2bh_end - fn_sr_it2bh
+        ldx #<fn_sr_it2bh
+        ldy #>fn_sr_it2bh
+        jsr write_file
+
+        jsr meas_sr_it2_bl
+        lda #fn_sr_it2bl_end - fn_sr_it2bl
+        ldx #<fn_sr_it2bl
+        ldy #>fn_sr_it2bl
+        jsr write_file
+
+        jsr meas_sr_it2_ch
+        lda #fn_sr_it2ch_end - fn_sr_it2ch
+        ldx #<fn_sr_it2ch
+        ldy #>fn_sr_it2ch
+        jsr write_file
+
+        jsr meas_sr_it2_cl
+        lda #fn_sr_it2cl_end - fn_sr_it2cl
+        ldx #<fn_sr_it2cl
+        ldy #>fn_sr_it2cl
+        jsr write_file
+
+        lda #<msg_nl
+        ldx #>msg_nl
+        jsr print_str
+
+        ; --------------------------------------------------------
         ; Restore VIA state
         ; --------------------------------------------------------
         sei
@@ -624,6 +676,7 @@ msg_sr_m45: .byte "SR MODE4 SR=$55...", 0
 msg_sr_m4aa:.byte "SR MODE4 SR=$AA...", 0
 msg_sr_m55: .byte "SR MODE5 SR=$55...", 0
 msg_sr_m5aa:.byte "SR MODE5 SR=$AA...", 0
+msg_sr_it2: .byte "SR SHIFT-IN VIA T2...", 0
 msg_done:   .byte "DONE.", $0d, 0
 msg_ok:     .byte ".", 0
 msg_err:    .byte "E", 0
@@ -648,6 +701,18 @@ fn_sr_m1nc:   .byte "V.SR.M1NG3.C"
 fn_sr_m1nc_end:
 fn_sr_m1nd:   .byte "V.SR.M1NG3.D"
 fn_sr_m1nd_end:
+fn_sr_it2ah:  .byte "V.SR.IT2G16.A.H"
+fn_sr_it2ah_end:
+fn_sr_it2al:  .byte "V.SR.IT2G16.A.L"
+fn_sr_it2al_end:
+fn_sr_it2bh:  .byte "V.SR.IT2G16.B.H"
+fn_sr_it2bh_end:
+fn_sr_it2bl:  .byte "V.SR.IT2G16.B.L"
+fn_sr_it2bl_end:
+fn_sr_it2ch:  .byte "V.SR.IT2G16.C.H"
+fn_sr_it2ch_end:
+fn_sr_it2cl:  .byte "V.SR.IT2G16.C.L"
+fn_sr_it2cl_end:
 fn_sr_m4a:    .byte "V.SR.M4G12.55.A"
 fn_sr_m4a_end:
 fn_sr_m4b:    .byte "V.SR.M4G12.55.B"
