@@ -845,9 +845,11 @@ t2pb6_restore:
         lda #IFR_T2
         sta VIA_BASE+VIA_IFR
         pla
-        sta VIA_BASE+VIA_ORB
+        sta ORB_HIGH
         pla
         sta VIA_BASE+VIA_DDRB
+        lda ORB_HIGH
+        sta VIA_BASE+VIA_ORB
         pla
         sta VIA_BASE+VIA_ACR
         cli
