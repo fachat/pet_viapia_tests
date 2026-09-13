@@ -5,6 +5,8 @@
 ; Tests the 6522 VIA at $E840 on the Commodore PET 4032.
 ; Reference timing data (produced by via_test1_gen.prg) must
 ; be present on device 8 (IEEE-488 disk drive) before running.
+; Group 7 additionally requires the IEEE-488 NRFD loopback:
+; VIA PB1 (/NRFD out) wired to VIA PB6 (/NRFD in).
 ;
 ; Test groups:
 ;
@@ -42,6 +44,10 @@
 ;     6c: T2, latch=$02              (file: V.T2.2)
 ;     6d: T2, latch=$FF              (file: V.T2.FF)
 ;
+;   Group 7 - T2 pulse counting on PB6 via NRFD loopback
+;     7a: PB6 starts high; T2 underflows after 6th low pulse
+;     7b: PB6 starts low;  T2 underflows after 7th low pulse
+;
 ; The timing measurement subroutines (meas_t1, meas_t1_rst,
 ; meas_t2) are byte-for-byte
 ; identical to those in 04-via-test1-gen.a65, ensuring that the
@@ -65,6 +71,15 @@ IER_SAVE = $0A              ; saved VIA IER value
 TMP      = $0B              ; scratch byte
 MEAS_ACR = $0C              ; current measurement ACR, saved/restored around KERNAL calls
 FAIL_IDX = $0D              ; index of first mismatch byte from compare_file ($FF = file error)
+ORB_HIGH = $0E              ; ORB image with PB1 (/NRFD out) driven high
+T2_LAST  = $0F              ; last/expected T2 low-byte value in PB6 pulse tests
+T2_MODE  = $10              ; PB6 pulse test mode: 0=start high, 1=start low
+T2_DDRB  = $11              ; saved DDRB image for PB6 pulse tests
+T2_ACR   = $12              ; saved ACR image for PB6 pulse tests
+ORB_SAVE = $13              ; saved ORB image for PB6 pulse tests
+
+VIA_NRFD_OUT = $02          ; PB1 mask - /NRFD output
+VIA_NRFD_IN  = $40          ; PB6 mask - /NRFD input
 
 ; ============================================================
 ; Memory buffers
@@ -415,6 +430,25 @@ main:
         ldy #>fn_t2ff
         jsr compare_file
         jsr print_result
+
+        ; --------------------------------------------------------
+        ; Group 7 - T2 pulse counting on PB6 via NRFD loopback
+        ; --------------------------------------------------------
+        lda #<msg_grp7
+        ldx #>msg_grp7
+        jsr print_str
+
+        lda #<msg_t7a
+        ldx #>msg_t7a
+        jsr print_str
+        jsr test_t2_pb6_count_high
+        jsr print_result
+
+        lda #<msg_t7b
+        ldx #>msg_t7b
+        jsr print_str
+        jsr test_t2_pb6_count_low
+        jsr print_result
         jsr wait_key
 
         ; --------------------------------------------------------
@@ -670,6 +704,10 @@ msg_t6a:      .byte "  6A T2 LATCH=00: ", 0
 msg_t6b:      .byte "  6B T2 LATCH=01: ", 0
 msg_t6c:      .byte "  6C T2 LATCH=02: ", 0
 msg_t6d:      .byte "  6D T2 LATCH=FF: ", 0
+
+msg_grp7:     .byte "GRP7: PB6 PULSE COUNTING", $0d, 0
+msg_t7a:      .byte "  7A PB6 START HI: ", 0
+msg_t7b:      .byte "  7B PB6 START LO: ", 0
 
 msg_ok:       .byte "OK", $0d, 0
 msg_fail:     .byte "FAIL @", 0

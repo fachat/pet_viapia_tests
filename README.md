@@ -78,7 +78,7 @@ Run this **once** on a known-good machine or in VICE (`make gen4`) to produce th
 
 ### `04-via-test1.a65` — VIA Test Module 1: Generic 6522 VIA Tests (Test 4)
 
-Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Groups 3–6 compare a live 256-byte timing capture against the reference files produced by `via_test1_gen.prg`.  On a mismatch the output shows `FAIL @xx` where `xx` is the hex index of the first differing byte.
+Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Groups 3–6 compare a live 256-byte timing capture against the reference files produced by `via_test1_gen.prg`; Group 7 uses the IEEE-488 NRFD loopback (`VIA PB1 /NRFD out` wired to `VIA PB6 /NRFD in`) to exercise T2 pulse counting.  On a mismatch the output shows `FAIL @xx` where `xx` is the hex index of the first differing byte.
 
 | Test | ACR setup | Description |
 |------|-----------|-------------|
@@ -109,6 +109,9 @@ Tests the 6522 VIA at $E840.  Groups 1–2 are self-contained register tests; Gr
 | 6B — T2 LATCH=01 | | Same test with latch=$01; compares against `V.T2.1`. |
 | 6C — T2 LATCH=02 | | Same test with latch=$02; compares against `V.T2.2`. |
 | 6D — T2 LATCH=FF | | Same test with latch=$FF; compares against `V.T2.FF`. |
+| **GRP7: PB6 PULSE COUNTING** | bit 5 = `1` (T2 counts PB6 pulses) | |
+| 7A — PB6 START HI | | Drives PB1 high before arming T2, then toggles PB1/PB6 low-high; verifies only the low transitions decrement T2, IFR bit 5 sets on the 6th low pulse, and counting continues after underflow. |
+| 7B — PB6 START LO | | Drives PB1 low before arming T2; verifies the first write of low does not count, then confirms underflow happens on the 7th low pulse and counting continues afterwards. |
 ---
 
 ### `05-pia-test2.a65` — PIA Test Module 5: CB1 Vertical Blank Signal Tests

@@ -589,3 +589,275 @@ t2chs2_fail8:
         sta FAIL_IDX
         lda #1
         rts
+
+; ============================================================
+; Subroutine: test_t2_pb6_count_high
+;
+; Verifies T2 pulse-count mode using the PET IEEE-488 NRFD
+; loopback from VIA PB1 (/NRFD out) to VIA PB6 (/NRFD in),
+; with PB6 starting high before T2 is armed.
+;
+; Returns: A=0 pass, A=1 fail
+; ============================================================
+test_t2_pb6_count_high:
+        lda #0
+        sta T2_MODE
+        jmp test_t2_pb6_count_common
+
+; ============================================================
+; Subroutine: test_t2_pb6_count_low
+;
+; Same as test_t2_pb6_count_high, but PB6 starts low before T2
+; is armed, so the first write of 0 must not decrement T2.
+;
+; Returns: A=0 pass, A=1 fail
+; ============================================================
+test_t2_pb6_count_low:
+        lda #1
+        sta T2_MODE
+
+; ============================================================
+; Subroutine: test_t2_pb6_count_common
+;
+; Common implementation for the PB6 pulse-counting tests.
+; T2_MODE = 0 -> start PB6 high
+; T2_MODE = 1 -> start PB6 low
+;
+; Sequence:
+;   1. Save ACR/DDRB/ORB and configure PB1 as the driven output.
+;   2. Force PB6 high or low through the PB1->PB6 NRFD loopback.
+;   3. Enable T2 pulse-count mode (ACR bit 5 = 1).
+;   4. Load T2 = $0005 by writing T2CL then T2CH.
+;   5. Toggle PB1 low/high and verify only the low transitions
+;      decrement T2.
+;   6. Verify IFR.T2 sets on the underflowing low transition.
+;   7. Keep toggling and verify T2 continues counting after
+;      underflow.
+;
+; Returns: A=0 pass, A=1 fail
+; ============================================================
+test_t2_pb6_count_common:
+        sei
+
+        lda VIA_BASE+VIA_ACR
+        sta T2_ACR
+        lda VIA_BASE+VIA_DDRB
+        sta T2_DDRB
+        lda VIA_BASE+VIA_ORB
+        sta ORB_SAVE
+
+        ora #VIA_NRFD_OUT
+        sta ORB_HIGH
+
+        lda T2_DDRB
+        ora #VIA_NRFD_OUT
+        sta VIA_BASE+VIA_DDRB
+        lda ORB_HIGH
+        sta VIA_BASE+VIA_ORB
+
+        lda T2_MODE
+        beq t2pb6_init_high
+
+        lda ORB_HIGH
+        eor #VIA_NRFD_OUT
+        sta VIA_BASE+VIA_ORB
+        lda VIA_BASE+VIA_ORB
+        and #VIA_NRFD_IN
+        beq t2pb6_init_low_ok
+        jmp t2pb6_fail01
+t2pb6_init_low_ok:
+        jmp t2pb6_init_done
+
+t2pb6_init_high:
+        lda VIA_BASE+VIA_ORB
+        and #VIA_NRFD_IN
+        cmp #VIA_NRFD_IN
+        beq t2pb6_init_done
+        jmp t2pb6_fail01
+
+t2pb6_init_done:
+        lda VIA_BASE+VIA_ACR
+        ora #ACR_T2_MASK
+        sta VIA_BASE+VIA_ACR
+
+        lda #$05
+        sta VIA_BASE+VIA_T2CL
+        lda #$00
+        sta VIA_BASE+VIA_T2CH
+
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        beq t2pb6_ifr_ok
+        jmp t2pb6_fail02
+t2pb6_ifr_ok:
+
+        lda T2_MODE
+        beq t2pb6_run_main
+
+        lda ORB_HIGH
+        eor #VIA_NRFD_OUT
+        sta VIA_BASE+VIA_ORB
+        lda VIA_BASE+VIA_T2CL
+        cmp #$05
+        beq t2pb6_first_low_ok
+        jmp t2pb6_fail05
+t2pb6_first_low_ok:
+
+        lda ORB_HIGH
+        sta VIA_BASE+VIA_ORB
+        lda VIA_BASE+VIA_T2CL
+        cmp #$05
+        beq t2pb6_run_main
+        jmp t2pb6_fail85
+
+t2pb6_run_main:
+        lda #$05
+        sta T2_LAST
+        ldx #5
+
+t2pb6_main_lp:
+        dec T2_LAST
+        lda ORB_HIGH
+        eor #VIA_NRFD_OUT
+        sta VIA_BASE+VIA_ORB
+        lda VIA_BASE+VIA_T2CL
+        cmp T2_LAST
+        bne t2pb6_fail_lo
+
+        lda ORB_HIGH
+        sta VIA_BASE+VIA_ORB
+        lda VIA_BASE+VIA_T2CL
+        cmp T2_LAST
+        bne t2pb6_fail_hi
+
+        dex
+        bne t2pb6_main_lp
+
+        lda ORB_HIGH
+        eor #VIA_NRFD_OUT
+        sta VIA_BASE+VIA_ORB
+        lda VIA_BASE+VIA_IFR
+        and #IFR_T2
+        beq t2pb6_fail_ifr
+
+        lda VIA_BASE+VIA_T2CL
+        cmp #$ff
+        beq t2pb6_got_ff
+        jmp t2pb6_fail_ff
+t2pb6_got_ff:
+        sta T2_LAST
+
+        lda ORB_HIGH
+        sta VIA_BASE+VIA_ORB
+        lda VIA_BASE+VIA_T2CL
+        cmp T2_LAST
+        beq t2pb6_post_setup_ok
+        jmp t2pb6_fail7f
+t2pb6_post_setup_ok:
+
+        ldx #5
+t2pb6_post_lp:
+        dec T2_LAST
+        lda ORB_HIGH
+        eor #VIA_NRFD_OUT
+        sta VIA_BASE+VIA_ORB
+        lda VIA_BASE+VIA_T2CL
+        cmp T2_LAST
+        bne t2pb6_fail_lo
+
+        lda ORB_HIGH
+        sta VIA_BASE+VIA_ORB
+        lda VIA_BASE+VIA_T2CL
+        cmp T2_LAST
+        bne t2pb6_fail_hi
+
+        dex
+        bne t2pb6_post_lp
+
+        lda #0
+        jmp t2pb6_restore
+
+t2pb6_fail_lo:
+        lda T2_LAST
+        sta FAIL_IDX
+        lda #1
+        jmp t2pb6_restore
+
+t2pb6_fail_hi:
+        lda T2_LAST
+        ora #$80
+        sta FAIL_IDX
+        lda #1
+        jmp t2pb6_restore
+
+t2pb6_fail_ifr:
+        lda T2_MODE
+        beq t2pb6_fail06
+        lda #$07
+        bne t2pb6_fail_set
+t2pb6_fail06:
+        lda #$06
+t2pb6_fail_set:
+        sta FAIL_IDX
+        lda #1
+        jmp t2pb6_restore
+
+t2pb6_fail01:
+        lda #$01
+        sta FAIL_IDX
+        lda #1
+        jmp t2pb6_restore
+
+t2pb6_fail02:
+        lda #$02
+        sta FAIL_IDX
+        lda #1
+        jmp t2pb6_restore
+
+t2pb6_fail05:
+        lda #$05
+        sta FAIL_IDX
+        lda #1
+        jmp t2pb6_restore
+
+t2pb6_fail85:
+        lda #$85
+        sta FAIL_IDX
+        lda #1
+        jmp t2pb6_restore
+
+t2pb6_fail_ff:
+        lda #$ff
+        sta FAIL_IDX
+        lda #1
+        jmp t2pb6_restore
+
+t2pb6_fail7f:
+        lda #$7f
+        sta FAIL_IDX
+        lda #1
+        jmp t2pb6_restore
+
+t2pb6_restore:
+        sta TMP
+        lda #IFR_T2
+        sta VIA_BASE+VIA_IFR
+        lda T2_ACR
+        sta VIA_BASE+VIA_ACR
+        lda T2_DDRB
+        and #VIA_NRFD_OUT
+        beq t2pb6_restore_input
+        lda ORB_SAVE
+        sta VIA_BASE+VIA_ORB
+        lda T2_DDRB
+        sta VIA_BASE+VIA_DDRB
+        jmp t2pb6_restore_done
+t2pb6_restore_input:
+        lda T2_DDRB
+        sta VIA_BASE+VIA_DDRB
+        lda ORB_SAVE
+        sta VIA_BASE+VIA_ORB
+t2pb6_restore_done:
+        cli
+        lda TMP
+        rts
