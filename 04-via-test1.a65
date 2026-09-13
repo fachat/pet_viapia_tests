@@ -75,6 +75,8 @@ ORB_HIGH = $0E              ; ORB image with PB1 (/NRFD out) driven high
 T2_LAST  = $0F              ; last/expected T2 low-byte value in PB6 pulse tests
 T2_MODE  = $10              ; PB6 pulse test mode: 0=start high, 1=start low
 T2_DDRB  = $11              ; saved DDRB image for PB6 pulse tests
+T2_ACR   = $12              ; saved ACR image for PB6 pulse tests
+ORB_SAVE = $13              ; saved ORB image for PB6 pulse tests
 
 VIA_NRFD_OUT = $02          ; PB1 mask - /NRFD output
 VIA_NRFD_IN  = $40          ; PB6 mask - /NRFD input

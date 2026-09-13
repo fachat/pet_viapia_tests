@@ -640,12 +640,11 @@ test_t2_pb6_count_common:
         sei
 
         lda VIA_BASE+VIA_ACR
-        pha
+        sta T2_ACR
         lda VIA_BASE+VIA_DDRB
         sta T2_DDRB
-        pha
         lda VIA_BASE+VIA_ORB
-        pha
+        sta ORB_SAVE
 
         ora #VIA_NRFD_OUT
         sta ORB_HIGH
@@ -843,15 +842,11 @@ t2pb6_restore:
         sta TMP
         lda #IFR_T2
         sta VIA_BASE+VIA_IFR
-        pla
-        sta ORB_HIGH
-        pla
-        sta T2_DDRB
-        pla
+        lda T2_ACR
         sta VIA_BASE+VIA_ACR
         lda T2_DDRB
         sta VIA_BASE+VIA_DDRB
-        lda ORB_HIGH
+        lda ORB_SAVE
         sta VIA_BASE+VIA_ORB
         cli
         lda TMP
