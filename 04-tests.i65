@@ -649,7 +649,6 @@ test_t2_pb6_count_common:
 
         ora #VIA_NRFD_OUT
         sta ORB_HIGH
-        sta VIA_BASE+VIA_ORB
 
         lda T2_DDRB
         ora #VIA_NRFD_OUT
