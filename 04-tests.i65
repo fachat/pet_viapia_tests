@@ -845,9 +845,19 @@ t2pb6_restore:
         lda T2_ACR
         sta VIA_BASE+VIA_ACR
         lda T2_DDRB
+        and #VIA_NRFD_OUT
+        beq t2pb6_restore_input
+        lda ORB_SAVE
+        sta VIA_BASE+VIA_ORB
+        lda T2_DDRB
+        sta VIA_BASE+VIA_DDRB
+        jmp t2pb6_restore_done
+t2pb6_restore_input:
+        lda T2_DDRB
         sta VIA_BASE+VIA_DDRB
         lda ORB_SAVE
         sta VIA_BASE+VIA_ORB
+t2pb6_restore_done:
         cli
         lda TMP
         rts
