@@ -1212,6 +1212,8 @@ t3d_done:
         jsr test_sr_mode4_cb1
         jsr print_result_m4_cb1
 
+        jsr wait_key
+
         ; --------------------------------------------------------
         ; Group 16 - Shift register: shift in under T2 control
         ; NOTE: CB1 must not be hard-wired as input on the board;
