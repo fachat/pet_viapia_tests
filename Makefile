@@ -4,8 +4,9 @@
 # Emulator: VICE xpet
 
 XA      = xa
-IOBASE  ?= \$$e800
-XAFLAGS = -W -XC -XMASM -DIOBASE=$(IOBASE)
+IOBASE  ?= 0xe800
+UPETDBG	?= 0
+XAFLAGS = -W -XC -XMASM -DIOBASE=$(IOBASE) -DUPETDBG=$(UPETDBG)
 
 BUILD   = build
 LISTING = listing
@@ -39,6 +40,9 @@ D64_MENU = $(BUILD)/menu_tests.d64
 .PHONY: all clean run1 run2 run3 run4 run5 gen4 run6 run7 gen8 run8 menu run-menu
 
 all: $(PRG1) $(PRG2) $(PRG3) $(GEN4) $(PRG4) $(PRG5) $(PRG6) $(PRG7) $(GEN8) $(PRG8) $(D64) $(D64_SR) $(MENU) $(D64_MENU)
+
+upetdbg: clean
+	UPETDBG=1 IOBASE=0x9900 make all
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -152,4 +156,4 @@ run-menu: $(D64_MENU)
 	bash vice/run-menu.sh $(D64_MENU)
 
 clean:
-	rm -rf $(BUILD) $(LISTING)
+	rm -rf $(BUILD)/* $(LISTING)

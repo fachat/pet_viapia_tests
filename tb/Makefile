@@ -1,6 +1,6 @@
 
 ROMS=tb_08_grp1.rom tb_08_grp6a.rom tb_08_grp11a.rom \
-     	tb_04_grp3.rom
+     	tb_04_grp3.rom tb_04_grp6.rom
 
 all: $(ROMS)
 

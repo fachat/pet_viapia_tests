@@ -162,6 +162,12 @@ menu_phys_start = *     ; physical load address of the menu body
 ; menu_main: clear screen, display menu, wait for input
 ; ============================================================
 menu_main:
+	; setup UPET Debug mode
+#if UPETDBG
+	lda #5
+	sta $e804
+#endif
+
         ; clear screen
         lda #$93
         jsr CHROUT

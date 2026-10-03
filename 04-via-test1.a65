@@ -449,7 +449,7 @@ main:
         jsr print_str
         jsr test_t2_pb6_count_low
         jsr print_result
-        jsr wait_key
+        ;jsr wait_key
 
         ; --------------------------------------------------------
         ; Restore VIA state and print summary
