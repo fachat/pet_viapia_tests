@@ -1430,6 +1430,10 @@ pr_fail:
         lda #<msg_fail
         ldx #>msg_fail
         jsr print_str
+	lda FAIL_STEP
+	jsr print_hex
+	lda #"."
+	jsr CHROUT
         lda FAIL_IDX        ; byte index from compare_file (or FAIL_STEP for mode 0)
         jsr print_hex
         lda #$0d

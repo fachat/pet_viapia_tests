@@ -75,6 +75,7 @@ test_sr_mode0:
         and #$7F                    ; PA7 = 0 -> CB1 low (no shift)
         sta PIA1_BASE+PIA_ORA
         lda VIA_BASE+VIA_SR
+	sta FAIL_IDX
         bne sm0_jmp_fail            ; expect $00
 
         ; ---- Step 2: CB1 hi -> SR = $01 ----
@@ -84,6 +85,7 @@ test_sr_mode0:
         ora #$80                    ; PA7 = 1 -> CB1 high (rising edge -> shift)
         sta PIA1_BASE+PIA_ORA
         lda VIA_BASE+VIA_SR
+	sta FAIL_IDX
         cmp #$01
         bne sm0_jmp_fail
 
@@ -94,6 +96,7 @@ test_sr_mode0:
         and #$7F
         sta PIA1_BASE+PIA_ORA
         lda VIA_BASE+VIA_SR
+	sta FAIL_IDX
         cmp #$01
         bne sm0_jmp_fail
 
@@ -104,6 +107,7 @@ test_sr_mode0:
         ora #$80
         sta PIA1_BASE+PIA_ORA
         lda VIA_BASE+VIA_SR
+	sta FAIL_IDX
         cmp #$03
         bne sm0_jmp_fail
         jmp sm0_step5_start     ; step 4 passed: skip over the trampoline

@@ -1,0 +1,36 @@
+
+	*=$f000
+
+#include "tb_08.i65"
+#include "../hw.inc"
+#include "../08-meas.i65"
+
+reset	sei
+	cld
+	ldx #$ff
+	txs
+
+	; init the PIAs for feedback loops
+	lda #%00000111
+	sta $e811
+	sta $e813
+	sta $e821
+	sta $e823
+
+        lda #$55
+        sta SR_INIT
+        lda #$20
+        sta SR_T2_LO
+        lda #$02
+        sta SR_T2_HI
+
+	jsr meas_sr_mode5
+	brk
+
+irq	rti
+nmi	rti
+
+	.dsb $fffa-*
+	.word nmi
+	.word reset
+	.word irq
